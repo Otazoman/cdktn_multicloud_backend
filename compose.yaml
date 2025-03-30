@@ -1,0 +1,17 @@
+services:
+  cdktf-vpn:
+    build:
+      context: .
+      args:
+        NODE_VERSION: ${NODE_VERSION}
+        TERRAFORM_VERSION: ${TERRAFORM_VERSION}
+    env_file:
+      - .env
+    volumes:
+      - ~/.secret:/root/.secret:ro
+      - ./.terraform.d:/root/.terraform.d
+      - ./app:/app
+    working_dir: /app
+    entrypoint: bash
+    tty: true
+    restart: always
