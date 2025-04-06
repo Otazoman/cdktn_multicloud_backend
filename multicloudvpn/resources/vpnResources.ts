@@ -91,7 +91,6 @@ export function createVpnResources(
     // AWS VPN Gateway
     const awsVpnGatewayResourceparams = {
       vpcId: awsVpcResources.vpc.id,
-      routeTableId: awsVpcResources.vpc.defaultRouteTableId,
       amazonSideAsn: awsVpnparams.bgpAwsAsn,
       vgwName: `${awsVpcResourcesparams.vpcName}-vgw`,
     };

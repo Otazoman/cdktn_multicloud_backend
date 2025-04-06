@@ -21,6 +21,7 @@ interface AzureVmConfig {
     sku: string;
     version: string;
   };
+  build: boolean; // 追加: VM 作成フラグ
 }
 
 interface CreateAzureVmParams {
@@ -47,44 +48,46 @@ export function createAzureVms(
 
   const vms: LinuxVirtualMachine[] = [];
 
-  params.vmConfigs.forEach((vmConfig, index) => {
-    const nic = new NetworkInterface(scope, `nic-${index}`, {
-      name: `${vmConfig.name}-nic`,
-      location: vmConfig.location,
-      resourceGroupName: vmConfig.resourceGroupName,
-      ipConfiguration: [
-        {
-          name: "internal",
-          subnetId: subnets[index % subnets.length].id,
-          privateIpAddressAllocation: "Dynamic",
-        },
-      ],
-      provider: provider,
-    });
+  params.vmConfigs
+    .filter((vmConfig) => vmConfig.build)
+    .forEach((vmConfig, index) => {
+      const nic = new NetworkInterface(scope, `nic-${index}`, {
+        name: `${vmConfig.name}-nic`,
+        location: vmConfig.location,
+        resourceGroupName: vmConfig.resourceGroupName,
+        ipConfiguration: [
+          {
+            name: "internal",
+            subnetId: subnets[index % subnets.length].id,
+            privateIpAddressAllocation: "Dynamic",
+          },
+        ],
+        provider: provider,
+      });
 
-    const vm = new LinuxVirtualMachine(scope, `vm-${index}`, {
-      name: vmConfig.name,
-      resourceGroupName: vmConfig.resourceGroupName,
-      location: vmConfig.location,
-      size: vmConfig.size,
-      adminUsername: vmConfig.adminUsername,
-      networkInterfaceIds: [nic.id],
-      adminSshKey: [
-        {
-          username: vmConfig.adminUsername,
-          publicKey: params.sshKey.publicKeyOpenssh,
+      const vm = new LinuxVirtualMachine(scope, `vm-${index}`, {
+        name: vmConfig.name,
+        resourceGroupName: vmConfig.resourceGroupName,
+        location: vmConfig.location,
+        size: vmConfig.size,
+        adminUsername: vmConfig.adminUsername,
+        networkInterfaceIds: [nic.id],
+        adminSshKey: [
+          {
+            username: vmConfig.adminUsername,
+            publicKey: params.sshKey.publicKeyOpenssh,
+          },
+        ],
+        osDisk: {
+          caching: vmConfig.osDisk.caching,
+          storageAccountType: vmConfig.osDisk.storageAccountType,
         },
-      ],
-      osDisk: {
-        caching: vmConfig.osDisk.caching,
-        storageAccountType: vmConfig.osDisk.storageAccountType,
-      },
-      sourceImageReference: vmConfig.sourceImageReference,
-      provider: provider,
-    });
+        sourceImageReference: vmConfig.sourceImageReference,
+        provider: provider,
+      });
 
-    vms.push(vm);
-  });
+      vms.push(vm);
+    });
 
   return vms;
 }

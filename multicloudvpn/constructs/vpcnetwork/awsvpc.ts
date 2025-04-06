@@ -74,7 +74,7 @@ export function createAwsVpcResources(
 
   // security groups
   const securityGroups = params.securityGroups.map((sgConfig, index) => {
-    const sg = new SecurityGroup(scope, `awsSecurityGroup${index}`, {
+    const sg = new SecurityGroup(scope, `awsSecurityGroup-${index}`, {
       provider: provider,
       vpcId: vpc.id,
       name: sgConfig.name,
@@ -85,7 +85,6 @@ export function createAwsVpcResources(
               toPort: rule.toPort,
               protocol: rule.protocol,
               cidrBlocks: rule.cidrBlocks || [],
-              //              securityGroups: rule.securityGroups || [],
               ipv6CidrBlocks: rule.ipv6CidrBlocks,
               description: rule.description,
             }))
@@ -147,19 +146,21 @@ export function createAwsVpcResources(
   );
 
   if (ec2SecurityGroup) {
-    const ec2ConnectSgId =
-      securityGroupMapping[params.ec2ICEndpoint.securityGroupNames[0]];
-
-    new SecurityGroupRule(scope, "ec2InstanceConnectIngressRule", {
-      provider: provider,
-      type: "ingress",
-      fromPort: 22,
-      toPort: 22,
-      protocol: "tcp",
-      sourceSecurityGroupId: ec2ConnectSgId,
-      securityGroupId: ec2SecurityGroup.id,
-      description: "Allow SSH from EC2 Instance Connect Endpoint",
-    });
+    new SecurityGroupRule(
+      scope,
+      `ec2InstanceConnectIngressRule-${params.ec2ICEndpoint.securityGroupNames[0]}-22-tcp`,
+      {
+        provider: provider,
+        type: "ingress",
+        fromPort: 22,
+        toPort: 22,
+        protocol: "tcp",
+        sourceSecurityGroupId:
+          securityGroupMapping[params.ec2ICEndpoint.securityGroupNames[0]],
+        securityGroupId: ec2SecurityGroup.id,
+        description: "Allow SSH from EC2 Instance Connect Endpoint",
+      }
+    );
   }
 
   return {

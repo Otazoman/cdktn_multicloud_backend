@@ -1,10 +1,10 @@
-# Cloud to Cloud VPN Connection
+# Multi-Cloud Backend
 
-Building a cloud-to-cloud VPN with CDK for Terraform
+Sample placement for building a backend in multiple clouds
 
 # Description
 
-Sample for building VPN connection between AWS, Azure and GoogleCloud with CDK for Terraform
+Create a VPN connection between AWS, Google and Azure with a backend integration with CDKTF
 
 # Operating environment
 
@@ -23,11 +23,11 @@ Docker version 27.3.1
 ## Docker startup for CDKTF
 
 ```
-git clone https://github.com/Otazoman/cdktf_multicloudvpn.git
-cd cdktf_multicloudvpn
+git clone https://github.com/Otazoman/cdktf_multicloudbackend.git
+cd cdktf_multicloudbackend
 docker build --build-arg NODE_VERSION=22 --build-arg TERRAFORM_VERSION=1.9.8 -t cdktf-docker .
 docker compose up -d
-docker compose exec cdktf-vpn bash
+docker compose exec cdktf-backend bash
 ```
 
 ## If you want to initialize

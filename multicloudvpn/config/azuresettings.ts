@@ -165,12 +165,11 @@ export const createLocalGatewayParams = (
 });
 
 /* AzureVM */
-export const vmBuilding = true;
 export const azureVmsConfigparams = [
   {
     name: "example-vm-1",
-    resourceGroupName: resourceGroup,
-    location: location,
+    resourceGroupName: "rg_multicloud",
+    location: "Japan East",
     size: "Standard_B1ls",
     adminUsername: "azureuser",
     osDisk: {
@@ -183,22 +182,24 @@ export const azureVmsConfigparams = [
       sku: "server",
       version: "latest",
     },
+    build: true,
   },
-  // {
-  //   name: 'example-vm-2',
-  //   resourceGroupName: 'rg_multicloud',
-  //   location: 'Japan East',
-  //   size: 'Standard_B1ls',
-  //   adminUsername: 'azureuser',
-  //   osDisk: {
-  //     caching: 'ReadWrite',
-  //     storageAccountType: 'Standard_LRS',
-  //   },
-  //   sourceImageReference: {
-  //     publisher: 'Canonical',
-  //     offer: 'ubuntu-24_04-lts',
-  //     sku: 'server',
-  //     version: 'latest',
-  //   },
-  // },
+  {
+    name: "example-vm-2",
+    resourceGroupName: "rg_multicloud",
+    location: "Japan East",
+    size: "Standard_B1ls",
+    adminUsername: "azureuser",
+    osDisk: {
+      caching: "ReadWrite",
+      storageAccountType: "Standard_LRS",
+    },
+    sourceImageReference: {
+      publisher: "Canonical",
+      offer: "ubuntu-24_04-lts",
+      sku: "server",
+      version: "latest",
+    },
+    build: false,
+  },
 ];

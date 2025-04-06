@@ -92,7 +92,6 @@ export const createCustomerGatewayParams = (
 });
 
 /* EC2 */
-export const ec2Building = true;
 export const ec2Configs = [
   {
     ami: "ami-0b20f552f63953f0e",
@@ -101,15 +100,17 @@ export const ec2Configs = [
     tags: {
       Name: "MyEC2Instance1",
     },
-    securityGroupNames: ["my-aws-vpc-sg1"],
+    securityGroupIds: ["my-aws-vpc-sg1"],
+    build: true,
   },
-  // {
-  //   ami: "ami-0b20f552f63953f0e",
-  //   instanceType: "t3.small",
-  //   keyName: "multicloud_test",
-  //   tags: {
-  //     Name: "MyEC2Instance2",
-  //   },
-  //   securityGroupNames: ["my-aws-vpc-sg1"],
-  // },
+  {
+    ami: "ami-0b20f552f63953f0e",
+    instanceType: "t3.small",
+    keyName: "multicloud_test",
+    tags: {
+      Name: "MyEC2Instance2",
+    },
+    securityGroupIds: ["my-aws-vpc-sg1"],
+    build: false,
+  },
 ];

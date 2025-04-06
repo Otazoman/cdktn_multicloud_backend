@@ -94,7 +94,6 @@ const serviceAccountScopes = [
   "https://www.googleapis.com/auth/trace.append",
 ];
 
-export const gceBuilding = true;
 export const gceInstancesParams = {
   project: "multicloud-sitevpn-project",
   instanceConfigs: [
@@ -110,20 +109,22 @@ export const gceInstancesParams = {
       bootDiskDeviceName: "test-instance1-boot-disk",
       subnetworkName: "subnet1",
       serviceAccountScopes: serviceAccountScopes,
+      build: true,
     },
-    // {
-    //   name: "gce-instance-2",
-    //   machineType: "e2-micro",
-    //   zone: "asia-northeast1-b",
-    //   tags: ["multicloud"],
-    //   bootDiskImage:
-    //     "projects/ubuntu-os-cloud/global/images/ubuntu-2404-noble-amd64-v20240701a",
-    //   bootDiskSize: 10,
-    //   bootDiskType: "pd-standard",
-    //   bootDiskDeviceName: "test-instance2-boot-disk",
-    //   subnetworkName: "subnet2",
-    //   serviceAccountScopes: serviceAccountScopes,
-    // },
+    {
+      name: "gce-instance-2",
+      machineType: "e2-micro",
+      zone: "asia-northeast1-b",
+      tags: ["multicloud"],
+      bootDiskImage:
+        "projects/ubuntu-os-cloud/global/images/ubuntu-2404-noble-amd64-v20240701a",
+      bootDiskSize: 10,
+      bootDiskType: "pd-standard",
+      bootDiskDeviceName: "test-instance2-boot-disk",
+      subnetworkName: "subnet2",
+      serviceAccountScopes: serviceAccountScopes,
+      build: false,
+    },
   ],
   vpcName: vpcName,
 };

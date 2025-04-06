@@ -3,14 +3,14 @@ import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
 import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
 import { Token } from "cdktf";
 import { Construct } from "constructs";
-import { ec2Building, ec2Configs } from "../config/awssettings";
-import { azureVmsConfigparams, vmBuilding } from "../config/azuresettings";
+import { ec2Configs } from "../config/awssettings";
+import { azureVmsConfigparams } from "../config/azuresettings";
 import {
   awsToAzure,
   awsToGoogle,
   googleToAzure,
 } from "../config/commonsettings";
-import { gceBuilding, gceInstancesParams } from "../config/googlesettings";
+import { gceInstancesParams } from "../config/googlesettings";
 import { createAwsEc2Instances } from "../constructs/vmresources/awsec2";
 import { createAzureVms } from "../constructs/vmresources/azurevm";
 import { createGoogleGceInstances } from "../constructs/vmresources/googlegce";
@@ -39,7 +39,7 @@ export const createVmResources = (
   sshKey: any,
   vpnResources: any
 ) => {
-  if ((awsToAzure || awsToGoogle) && ec2Building) {
+  if (awsToAzure || awsToGoogle) {
     //AWS EC2 Instances
     const getSecurityGroupId = (name: string): string => {
       const mapping = awsVpcResources.securityGroupMapping;
@@ -52,11 +52,11 @@ export const createVmResources = (
 
     const awsEc2Instances = createAwsEc2Instances(scope, awsProvider, {
       instanceConfigs: ec2Configs.map((config) => {
-        const { securityGroupNames, ...restConfig } = config;
+        const { securityGroupIds, ...restConfig } = config;
 
         return {
           ...restConfig,
-          securityGroupIds: securityGroupNames
+          securityGroupIds: securityGroupIds
             .map((name) => getSecurityGroupId(name))
             .filter((id): id is string => id !== undefined),
         };
@@ -69,7 +69,7 @@ export const createVmResources = (
     );
   }
 
-  if ((awsToGoogle || googleToAzure) && gceBuilding) {
+  if (awsToGoogle || googleToAzure) {
     // Google GCE Instances
     const googleGceInstances = createGoogleGceInstances(
       scope,
@@ -86,7 +86,7 @@ export const createVmResources = (
     );
   }
 
-  if ((awsToAzure || googleToAzure) && vmBuilding) {
+  if (awsToAzure || googleToAzure) {
     // Azure VMs
     const azureVmParams = {
       vnetName: azureVnetResources.vnet.name,

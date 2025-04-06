@@ -15,6 +15,7 @@ interface GceInstanceConfig {
   bootDiskDeviceName: string;
   subnetworkName: string;
   serviceAccountScopes: string[];
+  build: boolean;
 }
 
 interface CreateGceInstancesParams {
@@ -30,33 +31,35 @@ export function createGoogleGceInstances(
   vpc: GoogleVpc,
   subnets: ComputeSubnetwork[]
 ) {
-  const instances = params.instanceConfigs.map((config, index) => {
-    return new ComputeInstance(scope, `gceInstance${index}`, {
-      provider: provider,
-      project: params.project,
-      name: config.name,
-      machineType: config.machineType,
-      zone: config.zone,
-      tags: config.tags,
-      bootDisk: {
-        initializeParams: {
-          image: config.bootDiskImage,
-          size: config.bootDiskSize,
-          type: config.bootDiskType,
+  const instances = params.instanceConfigs
+    .filter((config) => config.build)
+    .map((config, index) => {
+      return new ComputeInstance(scope, `gceInstance${index}`, {
+        provider: provider,
+        project: params.project,
+        name: config.name,
+        machineType: config.machineType,
+        zone: config.zone,
+        tags: config.tags,
+        bootDisk: {
+          initializeParams: {
+            image: config.bootDiskImage,
+            size: config.bootDiskSize,
+            type: config.bootDiskType,
+          },
+          deviceName: config.bootDiskDeviceName,
         },
-        deviceName: config.bootDiskDeviceName,
-      },
-      networkInterface: [
-        {
-          subnetwork: `${params.vpcName}-${config.subnetworkName}`,
+        networkInterface: [
+          {
+            subnetwork: `${params.vpcName}-${config.subnetworkName}`,
+          },
+        ],
+        serviceAccount: {
+          scopes: config.serviceAccountScopes,
         },
-      ],
-      serviceAccount: {
-        scopes: config.serviceAccountScopes,
-      },
-      dependsOn: [vpc, ...subnets],
+        dependsOn: [vpc, ...subnets],
+      });
     });
-  });
 
   return instances;
 }

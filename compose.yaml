@@ -1,5 +1,5 @@
 services:
-  cdktf-vpn:
+  cdktf-backend:
     build:
       context: .
       args:
