@@ -134,97 +134,94 @@ export function createVpnResources(
           awsGoogleVpnGatewayIpAddresses.push(interfaceObj.ipAddress);
         }
       }
+    }
+    // AWS CustomerGateway (Connect Google)
+    const awsGoogleCustomerGatewayParams = createCustomerGatewayParams(
+      destinationGoogle,
+      googleAwsVpnParams.bgpGoogleAsn,
+      resources.awsVpnGateway.id,
+      awsGoogleVpnGatewayIpAddresses,
+      isSingleTunnel
+    );
+    const awsGoogleCgwVpns = createAwsCustomerGateway(
+      scope,
+      awsProvider,
+      awsGoogleCustomerGatewayParams
+    );
 
-      // AWS CustomerGateway (Connect Google)
-      const awsGoogleCustomerGatewayParams = createCustomerGatewayParams(
-        destinationGoogle,
-        googleAwsVpnParams.bgpGoogleAsn,
-        resources.awsVpnGateway.id,
-        awsGoogleVpnGatewayIpAddresses,
-        isSingleTunnel
-      );
-      const awsGoogleCgwVpns = createAwsCustomerGateway(
-        scope,
-        awsProvider,
-        awsGoogleCustomerGatewayParams
-      );
+    const awsVpnConnections = awsGoogleCgwVpns.flatMap((cgw) => {
+      if (!cgw.vpnConnection) return [];
+      const vpnConnection = cgw.vpnConnection;
+      return [
+        {
+          address: vpnConnection.tunnel1Address,
+          preshared_key: vpnConnection.tunnel1PresharedKey,
+          apipaCidr: `${vpnConnection.tunnel1CgwInsideAddress}/30`,
+          peerAddress: isSingleTunnel
+            ? vpnConnection.tunnel1Address
+            : vpnConnection.tunnel1VgwInsideAddress,
+        },
+        {
+          address: vpnConnection.tunnel2Address,
+          preshared_key: vpnConnection.tunnel2PresharedKey,
+          apipaCidr: `${vpnConnection.tunnel2CgwInsideAddress}/30`,
+          peerAddress: isSingleTunnel
+            ? vpnConnection.tunnel2Address
+            : vpnConnection.tunnel2VgwInsideAddress,
+        },
+      ];
+    });
 
-      const awsVpnConnections = awsGoogleCgwVpns.flatMap((cgw) => {
-        if (!cgw.vpnConnection) return [];
-        const vpnConnection = cgw.vpnConnection;
-        return [
-          {
-            address: vpnConnection.tunnel1Address,
-            preshared_key: vpnConnection.tunnel1PresharedKey,
-            apipaCidr: `${vpnConnection.tunnel1CgwInsideAddress}/30`,
-            peerAddress: isSingleTunnel
-              ? vpnConnection.tunnel1Address
-              : vpnConnection.tunnel1VgwInsideAddress,
-          },
-          {
-            address: vpnConnection.tunnel2Address,
-            preshared_key: vpnConnection.tunnel2PresharedKey,
-            apipaCidr: `${vpnConnection.tunnel2CgwInsideAddress}/30`,
-            peerAddress: isSingleTunnel
-              ? vpnConnection.tunnel2Address
-              : vpnConnection.tunnel2VgwInsideAddress,
-          },
-        ];
-      });
+    // Google VPN tunnels and peers (AWS)
+    const awsGoogleVpnGateway = {
+      vpnGatewayId: resources.googleVpnGateways.vpnGateway.id,
+      peerAsn: awsVpnparams.bgpAwsAsn,
+    };
+    const awsExternalVpnGateway = {
+      name: googleAwsVpnParams.vpnGatewayName,
+      interfaces: awsGoogleCgwVpns.flatMap((cgw) =>
+        cgw.vpnConnection
+          ? [
+              { ipAddress: cgw.vpnConnection.tunnel1Address },
+              { ipAddress: cgw.vpnConnection.tunnel2Address },
+            ]
+          : []
+      ),
+    };
+    const awsGoogleVpnParams = createGoogleVpnPeerParams(
+      destinationAws,
+      awsGoogleCgwVpns.length * 2,
+      googleAwsVpnParams.ikeVersion,
+      googleAwsVpnParams.cloudRouterName,
+      awsGoogleVpnGateway,
+      awsExternalVpnGateway,
+      awsVpnConnections,
+      isSingleTunnel,
+      googleVpcResourcesparams.vpcCidrblock,
+      awsVpcResourcesparams.vpcCidrBlock,
+      googleVpcResources.vpc.name,
+      resources.googleVpnGateways.forwardingRuleResources
+    );
+    createGooglePeerTunnel(scope, googleProvider, awsGoogleVpnParams);
 
-      // Google VPN tunnels and peers (AWS)
-      const awsGoogleVpnGateway = {
-        vpnGatewayId: resources.googleVpnGateways.vpnGateway.id,
-        peerAsn: awsVpnparams.bgpAwsAsn,
-      };
-      const awsExternalVpnGateway = {
-        name: googleAwsVpnParams.vpnGatewayName,
-        interfaces: awsGoogleCgwVpns.flatMap((cgw) =>
-          cgw.vpnConnection
-            ? [
-                { ipAddress: cgw.vpnConnection.tunnel1Address },
-                { ipAddress: cgw.vpnConnection.tunnel2Address },
-              ]
-            : []
-        ),
-      };
-      const awsGoogleVpnParams = createGoogleVpnPeerParams(
-        destinationAws,
-        awsGoogleCgwVpns.length * 2,
-        googleAwsVpnParams.ikeVersion,
-        googleAwsVpnParams.cloudRouterName,
-        awsGoogleVpnGateway,
-        awsExternalVpnGateway,
-        awsVpnConnections,
-        isSingleTunnel,
-        googleVpcResourcesparams.vpcCidrblock,
-        awsVpcResourcesparams.vpcCidrBlock,
-        googleVpcResources.vpc.name,
-        resources.googleVpnGateways.forwardingRuleResources
-      );
-      createGooglePeerTunnel(scope, googleProvider, awsGoogleVpnParams);
+    // AWS VPN Connection Routes for Google (Single Tunnel Only)
+    if (isSingleTunnel) {
+      const awsGoogleVpnConnectionRoutes: RouteConfig[] = [
+        {
+          target: destinationGoogle,
+          cidrBlock: googleVpcResourcesparams.vpcCidrblock,
+        },
+      ];
 
-      // AWS VPN Connection Routes for Google (Single Tunnel Only)
-      if (isSingleTunnel) {
-        const awsGoogleVpnConnectionRoutes: RouteConfig[] = [
-          {
-            target: destinationGoogle,
-            cidrBlock: googleVpcResourcesparams.vpcCidrblock,
-          },
-        ];
-
-        const vpnConnectionId = awsGoogleCgwVpns[0]?.vpnConnection?.id;
-        if (!vpnConnectionId) {
-          throw new Error(
-            "VPN Connection ID not found in AWS Customer Gateway."
-          );
-        }
-
-        createVpnConnectionRoutes(scope, awsProvider, {
-          routes: awsGoogleVpnConnectionRoutes,
-          vpnConnectionId: vpnConnectionId,
-        });
+      const vpnConnectionId = awsGoogleCgwVpns[0]?.vpnConnection?.id;
+      if (!vpnConnectionId) {
+        throw new Error("VPN Connection ID not found in AWS Customer Gateway.");
       }
+
+      createVpnConnectionRoutes(scope, awsProvider, {
+        routes: awsGoogleVpnConnectionRoutes,
+        vpnConnectionId: vpnConnectionId,
+      });
     }
   }
 

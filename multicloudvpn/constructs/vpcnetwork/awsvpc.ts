@@ -84,7 +84,8 @@ export function createAwsVpcResources(
               fromPort: rule.fromPort,
               toPort: rule.toPort,
               protocol: rule.protocol,
-              cidrBlocks: rule.cidrBlocks,
+              cidrBlocks: rule.cidrBlocks || [],
+              //              securityGroups: rule.securityGroups || [],
               ipv6CidrBlocks: rule.ipv6CidrBlocks,
               description: rule.description,
             }))
