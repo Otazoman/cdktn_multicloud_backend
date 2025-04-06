@@ -81,13 +81,17 @@ function createSingleTunnel(
 
   // Add routes
   const vpnRoutes = vpnTunnels.map((tunnel, index) => {
-    return new ComputeRoute(scope, `RouteToPeerVpc-${index + 1}`, {
-      provider: provider,
-      name: `${params.vpnTnnelname}-route-to-peer-${index + 1}`,
-      destRange: params.peerVpcCidr,
-      network: params.gcpNetwork,
-      nextHopVpnTunnel: tunnel.id,
-    });
+    return new ComputeRoute(
+      scope,
+      `${params.connectDestination}-RouteToPeerVpc-${index + 1}`,
+      {
+        provider: provider,
+        name: `${params.vpnTnnelname}-route-to-peer-${index + 1}`,
+        destRange: params.peerVpcCidr,
+        network: params.gcpNetwork,
+        nextHopVpnTunnel: tunnel.id,
+      }
+    );
   });
 
   return {
@@ -127,7 +131,7 @@ function createHaTunnel(
     (tunnel, index) =>
       new ComputeVpnTunnel(
         scope,
-        `VpnTunnel${params.connectDestination}-${index + 1}`,
+        `VpnTunnel-${params.connectDestination}-${index + 1}`,
         {
           provider,
           name: `${params.vpnTnnelname}-${index + 1}`,
@@ -146,7 +150,7 @@ function createHaTunnel(
   const routerInterfaces = vpnTunnels.map((tunnel, index) => {
     return new ComputeRouterInterface(
       scope,
-      `RouterInterface${params.connectDestination}-${index + 1}`,
+      `RouterInterface-${params.connectDestination}-${index + 1}`,
       {
         provider,
         name: `${params.routerInterfaceName}-${index + 1}`,
@@ -162,7 +166,7 @@ function createHaTunnel(
     const connection = params.vpnConnections[index];
     return new ComputeRouterPeer(
       scope,
-      `RouterPeer${params.connectDestination}-${index + 1}`,
+      `RouterPeer-${params.connectDestination}-${index + 1}`,
       {
         provider,
         name: `${params.routerPeerName}-${index + 1}`,

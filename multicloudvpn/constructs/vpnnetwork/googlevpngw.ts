@@ -41,17 +41,25 @@ function createSingleTunnelVpnGateway(
   params: GoogleVpnParams
 ) {
   // External ip address
-  const gcpCmkVgwAddress = new ComputeAddress(scope, "gcp_cmk_vgw_address", {
-    provider,
-    name: `${params.vpnGatewayName}-ip`,
-  });
+  const gcpCmkVgwAddress = new ComputeAddress(
+    scope,
+    `${params.connectDestination}_gcp_cmk_vgw_address`,
+    {
+      provider,
+      name: `${params.vpnGatewayName}-ip`,
+    }
+  );
 
   // VPN Gateway
-  const gcpCmkVgw = new ComputeVpnGateway(scope, "gcp_cmk_vgw", {
-    provider,
-    name: params.vpnGatewayName,
-    network: params.vpcNetwork,
-  });
+  const gcpCmkVgw = new ComputeVpnGateway(
+    scope,
+    `${params.connectDestination}_gcp_cmk_vgw`,
+    {
+      provider,
+      name: params.vpnGatewayName,
+      network: params.vpcNetwork,
+    }
+  );
 
   // Forwording rule
   const forwardingRules = {
@@ -63,16 +71,20 @@ function createSingleTunnelVpnGateway(
   const forwardingRuleResources: ComputeForwardingRule[] = [];
 
   Object.entries(forwardingRules).forEach(([key, value]) => {
-    const forwardingRule = new ComputeForwardingRule(scope, `vpn_rule_${key}`, {
-      provider,
-      name: `fr-${params.connectDestination}-${gcpCmkVgw.name}-${key}`,
-      ipProtocol: value.protocol,
-      ipAddress: gcpCmkVgwAddress.address,
-      target: gcpCmkVgw.selfLink,
-      ...(value.protocol === "UDP" && value.port
-        ? { portRange: value.port }
-        : {}),
-    });
+    const forwardingRule = new ComputeForwardingRule(
+      scope,
+      `vpn_rule_${params.connectDestination}_${key}`,
+      {
+        provider,
+        name: `fr-${params.connectDestination}-${gcpCmkVgw.name}-${key}`,
+        ipProtocol: value.protocol,
+        ipAddress: gcpCmkVgwAddress.address,
+        target: gcpCmkVgw.selfLink,
+        ...(value.protocol === "UDP" && value.port
+          ? { portRange: value.port }
+          : {}),
+      }
+    );
     forwardingRuleResources.push(forwardingRule);
   });
 
