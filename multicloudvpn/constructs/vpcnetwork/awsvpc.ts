@@ -5,6 +5,8 @@ import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
 import { SecurityGroupRule } from "@cdktf/provider-aws/lib/security-group-rule";
 import { Subnet } from "@cdktf/provider-aws/lib/subnet";
 import { Vpc as AwsVpc } from "@cdktf/provider-aws/lib/vpc";
+import { NullProvider } from "@cdktf/provider-null/lib/provider";
+import { Resource } from "@cdktf/provider-null/lib/resource";
 import { Construct } from "constructs";
 
 interface SubnetConfig {
@@ -48,6 +50,11 @@ export function createAwsVpcResources(
   provider: AwsProvider,
   params: AwsResourcesParams
 ) {
+  // For ensuring power equality when re-running
+  new NullProvider(scope, "null-provider-vpc", {
+    alias: "null-vpc",
+  });
+
   // vpc
   const vpc = new AwsVpc(scope, "awsVpc", {
     provider: provider,
@@ -146,7 +153,7 @@ export function createAwsVpcResources(
   );
 
   if (ec2SecurityGroup) {
-    new SecurityGroupRule(
+    const rule = new SecurityGroupRule(
       scope,
       `ec2InstanceConnectIngressRule-${params.ec2ICEndpoint.securityGroupNames[0]}-22-tcp`,
       {
@@ -159,8 +166,21 @@ export function createAwsVpcResources(
           securityGroupMapping[params.ec2ICEndpoint.securityGroupNames[0]],
         securityGroupId: ec2SecurityGroup.id,
         description: "Allow SSH from EC2 Instance Connect Endpoint",
+        dependsOn: [ec2InstanceConnectEndpoint, ec2SecurityGroup],
+        lifecycle: {
+          createBeforeDestroy: true,
+          ignoreChanges: ["security_group_id", "source_security_group_id"],
+        },
       }
     );
+    ec2SecurityGroup.addOverride("lifecycle.ignore_changes", ["ingress"]);
+    new Resource(scope, `ec2-connect-rule-guard`, {
+      dependsOn: [rule],
+      triggers: {
+        sg_id: ec2SecurityGroup.id,
+        last_updated: "static-last-updated-value",
+      },
+    });
   }
 
   return {

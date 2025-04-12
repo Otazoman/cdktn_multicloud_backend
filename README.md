@@ -23,7 +23,7 @@ Docker version 27.3.1
 ## Docker startup for CDKTF
 
 ```
-git clone https://github.com/Otazoman/cdktf_multicloudbackend.git
+git clone https://github.com/Otazoman/cdktf_multicloud_backend.git
 cd cdktf_multicloudbackend
 docker build --build-arg NODE_VERSION=22 --build-arg TERRAFORM_VERSION=1.9.8 -t cdktf-docker .
 docker compose up -d

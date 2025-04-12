@@ -2,6 +2,8 @@ import { DataAwsRouteTables } from "@cdktf/provider-aws/lib/data-aws-route-table
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { VpnGateway } from "@cdktf/provider-aws/lib/vpn-gateway";
 import { VpnGatewayRoutePropagation } from "@cdktf/provider-aws/lib/vpn-gateway-route-propagation";
+import { NullProvider } from "@cdktf/provider-null/lib/provider";
+import { Resource } from "@cdktf/provider-null/lib/resource";
 import { Fn } from "cdktf";
 import { Construct } from "constructs";
 
@@ -16,6 +18,11 @@ export function createAwsVpnGateway(
   provider: AwsProvider,
   params: VpnGatewayParams
 ) {
+  // For ensuring power equality when re-running
+  new NullProvider(scope, "null-provider-vpn", {
+    alias: "null-vpn",
+  });
+
   // Creating a Virtual Private Gateway
   const vpnGateway = new VpnGateway(scope, "cmk_vgw", {
     provider: provider,
@@ -42,10 +49,21 @@ export function createAwsVpnGateway(
     }
   );
 
-  new VpnGatewayRoutePropagation(scope, "cmk_vgw_rp", {
+  const propagation = new VpnGatewayRoutePropagation(scope, "cmk_vgw_rp", {
     provider: provider,
     vpnGatewayId: vpnGateway.id,
     routeTableId: Fn.element(defaultRouteTable.ids, 0),
+    dependsOn: [vpnGateway, defaultRouteTable],
+    lifecycle: {
+      ignoreChanges: ["route_table_id"],
+    },
+  });
+
+  new Resource(scope, "refresh_propagation", {
+    dependsOn: [propagation],
+    triggers: {
+      timestamp: "static-timestamp-value",
+    },
   });
 
   return vpnGateway;
