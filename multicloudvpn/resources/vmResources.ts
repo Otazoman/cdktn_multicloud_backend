@@ -19,13 +19,14 @@ import { createGoogleGceInstances } from "../constructs/vmresources/googlegce";
 interface AwsVpcResources {
   vpc: { id: string };
   subnets: { id: string }[];
+  subnetsByName: Record<string, { id: string; name: string }>;
   securityGroups: { id: string; name: string }[];
   securityGroupMapping: { [key: string]: Token };
 }
 
 interface AzureVnetResources {
   vnet: { name: string };
-  subnets: Record<string, { name: string }>;
+  subnets: Record<string, { id: string; name: string }>;
 }
 
 export const createVmResources = (
@@ -59,9 +60,11 @@ export const createVmResources = (
           securityGroupIds: securityGroupIds
             .map((name) => getSecurityGroupId(name))
             .filter((id): id is string => id !== undefined),
+          subnetKey: (config as any).subnetKey,
         };
       }),
-      subnetIds: awsVpcResources.subnets.map((subnet) => subnet.id),
+
+      subnets: awsVpcResources.subnetsByName,
     });
 
     awsEc2Instances.forEach((instance) =>
@@ -90,18 +93,16 @@ export const createVmResources = (
     // Azure VMs
     const azureVmParams = {
       vnetName: azureVnetResources.vnet.name,
-      subnetNames: Object.fromEntries(
-        Object.entries(azureVnetResources.subnets).map(([key, subnet]) => [
-          key,
-          subnet.name,
-        ])
-      ),
+      subnets: azureVnetResources.subnets,
       vmConfigs: azureVmsConfigparams,
       sshKey: sshKey,
     };
     const azureVms = createAzureVms(scope, azureProvider, azureVmParams);
     azureVms.forEach((vm) =>
-      vm.node.addDependency(vpnResources.azureVng, azureVnetResources)
+      vm.node.addDependency(
+        vpnResources.azureVng.virtualNetworkGateway,
+        azureVnetResources.subnets
+      )
     );
   }
 };

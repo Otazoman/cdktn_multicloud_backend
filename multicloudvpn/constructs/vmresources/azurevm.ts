@@ -1,4 +1,3 @@
-import { DataAzurermSubnet } from "@cdktf/provider-azurerm/lib/data-azurerm-subnet";
 import { LinuxVirtualMachine } from "@cdktf/provider-azurerm/lib/linux-virtual-machine";
 import { NetworkInterface } from "@cdktf/provider-azurerm/lib/network-interface";
 import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
@@ -21,12 +20,13 @@ interface AzureVmConfig {
     sku: string;
     version: string;
   };
-  build: boolean; // 追加: VM 作成フラグ
+  subnetKey: string;
+  build: boolean;
 }
 
 interface CreateAzureVmParams {
   vnetName: string;
-  subnetNames: { [key: string]: string };
+  subnets: Record<string, { id: string; name: string }>;
   vmConfigs: AzureVmConfig[];
   sshKey: PrivateKey;
 }
@@ -36,58 +36,66 @@ export function createAzureVms(
   provider: AzurermProvider,
   params: CreateAzureVmParams
 ): LinuxVirtualMachine[] {
-  const subnets = Object.entries(params.subnetNames).map(
-    ([key, value]) =>
-      new DataAzurermSubnet(scope, `subnet-${key}`, {
-        name: value,
-        virtualNetworkName: params.vnetName,
-        resourceGroupName: params.vmConfigs[0].resourceGroupName,
-        provider: provider,
-      })
-  );
-
   const vms: LinuxVirtualMachine[] = [];
 
-  params.vmConfigs
+  // for rate limit
+  for (const [index, vmConfig] of params.vmConfigs
     .filter((vmConfig) => vmConfig.build)
-    .forEach((vmConfig, index) => {
-      const nic = new NetworkInterface(scope, `nic-${index}`, {
-        name: `${vmConfig.name}-nic`,
-        location: vmConfig.location,
-        resourceGroupName: vmConfig.resourceGroupName,
-        ipConfiguration: [
-          {
-            name: "internal",
-            subnetId: subnets[index % subnets.length].id,
-            privateIpAddressAllocation: "Dynamic",
-          },
-        ],
-        provider: provider,
-      });
+    .entries()) {
+    const targetSubnet = params.subnets[vmConfig.subnetKey];
+    if (!targetSubnet) {
+      throw new Error(
+        `Subnet with key ${vmConfig.subnetKey} not found for VM ${vmConfig.name}`
+      );
+    }
 
-      const vm = new LinuxVirtualMachine(scope, `vm-${index}`, {
-        name: vmConfig.name,
-        resourceGroupName: vmConfig.resourceGroupName,
-        location: vmConfig.location,
-        size: vmConfig.size,
-        adminUsername: vmConfig.adminUsername,
-        networkInterfaceIds: [nic.id],
-        adminSshKey: [
-          {
-            username: vmConfig.adminUsername,
-            publicKey: params.sshKey.publicKeyOpenssh,
-          },
-        ],
-        osDisk: {
-          caching: vmConfig.osDisk.caching,
-          storageAccountType: vmConfig.osDisk.storageAccountType,
+    const nic = new NetworkInterface(scope, `nic-${index}`, {
+      name: `${vmConfig.name}-nic`,
+      location: vmConfig.location,
+      resourceGroupName: vmConfig.resourceGroupName,
+      ipConfiguration: [
+        {
+          name: "internal",
+          subnetId: targetSubnet.id,
+          privateIpAddressAllocation: "Dynamic",
         },
-        sourceImageReference: vmConfig.sourceImageReference,
-        provider: provider,
-      });
-
-      vms.push(vm);
+      ],
+      provider: provider,
+      timeouts: {
+        create: "30m",
+        update: "30m",
+        delete: "30m",
+      },
     });
 
+    const vm = new LinuxVirtualMachine(scope, `vm-${index}`, {
+      name: vmConfig.name,
+      resourceGroupName: vmConfig.resourceGroupName,
+      location: vmConfig.location,
+      size: vmConfig.size,
+      adminUsername: vmConfig.adminUsername,
+      networkInterfaceIds: [nic.id],
+      adminSshKey: [
+        {
+          username: vmConfig.adminUsername,
+          publicKey: params.sshKey.publicKeyOpenssh,
+        },
+      ],
+      osDisk: {
+        caching: vmConfig.osDisk.caching,
+        storageAccountType: vmConfig.osDisk.storageAccountType,
+      },
+      sourceImageReference: vmConfig.sourceImageReference,
+      provider: provider,
+      dependsOn: [nic],
+      timeouts: {
+        create: "1h",
+        update: "1h",
+        delete: "1h",
+      },
+    });
+
+    vms.push(vm);
+  }
   return vms;
 }

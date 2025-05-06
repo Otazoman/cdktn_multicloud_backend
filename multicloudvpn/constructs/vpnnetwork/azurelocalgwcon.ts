@@ -33,7 +33,7 @@ export function createAzureLocalGateways(
     // Creating a Local Network Gateway
     const localNetworkGateway = new LocalNetworkGateway(
       scope,
-      `local-gateway${params.conneectDestination}-${index}`,
+      `local-gateway-${params.conneectDestination}-${index}`,
       {
         name: `${tunnel.localNetworkGatewayName}-${index + 1}`,
         resourceGroupName: params.resourceGroupName,
@@ -56,7 +56,7 @@ export function createAzureLocalGateways(
     // Creating a VPN Connection
     const vpnConnection = new VirtualNetworkGatewayConnection(
       scope,
-      `azure-to${params.conneectDestination}-remote-${index}`,
+      `azure-to-${params.conneectDestination}-remote-${index}`,
       {
         provider: provider,
         name: `${tunnel.localNetworkGatewayName}-connection-${index + 1}`,

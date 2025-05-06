@@ -9,13 +9,14 @@ interface Ec2InstanceConfig {
   tags: {
     Name: string;
   };
+  subnetKey: string;
   securityGroupIds: string[];
   build: boolean;
 }
 
 interface CreateEc2InstancesParams {
   instanceConfigs: Ec2InstanceConfig[];
-  subnetIds: string[];
+  subnets: Record<string, { id: string; name: string }>;
 }
 
 export function createAwsEc2Instances(
@@ -25,13 +26,20 @@ export function createAwsEc2Instances(
 ) {
   const instances = params.instanceConfigs
     .filter((config) => config.build)
-    .map((config, index) => {
-      return new Instance(scope, `ec2Instance${index}`, {
+    .map((config) => {
+      const targetSubnet = params.subnets[config.subnetKey];
+
+      if (!targetSubnet) {
+        throw new Error(
+          `Subnet with key ${config.subnetKey} not found for EC2 Instance ${config.tags.Name}`
+        );
+      }
+      return new Instance(scope, `ec2Instance${config.tags.Name}`, {
         provider: provider,
         ami: config.ami,
         instanceType: config.instanceType,
         keyName: config.keyName,
-        subnetId: params.subnetIds[index % params.subnetIds.length],
+        subnetId: targetSubnet.id,
         vpcSecurityGroupIds: config.securityGroupIds,
         tags: config.tags,
       });

@@ -182,6 +182,7 @@ export const azureVmsConfigparams = [
       sku: "server",
       version: "latest",
     },
+    subnetKey: "subnet1",
     build: true,
   },
   {
@@ -200,6 +201,7 @@ export const azureVmsConfigparams = [
       sku: "server",
       version: "latest",
     },
+    subnetKey: "subnet2",
     build: false,
   },
 ];

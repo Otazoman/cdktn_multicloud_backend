@@ -100,6 +100,7 @@ export const ec2Configs = [
     tags: {
       Name: "MyEC2Instance1",
     },
+    subnetKey: "my-aws-vpc-subnet1",
     securityGroupIds: ["my-aws-vpc-sg1"],
     build: true,
   },
@@ -110,6 +111,7 @@ export const ec2Configs = [
     tags: {
       Name: "MyEC2Instance2",
     },
+    subnetKey: "my-aws-vpc-subnet2",
     securityGroupIds: ["my-aws-vpc-sg1"],
     build: false,
   },

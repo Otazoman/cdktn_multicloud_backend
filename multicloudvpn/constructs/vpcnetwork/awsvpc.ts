@@ -1,4 +1,3 @@
-import { DefaultRouteTable } from "@cdktf/provider-aws/lib/default-route-table";
 import { Ec2InstanceConnectEndpoint } from "@cdktf/provider-aws/lib/ec2-instance-connect-endpoint";
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
@@ -67,8 +66,10 @@ export function createAwsVpcResources(
   });
 
   // subnets
-  const subnets = params.subnets.map((subnetConfig, index) => {
-    return new Subnet(scope, `awsSubnet${index}`, {
+  const subnets: Subnet[] = [];
+  const subnetsByName: Record<string, Subnet> = {};
+  params.subnets.forEach((subnetConfig, index) => {
+    const subnetResource = new Subnet(scope, `awsSubnet${index}`, {
       provider: provider,
       vpcId: vpc.id,
       cidrBlock: subnetConfig.cidrBlock,
@@ -77,6 +78,8 @@ export function createAwsVpcResources(
         Name: subnetConfig.name,
       },
     });
+    subnets.push(subnetResource);
+    subnetsByName[subnetConfig.name] = subnetResource;
   });
 
   // security groups
@@ -112,15 +115,6 @@ export function createAwsVpcResources(
       },
     });
     return sg;
-  });
-
-  // routetable
-  new DefaultRouteTable(scope, "defaultRouteTable", {
-    provider: provider,
-    defaultRouteTableId: vpc.defaultRouteTableId,
-    tags: {
-      Name: params.defaultRouteTableName,
-    },
   });
 
   // EC2 Instance Connect Endpoint
@@ -186,6 +180,7 @@ export function createAwsVpcResources(
   return {
     vpc,
     subnets,
+    subnetsByName,
     securityGroups,
     securityGroupMapping,
     ec2InstanceConnectEndpoint,
