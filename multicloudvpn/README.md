@@ -9,6 +9,8 @@ Run the following command to create a resource with a CDKTF with a secret key to
 
 ```
 cdktf plan
+export ARM_RETRIES=5    # For Azure control
+export ARM_BACKOFF=30   # For Azure control
 cdktf deploy --outputs-file ./outputs/outputs.json --outputs-file-include-sensitive-outputs
 ```
 
