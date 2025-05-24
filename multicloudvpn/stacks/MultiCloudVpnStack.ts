@@ -47,11 +47,11 @@ export class MultiCloudVpnStack extends TerraformStack {
       awsProvider,
       googleProvider,
       azureProvider,
+      vpnResources,
       vpcResources.awsVpcResources,
       vpcResources.googleVpcResources,
       vpcResources.azureVnetResources,
-      sshKey,
-      vpnResources
+      sshKey
     );
   }
 }

@@ -13,12 +13,7 @@ import { googleVpcResourcesparams } from "../config/googlesettings";
 import { createAwsVpcResources } from "../constructs/vpcnetwork/awsvpc";
 import { createAzureVnetResources } from "../constructs/vpcnetwork/azurevnet";
 import { createGoogleVpcResources } from "../constructs/vpcnetwork/googlevpc";
-
-interface VpcResources {
-  awsVpcResources?: any;
-  googleVpcResources?: any;
-  azureVnetResources?: any;
-}
+import { VpcResources } from "./interfaces";
 
 export const createVpcResources = (
   scope: Construct,

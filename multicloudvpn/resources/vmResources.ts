@@ -14,33 +14,25 @@ import { gceInstancesParams } from "../config/googlesettings";
 import { createAwsEc2Instances } from "../constructs/vmresources/awsec2";
 import { createAzureVms } from "../constructs/vmresources/azurevm";
 import { createGoogleGceInstances } from "../constructs/vmresources/googlegce";
-
-// Define interfaces for the VPC resources
-interface AwsVpcResources {
-  vpc: { id: string };
-  subnets: { id: string }[];
-  subnetsByName: Record<string, { id: string; name: string }>;
-  securityGroups: { id: string; name: string }[];
-  securityGroupMapping: { [key: string]: Token };
-}
-
-interface AzureVnetResources {
-  vnet: { name: string };
-  subnets: Record<string, { id: string; name: string }>;
-}
+import {
+  AwsVpcResources,
+  AzureVnetResources,
+  GoogleVpcResources,
+  VpnResources,
+} from "./interfaces";
 
 export const createVmResources = (
   scope: Construct,
   awsProvider: AwsProvider,
   googleProvider: GoogleProvider,
   azureProvider: AzurermProvider,
-  awsVpcResources: AwsVpcResources,
-  googleVpcResources: any,
-  azureVnetResources: AzureVnetResources,
-  sshKey: any,
-  vpnResources: any
+  vpnResources: VpnResources,
+  awsVpcResources?: AwsVpcResources,
+  googleVpcResources?: GoogleVpcResources,
+  azureVnetResources?: AzureVnetResources,
+  sshKey?: any
 ) => {
-  if (awsToAzure || awsToGoogle) {
+  if ((awsToAzure || awsToGoogle) && awsVpcResources) {
     //AWS EC2 Instances
     const getSecurityGroupId = (name: string): string => {
       const mapping = awsVpcResources.securityGroupMapping;
@@ -72,7 +64,7 @@ export const createVmResources = (
     );
   }
 
-  if (awsToGoogle || googleToAzure) {
+  if ((awsToGoogle || googleToAzure) && googleVpcResources) {
     // Google GCE Instances
     const googleGceInstances = createGoogleGceInstances(
       scope,
@@ -89,7 +81,7 @@ export const createVmResources = (
     );
   }
 
-  if (awsToAzure || googleToAzure) {
+  if ((awsToAzure || googleToAzure) && azureVnetResources) {
     // Azure VMs
     const azureVmParams = {
       vnetName: azureVnetResources.vnet.name,

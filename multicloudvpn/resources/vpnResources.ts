@@ -35,29 +35,13 @@ import { createAzureLocalGateways } from "../constructs/vpnnetwork/azurelocalgwc
 import { createAzureVpnGateway } from "../constructs/vpnnetwork/azurevpngw";
 import { createGooglePeerTunnel } from "../constructs/vpnnetwork/googletunnels";
 import { createGoogleVpnGateway } from "../constructs/vpnnetwork/googlevpngw";
-
-interface VpnResources {
-  awsVpnGateway?: any;
-  googleVpnGateways?: any;
-  awsGoogleCgwVpns?: any[];
-  awsGoogleVpnTunnels?: any[];
-  azureVng?: any;
-  awsAzureCgwVpns?: any[];
-  awsAzureLocalGateways?: any[];
-  googleAzureVpnGateways?: any;
-  azureGoogleVpnTunnels?: any[];
-  googleAzureLocalGateways?: any[];
-}
-
-interface TunnelConfig {
-  address: string;
-  preshared_key?: string;
-  shared_key?: string;
-  apipaCidr?: string;
-  peerAddress?: string;
-  cidrhost?: string;
-  ipAddress?: string;
-}
+import {
+  AwsVpcResources,
+  AzureVnetResources,
+  GoogleVpcResources,
+  TunnelConfig,
+  VpnResources,
+} from "./interfaces";
 
 const DESTINATION = {
   AWS: "aws",
@@ -183,7 +167,7 @@ function setupGoogleVpnTunnels(
 }
 
 function createAzureVpnGatewayConfig(
-  azureVnetResources: any,
+  azureVnetResources: AzureVnetResources,
   isSingleTunnel: boolean
 ) {
   return {
@@ -228,7 +212,7 @@ function setupAwsToGoogleVpn(
   awsProvider: AwsProvider,
   googleProvider: GoogleProvider,
   resources: VpnResources,
-  googleVpcResources: any,
+  googleVpcResources: GoogleVpcResources,
   isSingleTunnel: boolean
 ): void {
   // Google VPN Gateway
@@ -294,7 +278,7 @@ function setupAwsToAzureVpn(
   awsProvider: AwsProvider,
   azureProvider: AzurermProvider,
   resources: VpnResources,
-  azureVnetResources: any,
+  azureVnetResources: AzureVnetResources,
   azureVng: any,
   isSingleTunnel: boolean
 ): void {
@@ -374,8 +358,8 @@ function setupGoogleToAzureVpn(
   googleProvider: GoogleProvider,
   azureProvider: AzurermProvider,
   resources: VpnResources,
-  googleVpcResources: any,
-  azureVnetResources: any,
+  googleVpcResources: GoogleVpcResources,
+  azureVnetResources: AzureVnetResources,
   azureVng: any,
   isSingleTunnel: boolean
 ): void {
@@ -466,15 +450,15 @@ export function createVpnResources(
   awsProvider: AwsProvider,
   googleProvider: GoogleProvider,
   azureProvider: AzurermProvider,
-  awsVpcResources: any,
-  googleVpcResources: any,
-  azureVnetResources: any
+  awsVpcResources?: AwsVpcResources,
+  googleVpcResources?: GoogleVpcResources,
+  azureVnetResources?: AzureVnetResources
 ): VpnResources {
   const resources: VpnResources = {};
   const isSingleTunnel = env === "dev";
 
   // AWS VPN Gateway
-  if (awsToGoogle || awsToAzure) {
+  if ((awsToGoogle || awsToAzure) && awsVpcResources) {
     resources.awsVpnGateway = createAwsVpnGateway(scope, awsProvider, {
       vpcId: awsVpcResources.vpc.id,
       amazonSideAsn: awsVpnparams.bgpAwsAsn,
@@ -485,7 +469,7 @@ export function createVpnResources(
   }
 
   // AWS-Google VPN
-  if (awsToGoogle) {
+  if (awsToGoogle && googleVpcResources) {
     setupAwsToGoogleVpn(
       scope,
       awsProvider,
@@ -497,7 +481,7 @@ export function createVpnResources(
   }
 
   // Azure VPN Gateway
-  if (awsToAzure || googleToAzure) {
+  if ((awsToAzure || googleToAzure) && azureVnetResources) {
     resources.azureVng = createAzureVpnGateway(
       scope,
       azureProvider,
@@ -518,7 +502,7 @@ export function createVpnResources(
     }
 
     // Google-Azure VPN
-    if (googleToAzure) {
+    if (googleToAzure && googleVpcResources) {
       setupGoogleToAzureVpn(
         scope,
         googleProvider,
