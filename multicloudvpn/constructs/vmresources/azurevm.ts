@@ -61,11 +61,6 @@ export function createAzureVms(
         },
       ],
       provider: provider,
-      timeouts: {
-        create: "30m",
-        update: "30m",
-        delete: "30m",
-      },
     });
 
     const vm = new LinuxVirtualMachine(scope, `vm-${index}`, {
@@ -87,12 +82,6 @@ export function createAzureVms(
       },
       sourceImageReference: vmConfig.sourceImageReference,
       provider: provider,
-      dependsOn: [nic],
-      timeouts: {
-        create: "1h",
-        update: "1h",
-        delete: "1h",
-      },
     });
 
     vms.push(vm);

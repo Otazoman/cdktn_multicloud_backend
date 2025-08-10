@@ -18,7 +18,6 @@ import {
   AwsVpcResources,
   AzureVnetResources,
   GoogleVpcResources,
-  VpnResources,
 } from "./interfaces";
 
 export const createVmResources = (
@@ -26,7 +25,6 @@ export const createVmResources = (
   awsProvider: AwsProvider,
   googleProvider: GoogleProvider,
   azureProvider: AzurermProvider,
-  vpnResources: VpnResources,
   awsVpcResources?: AwsVpcResources,
   googleVpcResources?: GoogleVpcResources,
   azureVnetResources?: AzureVnetResources,
@@ -60,7 +58,7 @@ export const createVmResources = (
     });
 
     awsEc2Instances.forEach((instance) =>
-      instance.node.addDependency(vpnResources.awsVpnGateway, awsVpcResources)
+      instance.node.addDependency(awsVpcResources)
     );
   }
 
@@ -74,10 +72,7 @@ export const createVmResources = (
       googleVpcResources.subnets
     );
     googleGceInstances.forEach((instance) =>
-      instance.node.addDependency(
-        vpnResources.googleVpnGateways,
-        googleVpcResources
-      )
+      instance.node.addDependency(googleVpcResources)
     );
   }
 
@@ -90,11 +85,6 @@ export const createVmResources = (
       sshKey: sshKey,
     };
     const azureVms = createAzureVms(scope, azureProvider, azureVmParams);
-    azureVms.forEach((vm) =>
-      vm.node.addDependency(
-        vpnResources.azureVng.virtualNetworkGateway,
-        azureVnetResources.subnets
-      )
-    );
+    azureVms.forEach((vm) => vm.node.addDependency(azureVnetResources.subnets));
   }
 };

@@ -1,4 +1,4 @@
-/* VPC */
+/* VPC configuration parameters */
 const vpcName = "my-gcp-vpc";
 
 export const googleVpcResourcesparams = {
@@ -34,22 +34,12 @@ export const googleVpcResourcesparams = {
     },
   ],
 };
-/* VPN */
-export const googleAwsVpnParams = {
-  connectDestination: "aws",
-  vpnGatewayName: "aws-google-vpngateway",
-  cloudRouterName: "aws-google-cloud-router",
+/* VPN configuration parameters */
+export const googleVpnParams = {
+  connectDestination: "COMMON",
+  vpnGatewayName: "google-vpn-gateway",
+  cloudRouterName: "google-cloud-router",
   bgpGoogleAsn: 65000,
-  externalGatewayName: "aws-external-gateway",
-  ikeVersion: 2,
-};
-
-export const googleAzureVpnParams = {
-  connectDestination: "azure",
-  vpnGatewayName: "azure-google-vpngateway",
-  cloudRouterName: "azure-google-cloud-router",
-  bgpGoogleAsn: 65000,
-  externalGatewayName: "azure-external-gateway",
   ikeVersion: 2,
 };
 
@@ -57,7 +47,7 @@ export const createGoogleVpnPeerParams = (
   connectDestination: string,
   tunnelCount: number,
   ikeVersion: number,
-  routerName: string,
+  cloudRouter: any,
   vpnGateway: any,
   externalVpnGateway: any,
   vpnConnections: any,
@@ -73,7 +63,8 @@ export const createGoogleVpnPeerParams = (
   routerPeerName: `${vpcName}-gcp-${connectDestination}-router-peer`,
   tunnelCount: tunnelCount,
   ikeVersion: ikeVersion,
-  routerName: routerName,
+  routerName: cloudRouter.name,
+  cloudRouter: cloudRouter,
   vpnGateway: vpnGateway,
   externalVpnGateway: externalVpnGateway,
   vpnConnections: vpnConnections,
@@ -84,7 +75,7 @@ export const createGoogleVpnPeerParams = (
   forwardingRuleResources: forwardingRuleResources,
 });
 
-/* GCE */
+/* GCE instance configurations */
 const serviceAccountScopes = [
   "https://www.googleapis.com/auth/devstorage.read_only",
   "https://www.googleapis.com/auth/logging.write",

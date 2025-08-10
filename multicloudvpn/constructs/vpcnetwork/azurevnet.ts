@@ -44,11 +44,6 @@ export function createAzureVnetResources(
     addressSpace: [params.vnetAddressSpace],
     location: params.location,
     resourceGroupName: params.resourceGroupName,
-    timeouts: {
-      create: "1h",
-      update: "1h",
-      delete: "1h",
-    },
   });
 
   // NSG
@@ -57,11 +52,6 @@ export function createAzureVnetResources(
     resourceGroupName: params.resourceGroupName,
     location: params.location,
     name: `${params.vnetName}-nsg`,
-    timeouts: {
-      create: "30m",
-      update: "30m",
-      delete: "30m",
-    },
   });
 
   // NSG rule
@@ -81,11 +71,6 @@ export function createAzureVnetResources(
       sourceAddressPrefix: rule.sourceAddressPrefix,
       destinationAddressPrefix: rule.destinationAddressPrefix,
       dependsOn: [nsg],
-      timeouts: {
-        create: "30m",
-        update: "30m",
-        delete: "30m",
-      },
     });
     nsgRules.push(nsgRule);
   });
@@ -105,11 +90,6 @@ export function createAzureVnetResources(
         name: `${params.vnetName}-${subnetConfig.name}`,
         addressPrefixes: [subnetConfig.cidr],
         dependsOn: [vnet],
-        timeouts: {
-          create: "30m",
-          update: "30m",
-          delete: "30m",
-        },
       }
     );
 
@@ -128,11 +108,6 @@ export function createAzureVnetResources(
             ? [subnetAssociations[subnetAssociations.length - 1]]
             : []),
         ],
-        timeouts: {
-          read: "30m",
-          create: "30m",
-          delete: "30m",
-        },
       }
     );
 

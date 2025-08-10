@@ -30,12 +30,12 @@ interface VpnGatewayParams {
   batchSize?: number;
 }
 
+// Batch processing for creating Azure Local Gateways
 export function createAzureLocalGateways(
   scope: Construct,
   provider: AzurermProvider,
   params: VpnGatewayParams
 ) {
-  // Batch processing
   const allResources: AzureGatewayResources[] = [];
   const batchSize = params.batchSize || 2;
 
@@ -57,6 +57,7 @@ export function createAzureLocalGateways(
   return allResources.flat();
 }
 
+// Create local gateways and VPN connections in a batch
 function createBatch(
   scope: Construct,
   provider: AzurermProvider,
@@ -64,7 +65,6 @@ function createBatch(
   tunnels: TunnelConfig[],
   offset: number
 ) {
-  // Create local gateways and VPN connections
   const localGateways = tunnels.map((tunnel, index) => {
     const gateway = new LocalNetworkGateway(
       scope,
@@ -74,9 +74,9 @@ function createBatch(
         resourceGroupName: params.resourceGroupName,
         location: params.location,
         gatewayAddress: tunnel.localGatewayAddress,
-        addressSpace: tunnel.localAddressSpaces,
+
         ...(params.isSingleTunnel
-          ? {}
+          ? { addressSpace: tunnel.localAddressSpaces }
           : {
               bgpSettings: tunnel.bgpSettings
                 ? {
@@ -85,15 +85,11 @@ function createBatch(
                   }
                 : undefined,
             }),
-        timeouts: {
-          create: "30m",
-          update: "30m",
-          delete: "30m",
-        },
       }
     );
     return gateway;
   });
+
   // Create VPN connections
   const vpnConnections = tunnels.map((tunnel, index) => {
     const connection = new VirtualNetworkGatewayConnection(
@@ -111,11 +107,6 @@ function createBatch(
         localNetworkGatewayId: localGateways[index].id,
         sharedKey: tunnel.sharedKey,
         enableBgp: !params.isSingleTunnel,
-        timeouts: {
-          create: "30m",
-          update: "30m",
-          delete: "30m",
-        },
       }
     );
 

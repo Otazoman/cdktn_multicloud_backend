@@ -1,5 +1,6 @@
 import { TerraformOutput, TerraformStack } from "cdktf";
 import { Construct } from "constructs";
+import { useVpn } from "../config/commonsettings";
 import { createProviders } from "../providers/providers";
 import { createVmResources } from "../resources/vmResources";
 import { createVpcResources } from "../resources/vpcResources";
@@ -31,15 +32,17 @@ export class MultiCloudVpnStack extends TerraformStack {
     );
 
     // VPN
-    const vpnResources = createVpnResources(
-      this,
-      awsProvider,
-      googleProvider,
-      azureProvider,
-      vpcResources.awsVpcResources,
-      vpcResources.googleVpcResources,
-      vpcResources.azureVnetResources
-    );
+    if (useVpn) {
+      createVpnResources(
+        this,
+        awsProvider,
+        googleProvider,
+        azureProvider,
+        vpcResources.awsVpcResources,
+        vpcResources.googleVpcResources,
+        vpcResources.azureVnetResources
+      );
+    }
 
     // VM
     createVmResources(
@@ -47,7 +50,6 @@ export class MultiCloudVpnStack extends TerraformStack {
       awsProvider,
       googleProvider,
       azureProvider,
-      vpnResources,
       vpcResources.awsVpcResources,
       vpcResources.googleVpcResources,
       vpcResources.azureVnetResources,

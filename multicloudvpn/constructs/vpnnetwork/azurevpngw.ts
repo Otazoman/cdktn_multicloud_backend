@@ -31,6 +31,7 @@ interface VpnGatewayParams {
     retentionInDays: number;
   };
   isSingleTunnel: boolean;
+  singleTunnelSku?: string;
 }
 
 export function createAzureVpnGateway(
@@ -38,7 +39,7 @@ export function createAzureVpnGateway(
   provider: AzurermProvider,
   params: VpnGatewayParams
 ) {
-  // Create Gateway Subnet
+  // Create Gateway Subnet for the VPN Gateway
   const gatewaySubnet = new Subnet(scope, "azure_gatewaySubnet", {
     provider: provider,
     resourceGroupName: params.resourceGroupName,
@@ -47,7 +48,7 @@ export function createAzureVpnGateway(
     addressPrefixes: [params.gatewaySubnetCidr],
   });
 
-  // Creation of Public IP
+  // Create Public IP addresses for the VPN Gateway
   const publicIps = params.isSingleTunnel
     ? [
         new PublicIp(scope, `azure_gw_public_ips_${params.publicIpNames[0]}`, {
@@ -69,7 +70,7 @@ export function createAzureVpnGateway(
           })
       );
 
-  // Creating a virtual network gateway
+  // Create a virtual network gateway
   const vng = new VirtualNetworkGateway(scope, "azure_vng", {
     provider: provider,
     name: params.VpnGatewayName,
@@ -79,7 +80,10 @@ export function createAzureVpnGateway(
     vpnType: params.vpnProps.vpnType,
     enableBgp: !params.isSingleTunnel, // HA:true, Single:false
     activeActive: !params.isSingleTunnel,
-    sku: params.vpnProps.sku,
+    sku:
+      params.isSingleTunnel && params.singleTunnelSku
+        ? params.singleTunnelSku
+        : params.vpnProps.sku,
     bgpSettings: params.isSingleTunnel
       ? undefined
       : {
@@ -130,7 +134,7 @@ export function createAzureVpnGateway(
         ],
   });
 
-  // Public IP data acquisition (must wait for Azure creation to be completed before handing over)
+  // Retrieve Public IP data (wait for Azure creation to complete)
   const publicIpData = params.isSingleTunnel
     ? [
         new DataAzurermPublicIp(scope, `pip_vgw_${params.publicIpNames[0]}`, {
@@ -148,7 +152,7 @@ export function createAzureVpnGateway(
           })
       );
 
-  // Create Log Analytics Workspace
+  // Create Log Analytics Workspace for diagnostics
   const logAnalyticsWorkspace = new LogAnalyticsWorkspace(
     scope,
     "azure_log_analytics_workspace",
@@ -161,7 +165,7 @@ export function createAzureVpnGateway(
     }
   );
 
-  // Create Diagnostic Setting
+  // Create Diagnostic Setting for the VPN Gateway
   const diagnosticSetting = new MonitorDiagnosticSetting(
     scope,
     "azure_vng_diagnostic_setting",

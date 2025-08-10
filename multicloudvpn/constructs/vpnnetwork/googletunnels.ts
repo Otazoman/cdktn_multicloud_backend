@@ -52,7 +52,7 @@ export function createGooglePeerTunnel(
   }
 }
 
-// SingleVPN
+// Creates a single VPN tunnel
 function createSingleTunnel(
   scope: Construct,
   provider: GoogleProvider,
@@ -60,7 +60,7 @@ function createSingleTunnel(
 ) {
   const forwardingRules = params.forwardingRules || [];
 
-  // Vpn Tunnels
+  // VPN Tunnels
   const vpnTunnels = params.vpnConnections.slice(0, 2).map((tunnel, index) => {
     return new ComputeVpnTunnel(
       scope,
@@ -79,7 +79,7 @@ function createSingleTunnel(
     );
   });
 
-  // Add routes
+  // Add routes for VPN tunnels
   const vpnRoutes = vpnTunnels.map((tunnel, index) => {
     return new ComputeRoute(
       scope,
@@ -100,7 +100,7 @@ function createSingleTunnel(
   };
 }
 
-// HA VPN
+// Creates an HA VPN tunnel
 function createHaTunnel(
   scope: Construct,
   provider: GoogleProvider,
@@ -109,7 +109,7 @@ function createHaTunnel(
   const isAws = params.connectDestination.toLowerCase() === "aws";
   const tunnelCount = isAws ? 4 : 2;
 
-  // External Gateway
+  // External VPN Gateway
   const externalVpnGateway = new ComputeExternalVpnGateway(
     scope,
     params.externalVpnGateway.name,
@@ -126,7 +126,7 @@ function createHaTunnel(
     }
   );
 
-  // Vpn Tunnel
+  // VPN Tunnel
   const vpnTunnels = params.vpnConnections.slice(0, tunnelCount).map(
     (tunnel, index) =>
       new ComputeVpnTunnel(

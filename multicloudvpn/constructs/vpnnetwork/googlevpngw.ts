@@ -12,12 +12,6 @@ interface GoogleVpnParams {
   vpnGatewayName: string;
   cloudRouterName: string;
   bgpGoogleAsn: number;
-  vpnConnection?: {
-    tunnel1: { peerIp: string; sharedSecret: string };
-    tunnel2?: { peerIp: string; sharedSecret: string };
-  };
-  gcpVpcCidr?: string;
-  peerVpcCidr?: string;
   isSingleTunnel: boolean;
 }
 
@@ -26,11 +20,10 @@ export function createGoogleVpnGateway(
   provider: GoogleProvider,
   params: GoogleVpnParams
 ) {
+  // Determine whether to create a single VPN tunnel gateway or an HA VPN gateway
   if (params.isSingleTunnel) {
-    // Single
     return createSingleTunnelVpnGateway(scope, provider, params);
   } else {
-    // HA
     return createHaVpnGateway(scope, provider, params);
   }
 }
@@ -40,7 +33,7 @@ function createSingleTunnelVpnGateway(
   provider: GoogleProvider,
   params: GoogleVpnParams
 ) {
-  // External ip address
+  // Create external IP address for the VPN Gateway
   const gcpCmkVgwAddress = new ComputeAddress(
     scope,
     `${params.connectDestination}_gcp_cmk_vgw_address`,
@@ -50,7 +43,7 @@ function createSingleTunnelVpnGateway(
     }
   );
 
-  // VPN Gateway
+  // Create VPN Gateway
   const gcpCmkVgw = new ComputeVpnGateway(
     scope,
     `${params.connectDestination}_gcp_cmk_vgw`,
@@ -61,7 +54,7 @@ function createSingleTunnelVpnGateway(
     }
   );
 
-  // Forwording rule
+  // Define forwarding rules
   const forwardingRules = {
     esp: { protocol: "ESP", port: undefined },
     udp500: { protocol: "UDP", port: "500" },
@@ -100,7 +93,7 @@ function createHaVpnGateway(
   provider: GoogleProvider,
   params: GoogleVpnParams
 ) {
-  // HA VPN Gateway
+  // Create HA VPN Gateway
   const vpnGateway = new ComputeHaVpnGateway(
     scope,
     `${params.connectDestination}_gcp_ha_vpn`,
@@ -111,7 +104,8 @@ function createHaVpnGateway(
     }
   );
 
-  // Cloud Router
+  // Create Cloud Router
+
   const cloudRouter = new ComputeRouter(
     scope,
     `${params.connectDestination}_gcp_router`,
@@ -125,7 +119,7 @@ function createHaVpnGateway(
     }
   );
 
-  // External IP addresses for HA VPN Gateway
+  // Create external IP addresses for the HA VPN Gateway
   const externalIps = [0, 1].map((index) => {
     return new ComputeAddress(
       scope,

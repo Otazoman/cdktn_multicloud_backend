@@ -7,7 +7,7 @@ export const azureCommonparams = {
   location: location,
 };
 
-/* V-NET */
+/* Virtual Network (VNet) configuration parameters */
 export const azureVnetResourcesparams = {
   resourceGroupName: resourceGroup,
   location: location,
@@ -87,13 +87,14 @@ export const azureVnetResourcesparams = {
   ],
 };
 
-/* VPN */
+/* VPN configuration parameters */
 export const azureVpnparams = {
   gatewaySubnetCidr: "10.2.100.0/24",
   publicIpNames: ["vpn-gateway-ip-1", "vpn-gateway-ip-2"],
   type: "Vpn",
   vpnType: "RouteBased",
   sku: "VpnGw1",
+  singleTunnelSku: "Basic", // SKU for singleTunnel
   azureAsn: 65515,
   vpnConnectionType: "IPsec",
   pipAlloc: "Dynamic",
@@ -120,6 +121,38 @@ export const azureGoogleVpnparams = {
   googlePeerIp1: "169.254.21.10",
   googlePeerIp2: "169.254.22.10",
   presharedKey: "test#01",
+};
+
+/* Virtual WAN configuration parameters */
+export const azureVirtualWanParams = {
+  name: "my-virtual-wan",
+  resourceGroupName: resourceGroup,
+  location: location,
+  allowBranchToBranchTraffic: true,
+  disableVpnEncryption: false,
+  // Virtual Hub parameters
+  virtualHubName: "my-virtual-hub",
+  virtualHubAddressPrefix: "10.200.0.0/24",
+  // Virtual Hub VPN Gateway parameters
+  virtualHubVpnGatewayName: "my-virtual-hub-vpngw",
+  virtualHubVpnGatewaySku: "VpnGw1",
+  virtualHubVpnGatewayScaleUnit: 1,
+  // AWS VPN Site parameters
+  awsVpnSiteName: "aws-vpn-site",
+  awsVpnSiteIpAddress: "1.1.1.1", // Replace with actual AWS VPN Gateway Public IP
+  awsVpnSiteBgpAsn: 65001,
+  awsVpnSiteLinkName: "aws-link-1",
+  awsVpnSiteLinkIpAddress: "1.1.1.1", // Replace with actual AWS VPN Gateway Public IP
+  awsVpnSiteLinkBgpAddress: "169.254.1.1", // Replace with actual AWS BGP IP
+  awsVpnSiteLinkPresharedKey: "aws-preshared-key",
+  // Google VPN Site parameters
+  googleVpnSiteName: "google-vpn-site",
+  googleVpnSiteIpAddress: "2.2.2.2", // Replace with actual Google VPN Gateway Public IP
+  googleVpnSiteBgpAsn: 65002,
+  googleVpnSiteLinkName: "google-link-1",
+  googleVpnSiteLinkIpAddress: "2.2.2.2", // Replace with actual Google VPN Gateway Public IP
+  googleVpnSiteLinkBgpAddress: "169.254.2.1", // Replace with actual Google BGP IP
+  googleVpnSiteLinkPresharedKey: "google-preshared-key",
 };
 
 export const azureVpnGatewayParams = {
@@ -153,7 +186,12 @@ export const createLocalGatewayParams = (
   virtualNetworkGatewayId: string,
   conneectDestination: string,
   tunnels: Array<any>,
-  isSingleTunnel: boolean
+  isSingleTunnel: boolean,
+  awsToAzure: boolean,
+  awsToGoogle: boolean,
+  googleToAzure: boolean,
+  awsVpcCidr?: string,
+  googleVpcCidr?: string
 ) => ({
   resourceGroupName: azureCommonparams.resourceGroup,
   location: azureCommonparams.location,
@@ -162,9 +200,14 @@ export const createLocalGatewayParams = (
   vpnConnectionType: azureVpnparams.vpnConnectionType,
   tunnels: tunnels,
   isSingleTunnel: isSingleTunnel,
+  awsToAzure: awsToAzure,
+  awsToGoogle: awsToGoogle,
+  googleToAzure: googleToAzure,
+  awsVpcCidr: awsVpcCidr,
+  googleVpcCidr: googleVpcCidr,
 });
 
-/* AzureVM */
+/* Azure Virtual Machine (VM) configurations */
 export const azureVmsConfigparams = [
   {
     name: "example-vm-1",

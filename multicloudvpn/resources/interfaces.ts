@@ -11,7 +11,7 @@ import { ComputeNetwork as GoogleVpc } from "@cdktf/provider-google/lib/compute-
 import { ComputeSubnetwork } from "@cdktf/provider-google/lib/compute-subnetwork";
 import { Token } from "cdktf";
 
-// AWS
+// AWS VPC resources interface
 export interface AwsVpcResources {
   vpc: AwsVpc;
   subnets: any[] | { id: string }[];
@@ -23,7 +23,7 @@ export interface AwsVpcResources {
   ec2InstanceConnectEndpoint?: Ec2InstanceConnectEndpoint;
 }
 
-// Google Cloud
+// Google Cloud VPC resources interface
 export interface GoogleVpcResources {
   vpc: GoogleVpc;
   subnets: ComputeSubnetwork[];
@@ -32,7 +32,7 @@ export interface GoogleVpcResources {
   egressrules: ComputeFirewall[];
 }
 
-// Azure
+// Azure Virtual Network resources interface
 export interface AzureVnetResources {
   vnet: VirtualNetwork | { name: string };
   nsg?: NetworkSecurityGroup;
@@ -44,25 +44,33 @@ export interface AzureVnetResources {
   params?: any;
 }
 
-// VPC Resources
+// Common VPC resources interface
 export interface VpcResources {
   awsVpcResources?: AwsVpcResources;
   googleVpcResources?: GoogleVpcResources;
   azureVnetResources?: AzureVnetResources;
 }
 
-// VPN Resources
+// Common VPN resources interface
 export interface VpnResources {
   awsVpnGateway?: any;
+  googleVpnGateway?: any;
   googleVpnGateways?: any;
-  awsGoogleCgwVpns?: any[];
-  awsGoogleVpnTunnels?: any[];
-  azureVng?: any;
-  awsAzureCgwVpns?: any[];
-  awsAzureLocalGateways?: any[];
+  googleAwsVpnGateways?: any;
   googleAzureVpnGateways?: any;
-  azureGoogleVpnTunnels?: any[];
+  azureVng?: any;
+  azureRouteServer?: any;
+  awsGoogleCgwVpns?: any[];
+  awsAzureCgwVpns?: any[];
+  awsGoogleVpnTunnels?: any;
+  azureGoogleVpnTunnels?: any;
+  awsAzureLocalGateways?: any[];
   googleAzureLocalGateways?: any[];
+}
+
+// Azure Virtual WAN resources interface
+export interface AzureVirtualWanResources {
+  azureVirtualWan?: any;
 }
 
 export interface TunnelConfig {
@@ -73,4 +81,41 @@ export interface TunnelConfig {
   peerAddress?: string;
   cidrhost?: string;
   ipAddress?: string;
+}
+
+// Azure Route Server configuration interface
+export interface AzureRouteServerConfig {
+  routeServerName: string;
+  routeServerSubnetCidr: string;
+  routeServerAsn: number;
+  vpnGatewayBgpPeeringAddress1: string;
+  vpnGatewayBgpPeeringAddress2: string;
+  virtualRouterIps: string[];
+  bgpConnections: {
+    vpnGateway: BgpConnectionConfig;
+    googleCloudRouter: GoogleBgpConnectionConfig;
+  };
+  nsgRules: NsgRuleConfig[];
+}
+
+export interface BgpConnectionConfig {
+  enabled: boolean;
+  peerAsn: number;
+}
+
+export interface GoogleBgpConnectionConfig extends BgpConnectionConfig {
+  peerIpAddresses: string[];
+  connectionNames: string[];
+}
+
+export interface NsgRuleConfig {
+  name: string;
+  priority: number;
+  direction: "Inbound" | "Outbound";
+  access: "Allow" | "Deny";
+  protocol: string;
+  sourcePortRange: string;
+  destinationPortRange: string;
+  sourceAddressPrefix: string;
+  destinationAddressPrefix: string;
 }

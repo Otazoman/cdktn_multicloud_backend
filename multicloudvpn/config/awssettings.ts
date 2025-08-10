@@ -1,4 +1,4 @@
-/* VPC */
+/* VPC configuration parameters */
 export const awsVpcResourcesparams = {
   vpcCidrBlock: "10.0.0.0/16",
   vpcName: "my-aws-vpc",
@@ -65,7 +65,7 @@ export const awsVpcResourcesparams = {
     securityGroupNames: ["EC2InstanceConnect"],
   },
 };
-/* VPN */
+/* VPN configuration parameters */
 export const awsVpnparams = {
   bgpAwsAsn: 64512,
   logRetentionDays: 14,
@@ -91,7 +91,7 @@ export const createCustomerGatewayParams = (
   isSingleTunnel: isSingleTunnel,
 });
 
-/* EC2 */
+/* EC2 instance configurations */
 export const ec2Configs = [
   {
     ami: "ami-0b20f552f63953f0e",
