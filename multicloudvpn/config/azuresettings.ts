@@ -123,38 +123,6 @@ export const azureGoogleVpnparams = {
   presharedKey: "test#01",
 };
 
-/* Virtual WAN configuration parameters */
-export const azureVirtualWanParams = {
-  name: "my-virtual-wan",
-  resourceGroupName: resourceGroup,
-  location: location,
-  allowBranchToBranchTraffic: true,
-  disableVpnEncryption: false,
-  // Virtual Hub parameters
-  virtualHubName: "my-virtual-hub",
-  virtualHubAddressPrefix: "10.200.0.0/24",
-  // Virtual Hub VPN Gateway parameters
-  virtualHubVpnGatewayName: "my-virtual-hub-vpngw",
-  virtualHubVpnGatewaySku: "VpnGw1",
-  virtualHubVpnGatewayScaleUnit: 1,
-  // AWS VPN Site parameters
-  awsVpnSiteName: "aws-vpn-site",
-  awsVpnSiteIpAddress: "1.1.1.1", // Replace with actual AWS VPN Gateway Public IP
-  awsVpnSiteBgpAsn: 65001,
-  awsVpnSiteLinkName: "aws-link-1",
-  awsVpnSiteLinkIpAddress: "1.1.1.1", // Replace with actual AWS VPN Gateway Public IP
-  awsVpnSiteLinkBgpAddress: "169.254.1.1", // Replace with actual AWS BGP IP
-  awsVpnSiteLinkPresharedKey: "aws-preshared-key",
-  // Google VPN Site parameters
-  googleVpnSiteName: "google-vpn-site",
-  googleVpnSiteIpAddress: "2.2.2.2", // Replace with actual Google VPN Gateway Public IP
-  googleVpnSiteBgpAsn: 65002,
-  googleVpnSiteLinkName: "google-link-1",
-  googleVpnSiteLinkIpAddress: "2.2.2.2", // Replace with actual Google VPN Gateway Public IP
-  googleVpnSiteLinkBgpAddress: "169.254.2.1", // Replace with actual Google BGP IP
-  googleVpnSiteLinkPresharedKey: "google-preshared-key",
-};
-
 export const azureVpnGatewayParams = {
   resourceGroupName: resourceGroup,
   virtualNetworkName: vnetName,

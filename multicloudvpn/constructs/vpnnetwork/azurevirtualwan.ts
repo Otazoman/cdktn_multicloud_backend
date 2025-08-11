@@ -42,7 +42,7 @@ export function createAzureVirtualWan(
   azurermProvider: AzurermProvider,
   props: AzureVirtualWanProps
 ) {
-  // 1. Virtual WAN & Hub 作成
+  // Virtual WAN & Hub
   const virtualWan = new VirtualWan(scope, `${props.name}-vwan`, {
     name: props.name,
     resourceGroupName: props.resourceGroupName,
@@ -61,20 +61,17 @@ export function createAzureVirtualWan(
     provider: azurermProvider,
   });
 
-  // 2. VPN Gateway（Site-to-Site 接続用）を作成
+  // vpn gateway
   const vpnGateway = new VpnGateway(scope, props.virtualHubVpnGatewayName, {
+    provider: azurermProvider,
     name: props.virtualHubVpnGatewayName,
     resourceGroupName: props.resourceGroupName,
     location: props.location,
     virtualHubId: virtualHub.id,
-    // Optional: scaleUnit 等
     scaleUnit: props.scaleUnit,
-    enableBgp: true,
-    bgpAsn: props.hubBgpAsn,
-    provider: azurermProvider,
   });
 
-  // 3. AWS サイト接続 (オプション)
+  // aws site
   let awsVpnSite: VpnSite | undefined;
   let awsVpnConnection: VpnGatewayConnection | undefined;
   if (props.awsToAzure) {
@@ -102,16 +99,20 @@ export function createAzureVirtualWan(
       {
         name: `${props.awsVpnSiteName}-conn`,
         vpnGatewayId: vpnGateway.id,
-        vpnSiteId: awsVpnSite.id,
-        sharedKey: props.awsVpnSiteLinkPresharedKey,
-        enableBgp: true,
-        // routingWeight 等追加可
+        remoteVpnSiteId: awsVpnSite.id,
+        vpnLink: [
+          {
+            name: `${props.awsVpnSiteName}-link`,
+            vpnSiteLinkId: awsVpnSite.link.get(0).id,
+            sharedKey: props.awsVpnSiteLinkPresharedKey,
+          },
+        ],
         provider: azurermProvider,
       }
     );
   }
 
-  // 4. Google サイト接続 (オプション)
+  // Google Site
   let googleVpnSite: VpnSite | undefined;
   let googleVpnConnection: VpnGatewayConnection | undefined;
   if (props.googleToAzure) {
@@ -139,9 +140,14 @@ export function createAzureVirtualWan(
       {
         name: `${props.googleVpnSiteName}-conn`,
         vpnGatewayId: vpnGateway.id,
-        vpnSiteId: googleVpnSite.id,
-        sharedKey: props.googleVpnSiteLinkPresharedKey,
-        enableBgp: true,
+        remoteVpnSiteId: googleVpnSite.id,
+        vpnLink: [
+          {
+            name: `${props.googleVpnSiteName}-link`,
+            vpnSiteLinkId: googleVpnSite.link.get(0).id,
+            sharedKey: props.googleVpnSiteLinkPresharedKey,
+          },
+        ],
         provider: azurermProvider,
       }
     );

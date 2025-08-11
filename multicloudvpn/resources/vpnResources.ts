@@ -569,18 +569,3 @@ export function createVpnResources(
 
   return resources;
 }
-
-// export function createAzureVirtualWanResources(
-//   scope: Construct,
-//   azureProvider: AzurermProvider
-// ): AzureVirtualWanResources {
-//   const resources: AzureVirtualWanResources = {};
-
-//   resources.azureVirtualWan = createAzureVirtualWan(
-//     scope,
-//     azureProvider,
-//     azureVirtualWanParams
-//   );
-
-//   return resources;
-// }
