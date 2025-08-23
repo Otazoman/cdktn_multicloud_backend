@@ -28,7 +28,9 @@ interface AzureResourcesParams {
   location: string;
   vnetName: string;
   vnetAddressSpace: string;
+  vnetTags?: { [key: string]: string };
   subnets: SubnetConfig[];
+  nsgTags?: { [key: string]: string };
   nsgRules: NSGRuleConfig[];
 }
 
@@ -44,6 +46,10 @@ export function createAzureVnetResources(
     addressSpace: [params.vnetAddressSpace],
     location: params.location,
     resourceGroupName: params.resourceGroupName,
+    tags: {
+      Name: params.vnetName,
+      ...(params.vnetTags || {}),
+    },
   });
 
   // NSG
@@ -52,6 +58,10 @@ export function createAzureVnetResources(
     resourceGroupName: params.resourceGroupName,
     location: params.location,
     name: `${params.vnetName}-nsg`,
+    tags: {
+      Name: `${params.vnetName}-nsg`,
+      ...(params.nsgTags || {}),
+    },
   });
 
   // NSG rule

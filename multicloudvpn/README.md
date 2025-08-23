@@ -26,3 +26,9 @@ cd outputs
 node pemkey-extraction.js
 rm outputs.json
 ```
+
+Snapshot testing is possible. If you want to check for differences, execute the following command in the app.
+
+```
+npm run test
+```

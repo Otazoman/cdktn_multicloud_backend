@@ -9,6 +9,7 @@ interface GceInstanceConfig {
   machineType: string;
   zone: string;
   tags: string[];
+  labels?: { [key: string]: string };
   bootDiskImage: string;
   bootDiskSize: number;
   bootDiskType: string;
@@ -41,6 +42,7 @@ export function createGoogleGceInstances(
         machineType: config.machineType,
         zone: config.zone,
         tags: config.tags,
+        labels: config.labels,
         bootDisk: {
           initializeParams: {
             image: config.bootDiskImage,

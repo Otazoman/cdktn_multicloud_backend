@@ -30,6 +30,7 @@ export interface GoogleVpcResources {
   sshrule: ComputeFirewall;
   ingressrules: ComputeFirewall[];
   egressrules: ComputeFirewall[];
+  vpcLabels?: { [key: string]: string };
 }
 
 // Azure Virtual Network resources interface
@@ -42,6 +43,7 @@ export interface AzureVnetResources {
     | Record<string, { id: string; name: string }>;
   subnetAssociations?: SubnetNetworkSecurityGroupAssociation[];
   params?: any;
+  vnetTags?: { [key: string]: string };
 }
 
 // Common VPC resources interface

@@ -5,6 +5,9 @@ const vnetName = "my-azure-vnet";
 export const azureCommonparams = {
   resourceGroup: resourceGroup,
   location: location,
+  tags: {
+    project: "multicloud-vpn",
+  },
 };
 
 /* Virtual Network (VNet) configuration parameters */
@@ -13,10 +16,22 @@ export const azureVnetResourcesparams = {
   location: location,
   vnetName: vnetName,
   vnetAddressSpace: "10.2.0.0/16",
+  vnetTags: {
+    Project: "MultiCloud",
+  },
   subnets: [
-    { name: "subnet1", cidr: "10.2.10.0/24" },
-    { name: "subnet2", cidr: "10.2.20.0/24" },
+    {
+      name: "subnet1",
+      cidr: "10.2.10.0/24",
+    },
+    {
+      name: "subnet2",
+      cidr: "10.2.20.0/24",
+    },
   ],
+  nsgTags: {
+    Purpose: "VnetSecurity",
+  },
   nsgRules: [
     {
       name: "AllowVnetInBound",
@@ -94,11 +109,18 @@ export const azureVpnparams = {
   type: "Vpn",
   vpnType: "RouteBased",
   sku: "VpnGw1",
-  singleTunnelSku: "Basic", // SKU for singleTunnel
   azureAsn: 65515,
   vpnConnectionType: "IPsec",
   pipAlloc: "Dynamic",
   retentionInDays: 30,
+  vpnGwtags: {
+    project: "multicloud-vpn",
+    resource: "vpngw",
+  },
+  localGwtags: {
+    project: "multicloud-vpn",
+    resource: "localgw",
+  },
 };
 
 export const azureAwsVpnparams = {
@@ -159,7 +181,8 @@ export const createLocalGatewayParams = (
   awsToGoogle: boolean,
   googleToAzure: boolean,
   awsVpcCidr?: string,
-  googleVpcCidr?: string
+  googleVpcCidr?: string,
+  tags?: { [key: string]: string }
 ) => ({
   resourceGroupName: azureCommonparams.resourceGroup,
   location: azureCommonparams.location,
@@ -173,6 +196,7 @@ export const createLocalGatewayParams = (
   googleToAzure: googleToAzure,
   awsVpcCidr: awsVpcCidr,
   googleVpcCidr: googleVpcCidr,
+  tags: tags,
 });
 
 /* Azure Virtual Machine (VM) configurations */
@@ -186,6 +210,7 @@ export const azureVmsConfigparams = [
     osDisk: {
       caching: "ReadWrite",
       storageAccountType: "Standard_LRS",
+      diskSizeGb: 30,
     },
     sourceImageReference: {
       publisher: "Canonical",
@@ -194,6 +219,10 @@ export const azureVmsConfigparams = [
       version: "latest",
     },
     subnetKey: "subnet1",
+    tags: {
+      Name: "MyAzureVM1",
+      Owner: "Team-A",
+    },
     build: true,
   },
   {
@@ -205,6 +234,7 @@ export const azureVmsConfigparams = [
     osDisk: {
       caching: "ReadWrite",
       storageAccountType: "Standard_LRS",
+      diskSizeGb: 30,
     },
     sourceImageReference: {
       publisher: "Canonical",
@@ -213,6 +243,10 @@ export const azureVmsConfigparams = [
       version: "latest",
     },
     subnetKey: "subnet2",
+    tags: {
+      Name: "MyAzureVM2",
+      Owner: "Team-B",
+    },
     build: false,
   },
 ];

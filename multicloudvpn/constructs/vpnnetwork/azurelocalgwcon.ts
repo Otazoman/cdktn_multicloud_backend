@@ -28,6 +28,7 @@ interface VpnGatewayParams {
   tunnels: TunnelConfig[];
   isSingleTunnel: boolean;
   batchSize?: number;
+  tags?: { [key: string]: string };
 }
 
 // Batch processing for creating Azure Local Gateways
@@ -85,6 +86,7 @@ function createBatch(
                   }
                 : undefined,
             }),
+        tags: params.tags,
       }
     );
     return gateway;
@@ -107,6 +109,7 @@ function createBatch(
         localNetworkGatewayId: localGateways[index].id,
         sharedKey: tunnel.sharedKey,
         enableBgp: !params.isSingleTunnel,
+        tags: params.tags,
       }
     );
 

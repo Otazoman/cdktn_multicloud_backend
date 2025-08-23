@@ -8,6 +8,7 @@ interface SubnetConfig {
   name: string;
   cidr: string;
   region: string;
+  labels?: { [key: string]: string };
 }
 
 interface FirewallRuleConfig {
@@ -19,9 +20,12 @@ interface FirewallRuleConfig {
 
 interface GoogleResourcesParams {
   vpcName: string;
+  vpcLabels?: { [key: string]: string };
   subnets: SubnetConfig[];
+  firewallLabels?: { [key: string]: string };
   firewallIngressRules: FirewallRuleConfig[];
   firewallEgressRules: FirewallRuleConfig[];
+  sshFirewallLabels?: { [key: string]: string };
 }
 
 export function createGoogleVpcResources(
@@ -34,17 +38,28 @@ export function createGoogleVpcResources(
     provider: provider,
     name: params.vpcName,
     autoCreateSubnetworks: false,
+    description: `VPC Network: ${params.vpcName}${
+      params.vpcLabels ? ` - Labels: ${JSON.stringify(params.vpcLabels)}` : ""
+    }`,
   });
 
   // subnets
   const subnets = params.subnets.map((subnet: SubnetConfig) => {
-    return new ComputeSubnetwork(scope, `${params.vpcName}-${subnet.name}`, {
-      provider: provider,
-      network: vpc.name,
-      name: `${params.vpcName}-${subnet.name}`,
-      ipCidrRange: subnet.cidr,
-      region: subnet.region,
-    });
+    const subnetwork = new ComputeSubnetwork(
+      scope,
+      `${params.vpcName}-${subnet.name}`,
+      {
+        provider: provider,
+        network: vpc.name,
+        name: `${params.vpcName}-${subnet.name}`,
+        ipCidrRange: subnet.cidr,
+        region: subnet.region,
+        description: `Subnet: ${params.vpcName}-${subnet.name}${
+          subnet.labels ? ` - Labels: ${JSON.stringify(subnet.labels)}` : ""
+        }`,
+      }
+    );
+    return subnetwork;
   });
 
   // ssh(google)
@@ -61,44 +76,69 @@ export function createGoogleVpcResources(
     ],
     sourceRanges: ["35.235.240.0/20"],
     priority: 1000,
+    description: `SSH Firewall Rule: ${params.vpcName}-ssh-allow-rule${
+      params.sshFirewallLabels
+        ? ` - Labels: ${JSON.stringify(params.sshFirewallLabels)}`
+        : ""
+    }`,
   });
 
   // ingress rule
   const ingressrules = params.firewallIngressRules.map(
     (rule: FirewallRuleConfig) => {
-      return new ComputeFirewall(scope, `allowInternal-${rule.name}`, {
-        provider: provider,
-        network: vpc.name,
-        name: `${params.vpcName}-${rule.name}`,
-        direction: "INGRESS",
-        allow: [
-          {
-            protocol: "all",
-          },
-        ],
-        sourceRanges: rule.sourceRanges,
-        priority: rule.priority,
-      });
+      const ingressRule = new ComputeFirewall(
+        scope,
+        `allowInternal-${rule.name}`,
+        {
+          provider: provider,
+          network: vpc.name,
+          name: `${params.vpcName}-${rule.name}`,
+          direction: "INGRESS",
+          allow: [
+            {
+              protocol: "all",
+            },
+          ],
+          sourceRanges: rule.sourceRanges,
+          priority: rule.priority,
+          description: `Ingress Firewall Rule: ${params.vpcName}-${rule.name}${
+            params.firewallLabels
+              ? ` - Labels: ${JSON.stringify(params.firewallLabels)}`
+              : ""
+          }`,
+        }
+      );
+      return ingressRule;
     }
   );
 
   // egress rule
   const egressrules = params.firewallEgressRules.map(
     (rule: FirewallRuleConfig) => {
-      return new ComputeFirewall(scope, `allowVpnExternal-${rule.name}`, {
-        provider: provider,
-        network: vpc.name,
-        name: `${params.vpcName}-${rule.name}`,
-        direction: "EGRESS",
-        allow: [
-          {
-            protocol: "all",
-          },
-        ],
-        sourceRanges: rule.sourceRanges,
-        destinationRanges: rule.destinationRanges,
-        priority: rule.priority,
-      });
+      const egressRule = new ComputeFirewall(
+        scope,
+        `allowVpnExternal-${rule.name}`,
+        {
+          provider: provider,
+          network: vpc.name,
+          name: `${params.vpcName}-${rule.name}`,
+          direction: "EGRESS",
+          allow: [
+            {
+              protocol: "all",
+            },
+          ],
+          sourceRanges: rule.sourceRanges,
+          destinationRanges: rule.destinationRanges,
+          priority: rule.priority,
+          description: `Egress Firewall Rule: ${params.vpcName}-${rule.name}${
+            params.firewallLabels
+              ? ` - Labels: ${JSON.stringify(params.firewallLabels)}`
+              : ""
+          }`,
+        }
+      );
+      return egressRule;
     }
   );
 

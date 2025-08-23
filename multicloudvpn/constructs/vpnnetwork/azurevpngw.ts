@@ -31,7 +31,7 @@ interface VpnGatewayParams {
     retentionInDays: number;
   };
   isSingleTunnel: boolean;
-  singleTunnelSku?: string;
+  tags?: { [key: string]: string };
 }
 
 export function createAzureVpnGateway(
@@ -80,10 +80,7 @@ export function createAzureVpnGateway(
     vpnType: params.vpnProps.vpnType,
     enableBgp: !params.isSingleTunnel, // HA:true, Single:false
     activeActive: !params.isSingleTunnel,
-    sku:
-      params.isSingleTunnel && params.singleTunnelSku
-        ? params.singleTunnelSku
-        : params.vpnProps.sku,
+    sku: params.vpnProps.sku,
     bgpSettings: params.isSingleTunnel
       ? undefined
       : {
@@ -132,6 +129,7 @@ export function createAzureVpnGateway(
             subnetId: gatewaySubnet.id,
           },
         ],
+    tags: params.tags,
   });
 
   // Retrieve Public IP data (wait for Azure creation to complete)

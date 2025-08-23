@@ -2,27 +2,42 @@
 export const awsVpcResourcesparams = {
   vpcCidrBlock: "10.0.0.0/16",
   vpcName: "my-aws-vpc",
+  vpcTags: {
+    Project: "MultiCloud",
+  },
   subnets: [
     {
       cidrBlock: "10.0.10.0/24",
       az: "ap-northeast-1a",
       name: "my-aws-vpc-subnet1",
+      tags: {
+        Tier: "Web",
+      },
     },
     {
       cidrBlock: "10.0.20.0/24",
       az: "ap-northeast-1c",
       name: "my-aws-vpc-subnet2",
+      tags: {
+        Tier: "App",
+      },
     },
     {
       cidrBlock: "10.0.30.0/24",
       az: "ap-northeast-1d",
       name: "my-aws-vpc-subnet3",
+      tags: {
+        Tier: "DB",
+      },
     },
   ],
   securityGroups: [
     {
       resourcetype: "ec2",
       name: "my-aws-vpc-sg1",
+      tags: {
+        Purpose: "General",
+      },
       ingress: [
         {
           fromPort: 0,
@@ -46,6 +61,9 @@ export const awsVpcResourcesparams = {
     {
       resourcetype: "other",
       name: "EC2InstanceConnect",
+      tags: {
+        Purpose: "EC2Connect",
+      },
       ingress: [],
       egress: [
         {
@@ -69,6 +87,12 @@ export const awsVpcResourcesparams = {
 export const awsVpnparams = {
   bgpAwsAsn: 64512,
   logRetentionDays: 14,
+  vpnGatewayTags: {
+    Project: "MultiCloud",
+  },
+  customerGatewayTags: {
+    Project: "MultiCloud",
+  },
 };
 
 export const createCustomerGatewayParams = (
@@ -76,11 +100,13 @@ export const createCustomerGatewayParams = (
   bgpAsn: number,
   vpnGatewayId: any,
   IpAddresses: string[],
-  isSingleTunnel: boolean
+  isSingleTunnel: boolean,
+  tags?: { [key: string]: string }
 ) => ({
   customerGatewayName: `${awsVpcResourcesparams.vpcName}-aws-${conneectDestination}-cgw`,
   vpnConnectionName: `${awsVpcResourcesparams.vpcName}-aws-${conneectDestination}-vpn-connection`,
   conneectDestination: conneectDestination,
+  tags: tags,
   awsVpnCgwProps: {
     bgpAsn: bgpAsn,
     type: "ipsec.1",
@@ -99,9 +125,11 @@ export const ec2Configs = [
     keyName: "multicloud_test",
     tags: {
       Name: "MyEC2Instance1",
+      Owner: "Team-A",
     },
     subnetKey: "my-aws-vpc-subnet1",
     securityGroupIds: ["my-aws-vpc-sg1"],
+    diskSize: 8,
     build: true,
   },
   {
@@ -110,9 +138,11 @@ export const ec2Configs = [
     keyName: "multicloud_test",
     tags: {
       Name: "MyEC2Instance2",
+      Owner: "Team-B",
     },
     subnetKey: "my-aws-vpc-subnet2",
     securityGroupIds: ["my-aws-vpc-sg1"],
+    diskSize: 8,
     build: false,
   },
 ];

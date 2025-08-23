@@ -10,6 +10,7 @@ interface VpnGatewayParams {
   amazonSideAsn: number;
   defaultRouteTableId: string;
   defaultRouteTableName: string;
+  tags?: { [key: string]: string };
 }
 
 export function createAwsVpnGateway(
@@ -29,6 +30,7 @@ export function createAwsVpnGateway(
     amazonSideAsn: params.amazonSideAsn as unknown as string,
     tags: {
       Name: params.vgwName,
+      ...(params.tags || {}),
     },
   });
 

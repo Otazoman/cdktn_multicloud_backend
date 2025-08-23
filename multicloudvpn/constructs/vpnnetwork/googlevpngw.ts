@@ -13,6 +13,7 @@ interface GoogleVpnParams {
   cloudRouterName: string;
   bgpGoogleAsn: number;
   isSingleTunnel: boolean;
+  labels?: { [key: string]: string };
 }
 
 export function createGoogleVpnGateway(
@@ -40,6 +41,7 @@ function createSingleTunnelVpnGateway(
     {
       provider,
       name: `${params.vpnGatewayName}-ip`,
+      labels: params.labels,
     }
   );
 
@@ -101,6 +103,7 @@ function createHaVpnGateway(
       provider: provider,
       name: params.vpnGatewayName,
       network: params.vpcNetwork,
+      labels: params.labels,
     }
   );
 
@@ -127,6 +130,7 @@ function createHaVpnGateway(
       {
         provider,
         name: `${params.vpnGatewayName}-ha-ip-${index}`,
+        labels: params.labels,
       }
     );
   });

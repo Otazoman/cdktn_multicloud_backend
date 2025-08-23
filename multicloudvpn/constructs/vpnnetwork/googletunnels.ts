@@ -38,6 +38,7 @@ interface GoogleVpnParams {
   peerVpcCidr: string;
   gcpNetwork: string;
   forwardingRules?: ComputeForwardingRule[];
+  labels?: { [key: string]: string };
 }
 
 export function createGooglePeerTunnel(
@@ -74,6 +75,7 @@ function createSingleTunnel(
         ikeVersion: params.ikeVersion,
         localTrafficSelector: [params.gcpVpcCidr],
         remoteTrafficSelector: [params.peerVpcCidr],
+        labels: params.labels,
         dependsOn: forwardingRules,
       }
     );
@@ -123,6 +125,7 @@ function createHaTunnel(
           id: index,
           ipAddress: iface.ipAddress,
         })),
+      labels: params.labels,
     }
   );
 
@@ -142,6 +145,7 @@ function createHaTunnel(
           sharedSecret: tunnel.preshared_key,
           router: params.routerName,
           ikeVersion: params.ikeVersion,
+          labels: params.labels,
         }
       )
   );

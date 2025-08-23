@@ -12,6 +12,7 @@ interface SubnetConfig {
   cidrBlock: string;
   az: string;
   name: string;
+  tags?: { [key: string]: string };
 }
 
 interface SecurityGroupRuleConfig {
@@ -26,6 +27,7 @@ interface SecurityGroupRuleConfig {
 interface SecurityGroupConfig {
   resourcetype: string;
   name: string;
+  tags?: { [key: string]: string };
   ingress: SecurityGroupRuleConfig[];
   egress: SecurityGroupRuleConfig[];
 }
@@ -38,6 +40,7 @@ interface ec2InstanceConnectEndpointsConfig {
 interface AwsResourcesParams {
   vpcCidrBlock: string;
   vpcName: string;
+  vpcTags?: { [key: string]: string };
   subnets: SubnetConfig[];
   securityGroups: SecurityGroupConfig[];
   defaultRouteTableName: string;
@@ -62,6 +65,7 @@ export function createAwsVpcResources(
     enableDnsSupport: true,
     tags: {
       Name: params.vpcName,
+      ...(params.vpcTags || {}),
     },
   });
 
@@ -76,6 +80,7 @@ export function createAwsVpcResources(
       availabilityZone: subnetConfig.az,
       tags: {
         Name: subnetConfig.name,
+        ...(subnetConfig.tags || {}),
       },
     });
     subnets.push(subnetResource);
@@ -112,6 +117,7 @@ export function createAwsVpcResources(
           : [],
       tags: {
         Name: sgConfig.name,
+        ...(sgConfig.tags || {}),
       },
     });
     return sg;

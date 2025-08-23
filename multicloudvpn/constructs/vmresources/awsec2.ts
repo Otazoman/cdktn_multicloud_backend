@@ -12,6 +12,7 @@ interface Ec2InstanceConfig {
   subnetKey: string;
   securityGroupIds: string[];
   build: boolean;
+  diskSize?: number;
 }
 
 interface CreateEc2InstancesParams {
@@ -34,13 +35,17 @@ export function createAwsEc2Instances(
           `Subnet with key ${config.subnetKey} not found for EC2 Instance ${config.tags.Name}`
         );
       }
-      return new Instance(scope, `ec2Instance${config.tags.Name}`, {
+      return new Instance(scope, `ec2Instance-${config.tags.Name}`, {
         provider: provider,
         ami: config.ami,
         instanceType: config.instanceType,
         keyName: config.keyName,
         subnetId: targetSubnet.id,
         vpcSecurityGroupIds: config.securityGroupIds,
+        rootBlockDevice: {
+          volumeSize: config.diskSize,
+          tags: config.tags,
+        },
         tags: config.tags,
       });
     });

@@ -4,10 +4,31 @@ const vpcName = "my-gcp-vpc";
 export const googleVpcResourcesparams = {
   vpcName: vpcName,
   vpcCidrblock: "10.1.0.0/16",
+  vpcLabels: {
+    Environment: "Development",
+    Project: "MultiCloud",
+  },
   subnets: [
-    { name: "subnet1", cidr: "10.1.10.0/24", region: "asia-northeast1" },
-    { name: "subnet2", cidr: "10.1.20.0/24", region: "asia-northeast1" },
+    {
+      name: "subnet1",
+      cidr: "10.1.10.0/24",
+      region: "asia-northeast1",
+      labels: {
+        Tier: "Web",
+      },
+    },
+    {
+      name: "subnet2",
+      cidr: "10.1.20.0/24",
+      region: "asia-northeast1",
+      labels: {
+        Tier: "App",
+      },
+    },
   ],
+  firewallLabels: {
+    purpose: "vpc-security",
+  },
   firewallIngressRules: [
     {
       name: "internal-aws-rule",
@@ -33,14 +54,20 @@ export const googleVpcResourcesparams = {
       priority: 1000,
     },
   ],
+  sshFirewallLabels: {
+    purpose: "ssh-access",
+  },
 };
 /* VPN configuration parameters */
 export const googleVpnParams = {
-  connectDestination: "COMMON",
+  connectDestination: "common",
   vpnGatewayName: "google-vpn-gateway",
   cloudRouterName: "google-cloud-router",
   bgpGoogleAsn: 65000,
   ikeVersion: 2,
+  labels: {
+    owner: "team-a",
+  },
 };
 
 export const createGoogleVpnPeerParams = (
@@ -55,7 +82,8 @@ export const createGoogleVpnPeerParams = (
   gcpVpcCidr: string,
   peerVpcCidr: string,
   gcpNetwork: string,
-  forwardingRuleResources: any
+  forwardingRuleResources: any,
+  labels?: { [key: string]: string } | undefined
 ) => ({
   connectDestination: connectDestination,
   vpnTnnelname: `${vpcName}-gcp-${connectDestination}-vpn-tunnel`,
@@ -63,7 +91,7 @@ export const createGoogleVpnPeerParams = (
   routerPeerName: `${vpcName}-gcp-${connectDestination}-router-peer`,
   tunnelCount: tunnelCount,
   ikeVersion: ikeVersion,
-  routerName: cloudRouter.name,
+  routerName: cloudRouter?.name || "",
   cloudRouter: cloudRouter,
   vpnGateway: vpnGateway,
   externalVpnGateway: externalVpnGateway,
@@ -73,6 +101,7 @@ export const createGoogleVpnPeerParams = (
   peerVpcCidr: peerVpcCidr,
   gcpNetwork: gcpNetwork,
   forwardingRuleResources: forwardingRuleResources,
+  labels: labels,
 });
 
 /* GCE instance configurations */
@@ -93,6 +122,10 @@ export const gceInstancesParams = {
       machineType: "e2-micro",
       zone: "asia-northeast1-a",
       tags: ["multicloud"],
+      labels: {
+        name: "example-instance1",
+        owner: "team-a",
+      },
       bootDiskImage:
         "projects/ubuntu-os-cloud/global/images/ubuntu-2404-noble-amd64-v20240701a",
       bootDiskSize: 10,
@@ -107,9 +140,13 @@ export const gceInstancesParams = {
       machineType: "e2-micro",
       zone: "asia-northeast1-b",
       tags: ["multicloud"],
+      labels: {
+        name: "example-instance2",
+        owner: "team-a",
+      },
       bootDiskImage:
         "projects/ubuntu-os-cloud/global/images/ubuntu-2404-noble-amd64-v20240701a",
-      bootDiskSize: 10,
+      bootDiskSize: 20,
       bootDiskType: "pd-standard",
       bootDiskDeviceName: "test-instance2-boot-disk",
       subnetworkName: "subnet2",

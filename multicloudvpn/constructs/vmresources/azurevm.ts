@@ -13,6 +13,7 @@ interface AzureVmConfig {
   osDisk: {
     caching: string;
     storageAccountType: string;
+    diskSizeGb?: number;
   };
   sourceImageReference: {
     publisher: string;
@@ -22,6 +23,7 @@ interface AzureVmConfig {
   };
   subnetKey: string;
   build: boolean;
+  tags?: { [key: string]: string };
 }
 
 interface CreateAzureVmParams {
@@ -60,6 +62,7 @@ export function createAzureVms(
           privateIpAddressAllocation: "Dynamic",
         },
       ],
+      tags: vmConfig.tags,
       provider: provider,
     });
 
@@ -79,11 +82,12 @@ export function createAzureVms(
       osDisk: {
         caching: vmConfig.osDisk.caching,
         storageAccountType: vmConfig.osDisk.storageAccountType,
+        diskSizeGb: vmConfig.osDisk.diskSizeGb,
       },
       sourceImageReference: vmConfig.sourceImageReference,
+      tags: vmConfig.tags,
       provider: provider,
     });
-
     vms.push(vm);
   }
   return vms;

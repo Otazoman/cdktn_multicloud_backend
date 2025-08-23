@@ -154,10 +154,13 @@ function setupGoogleVpnTunnels(
   localCidr: string,
   peerCidr: string,
   vpcName: string,
-  forwardingRuleResources: any
+  forwardingRuleResources: any,
+  labels?: { [key: string]: string } | undefined
 ): any {
   const gatewayConfig = {
-    vpnGatewayId: vpnGateway.vpnGateway.id,
+    vpnGatewayId: isSingleTunnel
+      ? vpnGateway.vpnGateway?.selfLink || vpnGateway.vpnGateway?.id
+      : vpnGateway.vpnGateway.id,
     peerAsn,
   };
 
@@ -178,7 +181,8 @@ function setupGoogleVpnTunnels(
     localCidr,
     peerCidr,
     vpcName,
-    forwardingRuleResources
+    forwardingRuleResources,
+    labels
   );
 
   return createGooglePeerTunnel(scope, googleProvider, {
@@ -226,10 +230,10 @@ function createAzureVpnGatewayConfig(
       retentionInDays: azureVpnparams.retentionInDays,
     },
     isSingleTunnel,
-    singleTunnelSku: azureVpnparams.singleTunnelSku,
     awsToAzure,
     awsToGoogle: false,
     googleToAzure,
+    tags: azureVpnparams.vpnGwtags,
   };
 }
 
@@ -242,7 +246,7 @@ function setupAwsToGoogleVpn(
   isSingleTunnel: boolean
 ): void {
   const googleVpnGatewayIpAddresses = isSingleTunnel
-    ? [resources.googleVpnGateway.externalIp[0].address]
+    ? [resources.googleVpnGateways?.externalIp?.[0]?.address ?? ""]
     : ([
         resources.googleVpnGateways.vpnGateway.vpnInterfaces.get(0)?.ipAddress,
         resources.googleVpnGateways.vpnGateway.vpnInterfaces.get(1)?.ipAddress,
@@ -257,7 +261,8 @@ function setupAwsToGoogleVpn(
       googleVpnParams.bgpGoogleAsn,
       resources.awsVpnGateway.id,
       googleVpnGatewayIpAddresses,
-      isSingleTunnel
+      isSingleTunnel,
+      awsVpnparams.customerGatewayTags
     )
   );
 
@@ -275,7 +280,8 @@ function setupAwsToGoogleVpn(
     googleVpcResourcesparams.vpcCidrblock,
     awsVpcResourcesparams.vpcCidrBlock,
     googleVpcResources.vpc.name,
-    resources.googleVpnGateways.forwardingRuleResources
+    getForwardingRuleResources(resources.googleVpnGateways, isSingleTunnel),
+    googleVpnParams.labels
   );
 
   // Single tunnel routes
@@ -306,7 +312,8 @@ function setupAwsToAzureVpn(
       azureVpnparams.azureAsn,
       resources.awsVpnGateway.id,
       azureVng.publicIpData.map((pip: any) => pip.ipAddress),
-      isSingleTunnel
+      isSingleTunnel,
+      awsVpnparams.customerGatewayTags
     ),
     azureVpnProps: {
       awsGwIpCidr1: azureAwsVpnparams.awsGwIp1Cidr,
@@ -357,7 +364,10 @@ function setupAwsToAzureVpn(
       isSingleTunnel,
       awsToAzure,
       awsToGoogle,
-      googleToAzure
+      googleToAzure,
+      awsVpcResourcesparams.vpcCidrBlock,
+      googleVpcResourcesparams.vpcCidrblock,
+      azureVpnparams.localGwtags
     )
   );
 
@@ -431,7 +441,8 @@ function setupGoogleToAzureVpn(
     googleVpcResourcesparams.vpcCidrblock,
     azureVnetResourcesparams.vnetAddressSpace,
     googleVpcResources.vpc.name,
-    getForwardingRuleResources(googleVpnGateway, isSingleTunnel)
+    getForwardingRuleResources(googleVpnGateway, isSingleTunnel),
+    googleVpnParams.labels
   );
 
   // Create Azure Local Gateway
@@ -461,7 +472,8 @@ function setupGoogleToAzureVpn(
       awsToGoogle,
       googleToAzure,
       awsVpcResourcesparams.vpcCidrBlock,
-      googleVpcResourcesparams.vpcCidrblock
+      googleVpcResourcesparams.vpcCidrblock,
+      azureVpnparams.localGwtags
     )
   );
 }
@@ -486,6 +498,7 @@ export function createVpnResources(
       vgwName: `${awsVpcResourcesparams.vpcName}-vgw`,
       defaultRouteTableId: awsVpcResources.vpc.defaultRouteTableId,
       defaultRouteTableName: awsVpcResourcesparams.defaultRouteTableName,
+      tags: awsVpnparams.vpnGatewayTags,
     });
   }
 
@@ -505,6 +518,7 @@ export function createVpnResources(
         cloudRouterName: googleVpnParams.cloudRouterName,
         bgpGoogleAsn: googleVpnParams.bgpGoogleAsn,
         isSingleTunnel,
+        labels: googleVpnParams.labels,
       }
     );
   }

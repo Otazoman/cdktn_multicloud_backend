@@ -20,6 +20,7 @@ interface CustomerGatewayParams {
   };
   logRetentionDays: number;
   isSingleTunnel: boolean;
+  tags?: { [key: string]: string };
 }
 
 export function createAwsCustomerGateway(
@@ -51,6 +52,7 @@ export function createAwsCustomerGateway(
           type: params.awsVpnCgwProps.type,
           tags: {
             Name: `${params.customerGatewayName}-${index + 1}`,
+            ...(params.tags || {}),
           },
         }
       );
@@ -78,6 +80,7 @@ export function createAwsCustomerGateway(
         },
         tags: {
           Name: `${params.vpnConnectionName}-${index + 1}`,
+          ...(params.tags || {}),
         },
       };
 
