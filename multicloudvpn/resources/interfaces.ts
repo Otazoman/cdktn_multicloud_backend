@@ -27,7 +27,6 @@ export interface AwsVpcResources {
 export interface GoogleVpcResources {
   vpc: GoogleVpc;
   subnets: ComputeSubnetwork[];
-  sshrule: ComputeFirewall;
   ingressrules: ComputeFirewall[];
   egressrules: ComputeFirewall[];
   vpcLabels?: { [key: string]: string };

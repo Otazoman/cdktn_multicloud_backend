@@ -8,12 +8,15 @@ interface SubnetConfig {
   name: string;
   cidr: string;
   region: string;
-  labels?: { [key: string]: string };
 }
 
 interface FirewallRuleConfig {
   name: string;
   sourceRanges: string[];
+  permission: {
+    protocol: string;
+    ports?: string[];
+  };
   priority: number;
   destinationRanges?: string[];
 }
@@ -38,9 +41,6 @@ export function createGoogleVpcResources(
     provider: provider,
     name: params.vpcName,
     autoCreateSubnetworks: false,
-    description: `VPC Network: ${params.vpcName}${
-      params.vpcLabels ? ` - Labels: ${JSON.stringify(params.vpcLabels)}` : ""
-    }`,
   });
 
   // subnets
@@ -54,33 +54,9 @@ export function createGoogleVpcResources(
         name: `${params.vpcName}-${subnet.name}`,
         ipCidrRange: subnet.cidr,
         region: subnet.region,
-        description: `Subnet: ${params.vpcName}-${subnet.name}${
-          subnet.labels ? ` - Labels: ${JSON.stringify(subnet.labels)}` : ""
-        }`,
       }
     );
     return subnetwork;
-  });
-
-  // ssh(google)
-  const sshrule = new ComputeFirewall(scope, "allowSsh", {
-    provider: provider,
-    network: vpc.name,
-    name: `${params.vpcName}-ssh-allow-rule`,
-    direction: "INGRESS",
-    allow: [
-      {
-        protocol: "tcp",
-        ports: ["22"],
-      },
-    ],
-    sourceRanges: ["35.235.240.0/20"],
-    priority: 1000,
-    description: `SSH Firewall Rule: ${params.vpcName}-ssh-allow-rule${
-      params.sshFirewallLabels
-        ? ` - Labels: ${JSON.stringify(params.sshFirewallLabels)}`
-        : ""
-    }`,
   });
 
   // ingress rule
@@ -94,18 +70,9 @@ export function createGoogleVpcResources(
           network: vpc.name,
           name: `${params.vpcName}-${rule.name}`,
           direction: "INGRESS",
-          allow: [
-            {
-              protocol: "all",
-            },
-          ],
+          allow: [rule.permission],
           sourceRanges: rule.sourceRanges,
           priority: rule.priority,
-          description: `Ingress Firewall Rule: ${params.vpcName}-${rule.name}${
-            params.firewallLabels
-              ? ` - Labels: ${JSON.stringify(params.firewallLabels)}`
-              : ""
-          }`,
         }
       );
       return ingressRule;
@@ -123,24 +90,15 @@ export function createGoogleVpcResources(
           network: vpc.name,
           name: `${params.vpcName}-${rule.name}`,
           direction: "EGRESS",
-          allow: [
-            {
-              protocol: "all",
-            },
-          ],
+          allow: [rule.permission],
           sourceRanges: rule.sourceRanges,
           destinationRanges: rule.destinationRanges,
           priority: rule.priority,
-          description: `Egress Firewall Rule: ${params.vpcName}-${rule.name}${
-            params.firewallLabels
-              ? ` - Labels: ${JSON.stringify(params.firewallLabels)}`
-              : ""
-          }`,
         }
       );
       return egressRule;
     }
   );
 
-  return { vpc, subnets, sshrule, ingressrules, egressrules };
+  return { vpc, subnets, ingressrules, egressrules };
 }
