@@ -80,7 +80,6 @@ export function createAzureVnetResources(
       destinationPortRange: rule.destinationPortRange,
       sourceAddressPrefix: rule.sourceAddressPrefix,
       destinationAddressPrefix: rule.destinationAddressPrefix,
-      dependsOn: [nsg],
     });
     nsgRules.push(nsgRule);
   });
@@ -99,7 +98,6 @@ export function createAzureVnetResources(
         virtualNetworkName: vnet.name,
         name: `${params.vnetName}-${subnetConfig.name}`,
         addressPrefixes: [subnetConfig.cidr],
-        dependsOn: [vnet],
       }
     );
 
@@ -111,13 +109,7 @@ export function createAzureVnetResources(
         provider: provider,
         subnetId: subnetResource.id,
         networkSecurityGroupId: nsg.id,
-        dependsOn: [
-          subnetResource,
-          nsg,
-          ...(subnetAssociations.length > 0
-            ? [subnetAssociations[subnetAssociations.length - 1]]
-            : []),
-        ],
+        dependsOn: [subnetResource, nsg],
       }
     );
 

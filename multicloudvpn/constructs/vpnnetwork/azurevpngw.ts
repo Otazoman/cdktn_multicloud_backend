@@ -186,10 +186,9 @@ export function createAzureVpnGateway(
           category: "IKEDiagnosticLog",
         },
       ],
-      metric: [
+      enabledMetric: [
         {
           category: "AllMetrics",
-          enabled: true,
         },
       ],
     }
