@@ -496,8 +496,7 @@ export function createVpnResources(
       vpcId: awsVpcResources.vpc.id,
       amazonSideAsn: awsVpnparams.bgpAwsAsn,
       vgwName: `${awsVpcResourcesparams.vpcName}-vgw`,
-      defaultRouteTableId: awsVpcResources.vpc.defaultRouteTableId,
-      defaultRouteTableName: awsVpcResourcesparams.defaultRouteTableName,
+      routeTableId: awsVpcResources.privateRouteTable.id,
       tags: awsVpnparams.vpnGatewayTags,
     });
   }

@@ -20,6 +20,7 @@ export interface AwsVpcResources {
     | Record<string, { id: string; name: string }>;
   securityGroups: SecurityGroup[] | { id: string; name: string }[];
   securityGroupMapping: { [key: string]: Token };
+  privateRouteTable: any | { id: string; name: string };
   ec2InstanceConnectEndpoint?: Ec2InstanceConnectEndpoint;
 }
 

@@ -1,7 +1,12 @@
+import { BastionHost } from "@cdktf/provider-azurerm/lib/bastion-host";
+import { NatGateway } from "@cdktf/provider-azurerm/lib/nat-gateway";
+import { NatGatewayPublicIpAssociation } from "@cdktf/provider-azurerm/lib/nat-gateway-public-ip-association";
 import { NetworkSecurityGroup } from "@cdktf/provider-azurerm/lib/network-security-group";
 import { NetworkSecurityRule } from "@cdktf/provider-azurerm/lib/network-security-rule";
 import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
+import { PublicIp } from "@cdktf/provider-azurerm/lib/public-ip";
 import { Subnet } from "@cdktf/provider-azurerm/lib/subnet";
+import { SubnetNatGatewayAssociation } from "@cdktf/provider-azurerm/lib/subnet-nat-gateway-association";
 import { SubnetNetworkSecurityGroupAssociation } from "@cdktf/provider-azurerm/lib/subnet-network-security-group-association";
 import { VirtualNetwork } from "@cdktf/provider-azurerm/lib/virtual-network";
 import { Construct } from "constructs";
@@ -30,8 +35,11 @@ interface AzureResourcesParams {
   vnetAddressSpace: string;
   vnetTags?: { [key: string]: string };
   subnets: SubnetConfig[];
+  bastionSubnetcidr: string;
   nsgTags?: { [key: string]: string };
   nsgRules: NSGRuleConfig[];
+  natenabled: boolean;
+  bastionenabled: boolean;
 }
 
 export function createAzureVnetResources(
@@ -115,6 +123,89 @@ export function createAzureVnetResources(
 
     subnets[subnetConfig.name] = subnetResource;
     subnetAssociations.push(nsgAssociation);
+  }
+
+  // NAT Gateway
+  if (params.natenabled) {
+    const natPublicIp = new PublicIp(scope, "natPublicIp", {
+      provider,
+      name: `${params.vnetName}-nat-pip`,
+      location: params.location,
+      resourceGroupName: params.resourceGroupName,
+      allocationMethod: "Static",
+      sku: "Standard",
+      tags: {
+        Name: `${params.vnetName}-nat-pip`,
+        ...(params.vnetTags || {}),
+      },
+    });
+
+    const natGateway = new NatGateway(scope, "natGateway", {
+      provider,
+      name: `${params.vnetName}-natgw`,
+      location: params.location,
+      resourceGroupName: params.resourceGroupName,
+      skuName: "Standard",
+      idleTimeoutInMinutes: 10,
+      tags: {
+        Name: `${params.vnetName}-natgw`,
+        ...(params.vnetTags || {}),
+      },
+    });
+
+    new NatGatewayPublicIpAssociation(scope, "natGwIpAssoc", {
+      provider,
+      natGatewayId: natGateway.id,
+      publicIpAddressId: natPublicIp.id,
+    });
+
+    Object.values(subnets).forEach((subnet, index) => {
+      new SubnetNatGatewayAssociation(scope, `natAssoc-${index}`, {
+        provider,
+        subnetId: subnet.id,
+        natGatewayId: natGateway.id,
+      });
+    });
+  }
+
+  // Bastion
+  if (params.bastionenabled) {
+    const bastionSubnet = new Subnet(scope, "AzureBastionSubnet", {
+      provider,
+      resourceGroupName: params.resourceGroupName,
+      virtualNetworkName: vnet.name,
+      name: "AzureBastionSubnet",
+      addressPrefixes: [params.bastionSubnetcidr],
+    });
+
+    const bastionPublicIp = new PublicIp(scope, "bastionPublicIp", {
+      provider,
+      name: `${params.vnetName}-bastion-pip`,
+      location: params.location,
+      resourceGroupName: params.resourceGroupName,
+      allocationMethod: "Static",
+      sku: "Standard",
+      tags: {
+        Name: `${params.vnetName}-bastion-pip`,
+        ...(params.vnetTags || {}),
+      },
+    });
+
+    new BastionHost(scope, "bastionHost", {
+      provider,
+      name: `${params.vnetName}-bastion`,
+      location: params.location,
+      resourceGroupName: params.resourceGroupName,
+      ipConfiguration: {
+        name: "bastionIpConfig",
+        subnetId: bastionSubnet.id,
+        publicIpAddressId: bastionPublicIp.id,
+      },
+      tags: {
+        Name: `${params.vnetName}-bastion`,
+        ...(params.vnetTags || {}),
+      },
+    });
   }
 
   return {

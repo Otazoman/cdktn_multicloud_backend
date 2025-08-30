@@ -72,6 +72,12 @@ export const googleVpcResourcesparams = {
       priority: 1000,
     },
   ],
+  natConfig: {
+    enable: false,
+    name: "google-nat-gateway",
+    region: "asia-northeast1",
+    routerName: "natgateway-router",
+  },
 };
 /* VPN configuration parameters */
 export const googleVpnParams = {

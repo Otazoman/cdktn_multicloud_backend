@@ -1,5 +1,12 @@
+import { DefaultRouteTable } from "@cdktf/provider-aws/lib/default-route-table"; // ★ DefaultRouteTable をインポート ★
 import { Ec2InstanceConnectEndpoint } from "@cdktf/provider-aws/lib/ec2-instance-connect-endpoint";
+import { Eip } from "@cdktf/provider-aws/lib/eip";
+import { InternetGateway } from "@cdktf/provider-aws/lib/internet-gateway";
+import { NatGateway } from "@cdktf/provider-aws/lib/nat-gateway";
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
+import { Route } from "@cdktf/provider-aws/lib/route";
+import { RouteTable } from "@cdktf/provider-aws/lib/route-table";
+import { RouteTableAssociation } from "@cdktf/provider-aws/lib/route-table-association";
 import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
 import { SecurityGroupRule } from "@cdktf/provider-aws/lib/security-group-rule";
 import { Subnet } from "@cdktf/provider-aws/lib/subnet";
@@ -12,6 +19,7 @@ interface SubnetConfig {
   cidrBlock: string;
   az: string;
   name: string;
+  type: string;
   tags?: { [key: string]: string };
 }
 
@@ -45,6 +53,23 @@ interface AwsResourcesParams {
   securityGroups: SecurityGroupConfig[];
   defaultRouteTableName: string;
   ec2ICEndpoint: ec2InstanceConnectEndpointsConfig;
+  natGateway: {
+    enable: boolean;
+    name: string;
+    tags?: { [key: string]: string };
+  };
+  routeTables: {
+    public: {
+      name: string;
+      associatedSubnetNames: string[];
+      tags?: { [key: string]: string };
+    };
+    private: {
+      name: string;
+      associatedSubnetNames: string[];
+      tags?: { [key: string]: string };
+    };
+  };
 }
 
 export function createAwsVpcResources(
@@ -69,9 +94,21 @@ export function createAwsVpcResources(
     },
   });
 
+  // Internet Gateway
+  const igw = new InternetGateway(scope, "internetGateway", {
+    provider: provider,
+    vpcId: vpc.id,
+    tags: {
+      Name: `${params.vpcName}-igw`,
+    },
+  });
+
   // subnets
   const subnets: Subnet[] = [];
   const subnetsByName: Record<string, Subnet> = {};
+  const publicSubnets: Subnet[] = [];
+  const privateSubnets: Subnet[] = [];
+
   params.subnets.forEach((subnetConfig, index) => {
     const subnetResource = new Subnet(scope, `awsSubnet${index}`, {
       provider: provider,
@@ -85,7 +122,105 @@ export function createAwsVpcResources(
     });
     subnets.push(subnetResource);
     subnetsByName[subnetConfig.name] = subnetResource;
+
+    subnetConfig.type === "public"
+      ? publicSubnets.push(subnetResource)
+      : privateSubnets.push(subnetResource);
   });
+
+  // Default Route Table add name
+  new DefaultRouteTable(scope, "defaultRouteTable", {
+    provider: provider,
+    defaultRouteTableId: vpc.defaultRouteTableId,
+    tags: {
+      Name: params.defaultRouteTableName,
+    },
+  });
+
+  // Public Route Table
+  const publicRouteTable = new RouteTable(scope, "publicRouteTable", {
+    provider: provider,
+    vpcId: vpc.id,
+    tags: {
+      Name: params.routeTables.public.name,
+      ...(params.routeTables.public.tags || {}),
+    },
+  });
+
+  new Route(scope, "publicInternetRoute", {
+    provider: provider,
+    routeTableId: publicRouteTable.id,
+    destinationCidrBlock: "0.0.0.0/0",
+    gatewayId: igw.id,
+  });
+
+  params.routeTables.public.associatedSubnetNames.forEach(
+    (subnetName, index) => {
+      const subnet = subnetsByName[subnetName];
+      if (subnet) {
+        new RouteTableAssociation(scope, `publicSubnetAssociation${index}`, {
+          provider: provider,
+          subnetId: subnet.id,
+          routeTableId: publicRouteTable.id,
+        });
+      }
+    }
+  );
+
+  let natGateway: NatGateway | undefined;
+
+  // Elastic IP for NAT Gateway
+  if (params.natGateway.enable) {
+    const eip = new Eip(scope, "natGatewayEip", {
+      provider: provider,
+      tags: {
+        Name: `${params.natGateway.name}-eip`,
+      },
+    });
+
+    // NAT Gateway
+    natGateway = new NatGateway(scope, "natGateway", {
+      provider: provider,
+      allocationId: eip.id,
+      subnetId: publicSubnets[0].id,
+      tags: {
+        Name: params.natGateway.name,
+        ...(params.natGateway.tags || {}),
+      },
+    });
+  }
+
+  // Private Route Table
+  const privateRouteTable = new RouteTable(scope, "privateRouteTable", {
+    provider: provider,
+    vpcId: vpc.id,
+    tags: {
+      Name: params.routeTables.private.name,
+      ...(params.routeTables.private.tags || {}),
+    },
+  });
+
+  if (natGateway) {
+    new Route(scope, "privateNatGatewayRoute", {
+      provider: provider,
+      routeTableId: privateRouteTable.id,
+      destinationCidrBlock: "0.0.0.0/0",
+      natGatewayId: natGateway.id,
+    });
+  }
+
+  params.routeTables.private.associatedSubnetNames.forEach(
+    (subnetName, index) => {
+      const subnet = subnetsByName[subnetName];
+      if (subnet) {
+        new RouteTableAssociation(scope, `privateSubnetAssociation${index}`, {
+          provider: provider,
+          subnetId: subnet.id,
+          routeTableId: privateRouteTable.id,
+        });
+      }
+    }
+  );
 
   // security groups
   const securityGroups = params.securityGroups.map((sgConfig, index) => {
@@ -187,6 +322,12 @@ export function createAwsVpcResources(
     vpc,
     subnets,
     subnetsByName,
+    publicSubnets,
+    privateSubnets,
+    igw,
+    natGateway,
+    publicRouteTable,
+    privateRouteTable,
     securityGroups,
     securityGroupMapping,
     ec2InstanceConnectEndpoint,

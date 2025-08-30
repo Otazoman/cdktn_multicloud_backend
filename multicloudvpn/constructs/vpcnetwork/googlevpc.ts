@@ -1,5 +1,8 @@
+import { ComputeAddress } from "@cdktf/provider-google/lib/compute-address";
 import { ComputeFirewall } from "@cdktf/provider-google/lib/compute-firewall";
 import { ComputeNetwork as GoogleVpc } from "@cdktf/provider-google/lib/compute-network";
+import { ComputeRouter } from "@cdktf/provider-google/lib/compute-router";
+import { ComputeRouterNat } from "@cdktf/provider-google/lib/compute-router-nat";
 import { ComputeSubnetwork } from "@cdktf/provider-google/lib/compute-subnetwork";
 import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
 import { Construct } from "constructs";
@@ -29,6 +32,12 @@ interface GoogleResourcesParams {
   firewallIngressRules: FirewallRuleConfig[];
   firewallEgressRules: FirewallRuleConfig[];
   sshFirewallLabels?: { [key: string]: string };
+  natConfig: {
+    enable?: boolean;
+    name: string;
+    region: string;
+    routerName: string;
+  };
 }
 
 export function createGoogleVpcResources(
@@ -100,5 +109,44 @@ export function createGoogleVpcResources(
     }
   );
 
-  return { vpc, subnets, ingressrules, egressrules };
+  // Cloud NAT
+  let router;
+  let natGateway;
+  let natIpAddress;
+  if (params.natConfig.enable) {
+    natIpAddress = new ComputeAddress(scope, "cloudNatIp", {
+      provider: provider,
+      name: `${params.natConfig.name}-ip`,
+      region: params.natConfig.region,
+    });
+    router = new ComputeRouter(scope, "cloudRouter", {
+      provider: provider,
+      name: params.natConfig.routerName,
+      network: vpc.id,
+      region: params.natConfig.region,
+    });
+    natGateway = new ComputeRouterNat(scope, "cloudNat", {
+      provider: provider,
+      name: params.natConfig.name,
+      router: router.name,
+      region: params.natConfig.region,
+      sourceSubnetworkIpRangesToNat: "ALL_SUBNETWORKS_ALL_IP_RANGES",
+      natIpAllocateOption: "MANUAL_ONLY",
+      natIps: [natIpAddress.selfLink],
+      logConfig: {
+        enable: true,
+        filter: "ALL",
+      },
+    });
+  }
+
+  return {
+    vpc,
+    subnets,
+    ingressrules,
+    egressrules,
+    router,
+    natIpAddress,
+    natGateway,
+  };
 }

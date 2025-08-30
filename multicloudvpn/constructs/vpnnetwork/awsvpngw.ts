@@ -1,6 +1,6 @@
-import { DefaultRouteTable } from "@cdktf/provider-aws/lib/default-route-table"; // ★ DefaultRouteTable をインポート ★
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { VpnGateway } from "@cdktf/provider-aws/lib/vpn-gateway";
+import { VpnGatewayRoutePropagation } from "@cdktf/provider-aws/lib/vpn-gateway-route-propagation";
 import { NullProvider } from "@cdktf/provider-null/lib/provider";
 import { Construct } from "constructs";
 
@@ -8,8 +8,7 @@ interface VpnGatewayParams {
   vpcId: string;
   vgwName: string;
   amazonSideAsn: number;
-  defaultRouteTableId: string;
-  defaultRouteTableName: string;
+  routeTableId: string;
   tags?: { [key: string]: string };
 }
 
@@ -35,13 +34,10 @@ export function createAwsVpnGateway(
   });
 
   // Configure route propagation for virtual private gateways
-  new DefaultRouteTable(scope, "defaultRouteTable", {
+  new VpnGatewayRoutePropagation(scope, `vgw-route-propagation`, {
     provider: provider,
-    defaultRouteTableId: params.defaultRouteTableId,
-    tags: {
-      Name: params.defaultRouteTableName,
-    },
-    propagatingVgws: [vpnGateway.id],
+    routeTableId: params.routeTableId,
+    vpnGatewayId: vpnGateway.id,
   });
 
   return vpnGateway;

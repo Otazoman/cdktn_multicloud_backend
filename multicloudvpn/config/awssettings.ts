@@ -9,23 +9,26 @@ export const awsVpcResourcesparams = {
     {
       cidrBlock: "10.0.10.0/24",
       az: "ap-northeast-1a",
-      name: "my-aws-vpc-subnet1",
+      name: "my-aws-vpc-public-subnet1",
+      type: "public",
       tags: {
         Tier: "Web",
       },
     },
     {
       cidrBlock: "10.0.20.0/24",
-      az: "ap-northeast-1c",
-      name: "my-aws-vpc-subnet2",
+      az: "ap-northeast-1a",
+      name: "my-aws-vpc-private-subnet1",
+      type: "private",
       tags: {
         Tier: "App",
       },
     },
     {
       cidrBlock: "10.0.30.0/24",
-      az: "ap-northeast-1d",
-      name: "my-aws-vpc-subnet3",
+      az: "ap-northeast-1c",
+      name: "my-aws-vpc-private-subnet2",
+      type: "private",
       tags: {
         Tier: "DB",
       },
@@ -77,16 +80,43 @@ export const awsVpcResourcesparams = {
       ],
     },
   ],
-  defaultRouteTableName: "my-aws-vpc-routetable",
   ec2ICEndpoint: {
     endpointName: "my-ec2-instance-connect-endpoint",
     securityGroupNames: ["EC2InstanceConnect"],
+  },
+  natGateway: {
+    enable: false,
+    name: "my-aws-vpc-nat-gateway",
+    tags: {
+      Purpose: "NAT",
+    },
+  },
+  defaultRouteTableName: "my-aws-vpc-routetable",
+  routeTables: {
+    public: {
+      name: "my-aws-vpc-public-routetable",
+      associatedSubnetNames: ["my-aws-vpc-public-subnet1"],
+      tags: {
+        Purpose: "Public",
+      },
+    },
+    private: {
+      name: "my-aws-vpc-private-routetable",
+      associatedSubnetNames: [
+        "my-aws-vpc-private-subnet1",
+        "my-aws-vpc-private-subnet2",
+      ],
+      tags: {
+        Purpose: "Private",
+      },
+    },
   },
 };
 /* VPN configuration parameters */
 export const awsVpnparams = {
   bgpAwsAsn: 64512,
   logRetentionDays: 14,
+  propageteRouteTableNames: ["my-aws-vpc-private-routetable"],
   vpnGatewayTags: {
     Project: "MultiCloud",
   },
@@ -127,7 +157,7 @@ export const ec2Configs = [
       Name: "MyEC2Instance1",
       Owner: "Team-A",
     },
-    subnetKey: "my-aws-vpc-subnet1",
+    subnetKey: "my-aws-vpc-private-subnet1",
     securityGroupIds: ["my-aws-vpc-sg1"],
     diskSize: 8,
     build: true,
@@ -140,7 +170,7 @@ export const ec2Configs = [
       Name: "MyEC2Instance2",
       Owner: "Team-B",
     },
-    subnetKey: "my-aws-vpc-subnet2",
+    subnetKey: "my-aws-vpc-private-subnet2",
     securityGroupIds: ["my-aws-vpc-sg1"],
     diskSize: 8,
     build: false,
