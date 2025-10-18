@@ -8,8 +8,9 @@ Create a VPN connection between AWS, Google and Azure with a backend integration
 
 # Operating environment
 
-Ubuntu 24.04.1 LTS  
-Docker version 27.3.1
+Ubuntu 24.04.3 LTS  
+Docker version 28.5.1  
+Docker Compose v2.40.1
 
 # Usage
 
@@ -25,7 +26,7 @@ Docker version 27.3.1
 ```
 git clone https://github.com/Otazoman/cdktf_multicloud_backend.git
 cd cdktf_multicloudbackend
-docker build --build-arg NODE_VERSION=22 --build-arg TERRAFORM_VERSION=1.9.8 -t cdktf-docker .
+docker build --build-arg NODE_VERSION=22 --build-arg TERRAFORM_VERSION=1.13.4 -t cdktf-docker .
 docker compose up -d
 docker compose exec cdktf-backend bash
 ```
