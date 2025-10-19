@@ -12,11 +12,26 @@ wait_for_internet() {
 
 # wait for apt locks to be released (existing function)
 wait_for_apt_lock() {
-    while fuser /var/lib/dpkg/lock >/dev/null 2>&1 || fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
-        echo "Waiting for apt locks to be released..."
+    log "Waiting for apt/dpkg locks to be released..."
+
+    while true; do
+        LOCK_HELD=0
+        
+        for LOCK in $LOCK_FILES; do
+            if fuser $LOCK >/dev/null 2>&1; then
+                LOCK_HELD=1
+                break
+            fi
+        done
+
+        if [ $LOCK_HELD -eq 0 ]; then
+            log "Apt/dpkg locks are free. Proceeding."
+            break
+        fi
+
+        log "Lock is held. Waiting 5 seconds..."
         sleep 5
     done
-    echo "Apt locks are free. Proceeding with package management."
 }
 
 # set timezone and editor
