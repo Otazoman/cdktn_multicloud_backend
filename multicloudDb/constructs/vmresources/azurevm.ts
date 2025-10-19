@@ -3,6 +3,8 @@ import { NetworkInterface } from "@cdktf/provider-azurerm/lib/network-interface"
 import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
 import { PrivateKey } from "@cdktf/provider-tls/lib/private-key";
 import { Construct } from "constructs";
+import * as fs from "fs";
+
 
 interface AzureVmConfig {
   name: string;
@@ -24,6 +26,7 @@ interface AzureVmConfig {
   subnetKey: string;
   build: boolean;
   tags?: { [key: string]: string };
+  vmInitScriptPath?: string;
 }
 
 interface CreateAzureVmParams {
@@ -49,6 +52,19 @@ export function createAzureVms(
       throw new Error(
         `Subnet with key ${vmConfig.subnetKey} not found for VM ${vmConfig.name}`
       );
+    }
+
+    // Startup script
+    let encodedCustomData: string | undefined = undefined;
+    
+    if (vmConfig.vmInitScriptPath) {
+      try {
+        const vmInitScript = fs.readFileSync(vmConfig.vmInitScriptPath, "utf-8");
+        encodedCustomData = Buffer.from(vmInitScript).toString("base64");
+      } catch (error) {
+        console.error(`Error reading VM init script at ${vmConfig.vmInitScriptPath!}:`, error);
+        throw new Error(`Failed to read VM initialization script from path: ${vmConfig.vmInitScriptPath}. Please check if the file exists and is accessible.`);
+      }
     }
 
     const nic = new NetworkInterface(scope, `nic-${index}`, {
@@ -87,6 +103,7 @@ export function createAzureVms(
       sourceImageReference: vmConfig.sourceImageReference,
       tags: vmConfig.tags,
       provider: provider,
+      customData: encodedCustomData,
     });
     vms.push(vm);
   }

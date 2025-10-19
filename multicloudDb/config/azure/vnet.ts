@@ -5,7 +5,7 @@ export const azureVnetResourcesparams = {
   resourceGroupName: RESOURCE_GROUP,
   location: LOCATION,
   vnetName: VNET_NAME,
-  isEnabled: false,
+  isEnabled: true,
   vnetAddressSpace: "10.2.0.0/16",
   vnetTags: {
     Project: "MultiCloud",
@@ -20,8 +20,8 @@ export const azureVnetResourcesparams = {
       cidr: "10.2.20.0/24",
     },
   ],
-  natenabled: false,
-  bastionenabled: false,
+  natenabled: true,
+  bastionenabled: true,
   bastionSubnetcidr: "10.2.110.0/24",
   nsgTags: {
     Purpose: "VnetSecurity",

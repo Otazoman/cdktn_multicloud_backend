@@ -24,7 +24,8 @@ export const azureVmsConfigparams = [
       Name: "MyAzureVM1",
       Owner: "Team-A",
     },
-    build: false,
+    build: true,
+    vmInitScriptPath: "./scripts/vm_init.sh",
   },
   {
     name: "example-vm-2",

@@ -6,18 +6,18 @@ import { Construct } from "constructs";
 import { ec2Configs } from "../config/aws/awssettings";
 import { azureVmsConfigparams } from "../config/azure/azuresettings";
 import {
-    awsToAzure,
-    awsToGoogle,
-    googleToAzure,
+  awsToAzure,
+  awsToGoogle,
+  googleToAzure,
 } from "../config/commonsettings";
 import { gceInstancesParams } from "../config/google/googlesettings";
 import { createAwsEc2Instances } from "../constructs/vmresources/awsec2";
 import { createAzureVms } from "../constructs/vmresources/azurevm";
 import { createGoogleGceInstances } from "../constructs/vmresources/googlegce";
 import {
-    AwsVpcResources,
-    AzureVnetResources,
-    GoogleVpcResources,
+  AwsVpcResources,
+  AzureVnetResources,
+  GoogleVpcResources,
 } from "./interfaces";
 
 export const createVmResources = (
