@@ -3,6 +3,9 @@ import { ComputeNetwork as GoogleVpc } from "@cdktf/provider-google/lib/compute-
 import { ComputeSubnetwork } from "@cdktf/provider-google/lib/compute-subnetwork";
 import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
 import { Construct } from "constructs";
+import * as fs from "fs";
+import * as path from "path";
+
 
 interface GceInstanceConfig {
   name: string;
@@ -16,13 +19,13 @@ interface GceInstanceConfig {
   bootDiskDeviceName: string;
   subnetworkName: string;
   serviceAccountScopes: string[];
+  startupScriptPath?: string;
   build: boolean;
 }
 
 interface CreateGceInstancesParams {
   project: string;
   instanceConfigs: GceInstanceConfig[];
-  // vpcName: string;
 }
 
 export function createGoogleGceInstances(
@@ -35,6 +38,22 @@ export function createGoogleGceInstances(
   const instances = params.instanceConfigs
     .filter((config) => config.build)
     .map((config, index) => {
+      //Startup Script
+      let startupScriptContent: string | undefined = undefined;
+      if (config.startupScriptPath) {
+        try {
+          const scriptPath = path.resolve(config.startupScriptPath);
+          startupScriptContent = fs.readFileSync(scriptPath, "utf8");
+          console.log(`Successfully loaded startup script from: ${scriptPath}`);
+        } catch (error) {
+          console.error(
+            `Error reading startup script file at ${config.startupScriptPath}:`,
+            error
+          );
+          startupScriptContent = undefined;
+        }
+      }
+
       return new ComputeInstance(scope, `gceInstance${index}`, {
         provider: provider,
         project: params.project,
@@ -59,6 +78,9 @@ export function createGoogleGceInstances(
         serviceAccount: {
           scopes: config.serviceAccountScopes,
         },
+        metadata: startupScriptContent
+          ? { "startup-script": startupScriptContent }
+          : undefined,
         dependsOn: [vpc, ...subnets],
       });
     });

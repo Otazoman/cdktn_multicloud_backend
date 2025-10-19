@@ -2,6 +2,7 @@
 
 export const googleVpcResourcesparams = {
   vpcName: "my-gcp-vpc",
+  isEnabled: true,
   vpcCidrblock: "10.1.0.0/16",
   vpcLabels: {
     Environment: "Development",
@@ -72,7 +73,7 @@ export const googleVpcResourcesparams = {
     },
   ],
   natConfig: {
-    enable: false,
+    enable: true,
     name: "google-nat-gateway",
     region: "asia-northeast1",
     routerName: "natgateway-router",

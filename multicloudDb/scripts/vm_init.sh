@@ -20,17 +20,24 @@ wait_for_apt_lock() {
 }
 
 # set timezone and editor
+echo "Settings TimeZone..."
 timedatectl set-timezone Asia/Tokyo
 update-alternatives --set editor /usr/bin/vim.basic
 
-# wait for apt lock
-wait_for_apt_lock
-
-# wait for internet connection with curl instead of ping
+# wait for apt Connect
 wait_for_internet
 
-# package update and installation
-echo "Running system update and upgrade..."
-apt update -y && apt upgrade -y
+# package update
+echo "Running apt-get update..."
+apt purge -y nano
+wait_for_apt_lock
+apt update -y
+wait_for_apt_lock
+# install MySQL and PostgreSQL clients
 echo "Installing required clients..."
 apt install -y mysql-client postgresql-client
+wait_for_apt_lock
+# package upgrade
+echo "Running system upgrade..."
+apt upgrade -y
+wait_for_apt_lock

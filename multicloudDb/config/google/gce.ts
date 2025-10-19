@@ -27,7 +27,8 @@ export const gceInstancesParams = {
       bootDiskDeviceName: "test-instance1-boot-disk",
       subnetworkName: "subnet1",
       serviceAccountScopes: serviceAccountScopes,
-      build: false,
+      build: true,
+      startupScriptPath: "./scripts/vm_init.sh",
     },
     {
       name: "gce-instance-2",
