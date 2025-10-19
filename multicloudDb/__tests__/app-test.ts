@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: MPL-2.0
 import { App, Testing } from "cdktf";
 import "cdktf/lib/testing/adapters/jest";
-import { MultiCloudVpnStack } from "../stacks/MultiCloudVpnStack";
+import { MultiCloudBackendStack } from "../stacks/MultiCloudBackendStack";
 
 describe("MultiCloudVpnStack", () => {
   let app: App;
-  let stack: MultiCloudVpnStack;
+  let stack: MultiCloudBackendStack;
 
   beforeEach(() => {
     app = Testing.app();
-    stack = new MultiCloudVpnStack(app, "test");
+    stack = new MultiCloudBackendStack(app, "test");
   });
 
   test("Snapshot test", () => {

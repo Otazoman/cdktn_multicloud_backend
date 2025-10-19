@@ -2,7 +2,7 @@
 
 export const googleVpcResourcesparams = {
   vpcName: "my-gcp-vpc",
-  isEnabled: false,
+  isEnabled: true,
   vpcCidrblock: "10.1.0.0/16",
   vpcLabels: {
     Environment: "Development",

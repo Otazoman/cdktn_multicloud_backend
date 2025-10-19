@@ -2,7 +2,7 @@
 export const awsVpcResourcesparams = {
   vpcCidrBlock: "10.0.0.0/16",
   vpcName: "my-aws-vpc",
-  isEnabled: false,
+  isEnabled: true,
   vpcTags: {
     Project: "MultiCloud",
   },

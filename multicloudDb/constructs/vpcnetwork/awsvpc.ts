@@ -171,7 +171,7 @@ export function createAwsVpcResources(
 
   // Elastic IP for NAT Gateway
   if (params.natGateway.enable) {
-    const eip = new Eip(scope, "natGatewayEip", {
+    const eip = new Eip(scope, "AwsNatGatewayEip", {
       provider: provider,
       tags: {
         Name: `${params.natGateway.name}-eip`,
@@ -179,7 +179,7 @@ export function createAwsVpcResources(
     });
 
     // NAT Gateway
-    natGateway = new NatGateway(scope, "natGateway", {
+    natGateway = new NatGateway(scope, "AwsNatGateway", {
       provider: provider,
       allocationId: eip.id,
       subnetId: publicSubnets[0].id,

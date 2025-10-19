@@ -127,7 +127,7 @@ export function createAzureVnetResources(
 
   // NAT Gateway
   if (params.natenabled) {
-    const natPublicIp = new PublicIp(scope, "natPublicIp", {
+    const natPublicIp = new PublicIp(scope, "AzureNatPublicIp", {
       provider,
       name: `${params.vnetName}-nat-pip`,
       location: params.location,
@@ -140,7 +140,7 @@ export function createAzureVnetResources(
       },
     });
 
-    const natGateway = new NatGateway(scope, "natGateway", {
+    const natGateway = new NatGateway(scope, "AzureNatGateway", {
       provider,
       name: `${params.vnetName}-natgw`,
       location: params.location,
@@ -153,14 +153,14 @@ export function createAzureVnetResources(
       },
     });
 
-    new NatGatewayPublicIpAssociation(scope, "natGwIpAssoc", {
+    new NatGatewayPublicIpAssociation(scope, "AzureNatGwIpAssoc", {
       provider,
       natGatewayId: natGateway.id,
       publicIpAddressId: natPublicIp.id,
     });
 
     Object.values(subnets).forEach((subnet, index) => {
-      new SubnetNatGatewayAssociation(scope, `natAssoc-${index}`, {
+      new SubnetNatGatewayAssociation(scope, `AzureNatAssoc-${index}`, {
         provider,
         subnetId: subnet.id,
         natGatewayId: natGateway.id,
@@ -178,7 +178,7 @@ export function createAzureVnetResources(
       addressPrefixes: [params.bastionSubnetcidr],
     });
 
-    const bastionPublicIp = new PublicIp(scope, "bastionPublicIp", {
+    const bastionPublicIp = new PublicIp(scope, "AzureBastionPublicIp", {
       provider,
       name: `${params.vnetName}-bastion-pip`,
       location: params.location,

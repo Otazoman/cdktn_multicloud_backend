@@ -1,6 +1,6 @@
 import { App } from "cdktf";
-import { MultiCloudVpnStack } from "./stacks/MultiCloudVpnStack";
+import { MultiCloudBackendStack } from "./stacks/MultiCloudBackendStack";
 
 const app = new App();
-new MultiCloudVpnStack(app, "app");
+new MultiCloudBackendStack(app, "app");
 app.synth();

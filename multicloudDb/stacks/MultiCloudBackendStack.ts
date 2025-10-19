@@ -1,6 +1,6 @@
 import { TerraformOutput, TerraformStack } from "cdktf";
 import { Construct } from "constructs";
-import { useVpn } from "../config/commonsettings";
+import { useVms, useVpn } from "../config/commonsettings";
 import { createProviders } from "../providers/providers";
 import { createVmResources } from "../resources/vmResources";
 import { createVpcResources } from "../resources/vpcResources";
@@ -8,7 +8,7 @@ import { createVpnResources } from "../resources/vpnResources";
 import { createSshKey } from "../utils/sshKey";
 
 
-export class MultiCloudVpnStack extends TerraformStack {
+export class MultiCloudBackendStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
     super(scope, id);
 
@@ -46,15 +46,17 @@ export class MultiCloudVpnStack extends TerraformStack {
     }
 
     // VM
-    createVmResources(
-      this,
-      awsProvider,
-      googleProvider,
-      azureProvider,
-      vpcResources.awsVpcResources,
-      vpcResources.googleVpcResources,
-      vpcResources.azureVnetResources,
-      sshKey
-    );
+    if (useVms) {
+      createVmResources(
+        this,
+        awsProvider,
+        googleProvider,
+        azureProvider,
+        vpcResources.awsVpcResources,
+        vpcResources.googleVpcResources,
+        vpcResources.azureVnetResources,
+        sshKey
+      );
+    }
   }
 }
