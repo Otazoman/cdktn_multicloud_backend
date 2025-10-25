@@ -1,5 +1,5 @@
 export * from './common';
 export * from './vm';
-export * from './vnet';
+export * from './vnet/vnet';
 export * from './vpn';
 

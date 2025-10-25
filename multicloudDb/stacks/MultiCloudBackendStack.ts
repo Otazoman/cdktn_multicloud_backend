@@ -2,6 +2,7 @@ import { TerraformOutput, TerraformStack } from "cdktf";
 import { Construct } from "constructs";
 import { useVms, useVpn } from "../config/commonsettings";
 import { createProviders } from "../providers/providers";
+import { createDatabaseResources, DatabaseResourcesOutput } from "../resources/databaseResources";
 import { createVmResources } from "../resources/vmResources";
 import { createVpcResources } from "../resources/vpcResources";
 import { createVpnResources } from "../resources/vpnResources";
@@ -57,6 +58,24 @@ export class MultiCloudBackendStack extends TerraformStack {
         vpcResources.azureVnetResources,
         sshKey
       );
+    }
+
+    // Database
+    const databaseResourcesOutput: DatabaseResourcesOutput | undefined = createDatabaseResources(
+      this,
+      awsProvider,
+      vpcResources.awsVpcResources
+    );
+
+    if (databaseResourcesOutput) {
+      new TerraformOutput(this, "rds_master_user_secret_arns", {
+        value: databaseResourcesOutput.rdsMasterUserSecretArns,
+        description: "ARNs of Secrets Manager secrets for RDS master users",
+      });
+      new TerraformOutput(this, "aurora_master_user_secret_arns", {
+        value: databaseResourcesOutput.auroraMasterUserSecretArns,
+        description: "ARNs of Secrets Manager secrets for Aurora master users",
+      });
     }
   }
 }

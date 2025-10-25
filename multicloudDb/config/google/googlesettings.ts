@@ -1,4 +1,4 @@
 export * from './gce';
-export * from './vpc';
+export * from './vpc/vpc';
 export * from './vpn';
 
