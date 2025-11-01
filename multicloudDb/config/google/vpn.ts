@@ -26,9 +26,9 @@ export const createGoogleVpnPeerParams = (
   labels?: { [key: string]: string } | undefined
 ) => ({
   connectDestination: connectDestination,
-  vpnTnnelname: `my-gcp-vpc-gcp-${connectDestination}-vpn-tunnel`,
-  routerInterfaceName: `my-gcp-vpc-gcp-${connectDestination}-router-interface`,
-  routerPeerName: `my-gcp-vpc-gcp-${connectDestination}-router-peer`,
+  vpnTnnelname: `multicloud-gcp-vpc-gcp-${connectDestination}-vpn-tunnel`,
+  routerInterfaceName: `multicloud-gcp-vpc-gcp-${connectDestination}-router-interface`,
+  routerPeerName: `multicloud-gcp-vpc-gcp-${connectDestination}-router-peer`,
   tunnelCount: tunnelCount,
   ikeVersion: ikeVersion,
   routerName: cloudRouter?.name || "",

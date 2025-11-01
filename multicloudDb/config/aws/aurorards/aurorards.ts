@@ -8,12 +8,12 @@ export const rdsConfigs = [
     engineVersion: "8.4.6",
     allocatedStorage: 20,
     storageType: "gp3",
-    username: "admin",
+    username: "root",
     password: "mysecurepassword",
     manageMasterUserPassword: false,
     subnetKeys: ["my-aws-vpc-db-private-subnet1a", "my-aws-vpc-db-private-subnet1c"],
     vpcSecurityGroupNames: ["myaws-db-sg"],
-    parameterGroupFamily: "mysql8.4", // engineVersion 8.4.6 に合わせる
+    parameterGroupFamily: "mysql8.4",
     parameterGroupParametersFile: "config/aws/aurorards/mysql-parameters.ts", // Path to parameter file
     optionGroupOptionsFile: "config/aws/aurorards/mysql-options.ts", // Path to option file
     skipFinalSnapshot: true,
@@ -35,12 +35,12 @@ export const rdsConfigs = [
     preferredMaintenanceWindow: "sun:03:00-sun:04:00",
     // Multi-AZ
     multiAz: true,
-    storageEncrypted: true, // 暗号化を有効化
+    storageEncrypted: true,
     tags: {
       Name: "MyRdsMysqlInstance",
       Owner:"team-A",
     },
-    build: true,
+    build: false,
   },
   // MariaDB (RDS-managed password with Secrets Manager)
   {
@@ -49,8 +49,8 @@ export const rdsConfigs = [
     engine: "mariadb",
     engineVersion: "10.6",
     allocatedStorage: 20,
-    storageType: "gp2",
-    username: "admin",
+    storageType: "gp3",
+    username: "root",
     manageMasterUserPassword: true,
     subnetKeys: ["my-aws-vpc-db-private-subnet1a", "my-aws-vpc-db-private-subnet1c"],
     vpcSecurityGroupNames: ["myaws-db-sg"],
@@ -75,7 +75,7 @@ export const rdsConfigs = [
       Name: "MyRdsMariadbInstance",
       Owner:"team-A",
     },
-    build: true,
+    build: false,
   },
   // PostgreSQL (Direct password with parameter file path)
   {
@@ -85,7 +85,7 @@ export const rdsConfigs = [
     engineVersion: "15.10",
     allocatedStorage: 20,
     storageType: "gp3",
-    username: "dbadmin",
+    username: "root",
     password: "mysecurepassword",
     manageMasterUserPassword: false,
     subnetKeys: ["my-aws-vpc-db-private-subnet1a", "my-aws-vpc-db-private-subnet1c"],
@@ -116,7 +116,7 @@ export const rdsConfigs = [
       Name: "MyRdsPostgresInstance",
       Owner:"team-A",
     },
-    build: true,
+    build: false,
   },
 ];
 
@@ -127,7 +127,7 @@ export const auroraConfigs = [
     clusterIdentifier: "aurora-mysql-cluster",
     engine: "aurora-mysql",
     engineVersion: "8.0.mysql_aurora.3.04.4",
-    masterUsername: "dbadmin",
+    masterUsername: "root",
     manageMasterUserPassword: true,
     subnetKeys: ["my-aws-vpc-db-private-subnet1a", "my-aws-vpc-db-private-subnet1c", "my-aws-vpc-db-private-subnet1d"],
     vpcSecurityGroupNames: ["myaws-db-sg"],
@@ -161,14 +161,14 @@ export const auroraConfigs = [
       Name: "MyAuroraMysqlCluster",
       Owner:"team-A",
     },
-    build: true,
+    build: false,
   },
   // Aurora PostgreSQL (Self-managed password)
   {
     clusterIdentifier: "aurora-postgres-cluster",
     engine: "aurora-postgresql",
     engineVersion: "15.10",
-    masterUsername: "dbadmin",
+    masterUsername: "root",
     masterPassword: "mysecurepassword",
     manageMasterUserPassword: false,
     subnetKeys: ["my-aws-vpc-db-private-subnet1a", "my-aws-vpc-db-private-subnet1c", "my-aws-vpc-db-private-subnet1d"],
@@ -196,6 +196,6 @@ export const auroraConfigs = [
       Name: "MyAuroraPostgresCluster",
       Owner:"team-A",
     },
-    build: true,
+    build: false,
   },
 ];

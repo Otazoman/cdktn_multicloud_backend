@@ -3,9 +3,9 @@ import { securityGroups } from './securitygroups';
 import { subnets } from './subnets';
 
 export const awsVpcResourcesparams = {
+  isEnabled: false,
   vpcCidrBlock: "10.0.0.0/16",
   vpcName: "my-aws-vpc",
-  isEnabled: true,
   vpcTags: {
     Project: "MultiCloud",
   },
@@ -20,7 +20,7 @@ export const awsVpcResourcesparams = {
 
   // Nat Gateway
   natGateway: {
-    enable: false,
+    enable: true,
     name: "my-aws-vpc-nat-gateway",
     tags: {
       Purpose: "NAT",

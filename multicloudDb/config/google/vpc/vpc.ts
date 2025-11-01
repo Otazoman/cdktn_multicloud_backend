@@ -3,8 +3,8 @@ import { firewallEgressRules, firewallIngressRules } from './firewallRules';
 import { subnets } from './subnets';
 
 export const googleVpcResourcesparams = {
-  isEnabled: false,
-  vpcName: "my-gcp-vpc",
+  isEnabled: true,
+  vpcName: "multicloud-gcp-vpc",
   vpcCidrblock: "10.1.0.0/16",
   vpcLabels: {
     Environment: "Development",
@@ -12,7 +12,7 @@ export const googleVpcResourcesparams = {
   },
 
   subnets: subnets,
-  
+
   firewallIngressRules: firewallIngressRules,
   firewallEgressRules: firewallEgressRules,
 

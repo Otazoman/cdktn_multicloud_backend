@@ -11,7 +11,7 @@ export const ec2Configs = [
     subnetKey: "my-aws-vpc-private-subnet1a",
     securityGroupIds: ["myaws-ec2-sg"],
     diskSize: 8,
-    build: true,
+    build: false,
     userDataScriptPath: "./scripts/vm_init.sh",
   },
   {

@@ -73,64 +73,64 @@ export function createAwsRdsInstances(
   const instances = params.instanceConfigs
     .filter((config) => config.build)
     .map((config) => {
-    const subnetIds = config.subnetKeys.map((key) => {
-      const subnet = params.subnets[key];
-      if (!subnet) {
-        throw new Error(`Subnet with key ${key} not found for RDS Instance ${config.identifier}`);
-      }
-      return subnet.id;
-    });
-
-    // Use existing subnet group or create new one
-    let dbSubnetGroupName = config.dbSubnetGroupName;
-    if (!dbSubnetGroupName) {
-      const dbSubnetGroup = new DbSubnetGroup(scope, `rds-subnet-group-${config.identifier}`, {
-        provider: provider,
-        name: `${config.identifier}-sng`,
-        subnetIds: subnetIds,
-        tags: config.tags,
+      const subnetIds = config.subnetKeys.map((key) => {
+        const subnet = params.subnets[key];
+        if (!subnet) {
+          throw new Error(`Subnet with key ${key} not found for RDS Instance ${config.identifier}`);
+        }
+        return subnet.id;
       });
-      dbSubnetGroupName = dbSubnetGroup.name;
-    }
 
-    const securityGroupIds = config.vpcSecurityGroupNames.map((name) => {
-      const sgId = params.securityGroups[name];
-      if (!sgId) {
-        throw new Error(`Security Group with name ${name} not found for RDS Instance ${config.identifier}`);
+      // Use existing subnet group or create new one
+      let dbSubnetGroupName = config.dbSubnetGroupName;
+      if (!dbSubnetGroupName) {
+        const dbSubnetGroup = new DbSubnetGroup(scope, `rds-subnet-group-${config.identifier}`, {
+          provider: provider,
+          name: `${config.identifier}-sng`,
+          subnetIds: subnetIds,
+          tags: config.tags,
+        });
+        dbSubnetGroupName = dbSubnetGroup.name;
       }
-      return sgId;
-    });
 
-    // Create monitoring role if needed
-    let monitoringRoleArn = config.monitoringRoleArn;
-    if (config.enableEnhancedMonitoring && config.createMonitoringRole && !monitoringRoleArn) {
-      const monitoringRole = new IamRole(scope, `rds-monitoring-role-${config.identifier}`, {
-        name: `${config.identifier}-monitoring-role`,
-        assumeRolePolicy: JSON.stringify({
-          Version: "2012-10-17",
-          Statement: [
-            {
-              Effect: "Allow",
-              Principal: {
-                Service: "monitoring.rds.amazonaws.com",
+      const securityGroupIds = config.vpcSecurityGroupNames.map((name) => {
+        const sgId = params.securityGroups[name];
+        if (!sgId) {
+          throw new Error(`Security Group with name ${name} not found for RDS Instance ${config.identifier}`);
+        }
+        return sgId;
+      });
+
+      // Create monitoring role if needed
+      let monitoringRoleArn = config.monitoringRoleArn;
+      if (config.enableEnhancedMonitoring && config.createMonitoringRole && !monitoringRoleArn) {
+        const monitoringRole = new IamRole(scope, `rds-monitoring-role-${config.identifier}`, {
+          name: `${config.identifier}-monitoring-role`,
+          assumeRolePolicy: JSON.stringify({
+            Version: "2012-10-17",
+            Statement: [
+              {
+                Effect: "Allow",
+                Principal: {
+                  Service: "monitoring.rds.amazonaws.com",
+                },
+                Action: "sts:AssumeRole",
               },
-              Action: "sts:AssumeRole",
-            },
-          ],
-        }),
-        tags: config.tags,
-      });
+            ],
+          }),
+          tags: config.tags,
+        });
 
-      new IamRolePolicyAttachment(scope, `rds-monitoring-policy-${config.identifier}`, {
-        role: monitoringRole.name,
-        policyArn: "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole",
-      });
+        new IamRolePolicyAttachment(scope, `rds-monitoring-policy-${config.identifier}`, {
+          role: monitoringRole.name,
+          policyArn: "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole",
+        });
 
-      monitoringRoleArn = monitoringRole.arn;
-    }
+        monitoringRoleArn = monitoringRole.arn;
+      }
 
-    let parameterGroupName = config.parameterGroupName;
-    if (!parameterGroupName && config.parameterGroupFamily) {
+      let parameterGroupName = config.parameterGroupName;
+      if (!parameterGroupName && config.parameterGroupFamily) {
         // Load parameters from file if specified
         let parameters = undefined;
         if (config.parameterGroupParametersFile) {
@@ -139,18 +139,18 @@ export function createAwsRdsInstances(
           // Support both default export and named export
           parameters = paramModule.default || paramModule[Object.keys(paramModule)[0]];
         }
-        
+
         const paramGroup = new DbParameterGroup(scope, `rds-param-group-${config.identifier}`, {
-            name: `${config.identifier}-pg`,
-            family: config.parameterGroupFamily,
-            parameter: parameters,
-            tags: config.tags,
+          name: `${config.identifier}-pg`,
+          family: config.parameterGroupFamily,
+          parameter: parameters,
+          tags: config.tags,
         });
         parameterGroupName = paramGroup.name;
-    }
+      }
 
-    let optionGroupName = config.optionGroupName;
-    if (!optionGroupName) {
+      let optionGroupName = config.optionGroupName;
+      if (!optionGroupName) {
         // Load options from file if specified
         let options = undefined;
         if (config.optionGroupOptionsFile) {
@@ -159,98 +159,98 @@ export function createAwsRdsInstances(
           // Support both default export and named export
           options = optionModule.default || optionModule[Object.keys(optionModule)[0]];
         }
-        
+
         // Get major version for option group
         let majorVersion: string;
         if (config.engine === 'postgres') {
-            // For PostgreSQL, only the major version is allowed for option groups
-            majorVersion = config.engineVersion.split('.')[0];
+          // For PostgreSQL, only the major version is allowed for option groups
+          majorVersion = config.engineVersion.split('.')[0];
         } else if (config.engine === 'mysql' || config.engine === 'mariadb') {
-            // For MySQL/MariaDB, use major.minor if available, otherwise major
-            const parts = config.engineVersion.split('.');
-            if (parts.length >= 2) {
-                majorVersion = `${parts[0]}.${parts[1]}`;
-            } else {
-                majorVersion = parts[0];
-            }
+          // For MySQL/MariaDB, use major.minor if available, otherwise major
+          const parts = config.engineVersion.split('.');
+          if (parts.length >= 2) {
+            majorVersion = `${parts[0]}.${parts[1]}`;
+          } else {
+            majorVersion = parts[0];
+          }
         } else {
-            // Default to major version if engine not explicitly handled
-            majorVersion = config.engineVersion.split('.')[0];
+          // Default to major version if engine not explicitly handled
+          majorVersion = config.engineVersion.split('.')[0];
         }
-        
+
         const optionGroup = new DbOptionGroup(scope, `rds-option-group-${config.identifier}`, {
-            name: `${config.identifier}-og`,
-            engineName: config.engine,
-            majorEngineVersion: majorVersion,
-            option: options,
-            tags: config.tags,
+          name: `${config.identifier}-og`,
+          engineName: config.engine,
+          majorEngineVersion: majorVersion,
+          option: options,
+          tags: config.tags,
         });
         optionGroupName = optionGroup.name;
-    }
+      }
 
-    const dbInstanceProps: any = {
-      provider: provider,
-      identifier: config.identifier,
-      instanceClass: config.instanceClass,
-      engine: config.engine,
-      engineVersion: config.engineVersion,
-      allocatedStorage: config.allocatedStorage,
-      storageType: config.storageType,
-      username: config.username,
-      dbSubnetGroupName: dbSubnetGroupName,
-      vpcSecurityGroupIds: securityGroupIds,
-      parameterGroupName: parameterGroupName,
-      optionGroupName: optionGroupName,
-      skipFinalSnapshot: config.skipFinalSnapshot,
-      tags: config.tags,
-      // Backup
-      backupRetentionPeriod: config.backupRetentionPeriod !== undefined ? config.backupRetentionPeriod : 7,
-      preferredBackupWindow: config.preferredBackupWindow,
-      // Performance Insights
-      performanceInsightsEnabled: config.enablePerformanceInsights,
-      performanceInsightsRetentionPeriod: config.performanceInsightsRetentionPeriod,
-      // Enhanced Monitoring
-      monitoringInterval: config.enableEnhancedMonitoring ? (config.monitoringInterval || 60) : 0,
-      monitoringRoleArn: config.enableEnhancedMonitoring ? monitoringRoleArn : undefined,
-      // Logs
-      enabledCloudwatchLogsExports: config.enabledCloudwatchLogsExports,
-      // Auto upgrade
-      autoMinorVersionUpgrade: config.autoMinorVersionUpgrade !== undefined ? config.autoMinorVersionUpgrade : true,
-      // Maintenance
-      preferredMaintenanceWindow: config.preferredMaintenanceWindow,
-      // Multi-AZ and Read Replica
-      multiAz: config.multiAz,
-      replicateSourceDb: config.replicateSourceDb,
-      storageEncrypted: config.storageEncrypted,
-      // Password management logic
-      ...(() => {
-        if (config.manageMasterUserPassword) {
-          return { manageMasterUserPassword: true };
-        }
-        if (config.passwordSecretKey) {
-          const dbPasswordSecret = new DataAwsSecretsmanagerSecretVersion(scope, `rds-password-secret-${config.identifier}`, {
-            secretId: config.passwordSecretKey,
-          });
-          return { password: dbPasswordSecret.secretString };
-        }
-        return { password: config.password };
-      })(),
-    };
+      const dbInstanceProps: any = {
+        provider: provider,
+        identifier: config.identifier,
+        instanceClass: config.instanceClass,
+        engine: config.engine,
+        engineVersion: config.engineVersion,
+        allocatedStorage: config.allocatedStorage,
+        storageType: config.storageType,
+        username: config.username,
+        dbSubnetGroupName: dbSubnetGroupName,
+        vpcSecurityGroupIds: securityGroupIds,
+        parameterGroupName: parameterGroupName,
+        optionGroupName: optionGroupName,
+        skipFinalSnapshot: config.skipFinalSnapshot,
+        tags: config.tags,
+        // Backup
+        backupRetentionPeriod: config.backupRetentionPeriod !== undefined ? config.backupRetentionPeriod : 7,
+        preferredBackupWindow: config.preferredBackupWindow,
+        // Performance Insights
+        performanceInsightsEnabled: config.enablePerformanceInsights,
+        performanceInsightsRetentionPeriod: config.performanceInsightsRetentionPeriod,
+        // Enhanced Monitoring
+        monitoringInterval: config.enableEnhancedMonitoring ? (config.monitoringInterval || 60) : 0,
+        monitoringRoleArn: config.enableEnhancedMonitoring ? monitoringRoleArn : undefined,
+        // Logs
+        enabledCloudwatchLogsExports: config.enabledCloudwatchLogsExports,
+        // Auto upgrade
+        autoMinorVersionUpgrade: config.autoMinorVersionUpgrade !== undefined ? config.autoMinorVersionUpgrade : true,
+        // Maintenance
+        preferredMaintenanceWindow: config.preferredMaintenanceWindow,
+        // Multi-AZ and Read Replica
+        multiAz: config.multiAz,
+        replicateSourceDb: config.replicateSourceDb,
+        storageEncrypted: config.storageEncrypted,
+        // Password management logic
+        ...(() => {
+          if (config.manageMasterUserPassword) {
+            return { manageMasterUserPassword: true };
+          }
+          if (config.passwordSecretKey) {
+            const dbPasswordSecret = new DataAwsSecretsmanagerSecretVersion(scope, `rds-password-secret-${config.identifier}`, {
+              secretId: config.passwordSecretKey,
+            });
+            return { password: dbPasswordSecret.secretString };
+          }
+          return { password: config.password };
+        })(),
+      };
 
-    const dbInstance = new DbInstance(scope, `rdsInstance-${config.identifier}`, dbInstanceProps);
+      const dbInstance = new DbInstance(scope, `rdsInstance-${config.identifier}`, dbInstanceProps);
 
-    // If manageMasterUserPassword is true, capture the secret ARN
-    let masterUserSecretArn: string | undefined = undefined;
-    if (config.manageMasterUserPassword && dbInstance.masterUserSecret) {
-      // Access the ARN using get(0) and then secretArn property
-      masterUserSecretArn = dbInstance.masterUserSecret.get(0).secretArn;
-    }
+      // If manageMasterUserPassword is true, capture the secret ARN
+      let masterUserSecretArn: string | undefined = undefined;
+      if (config.manageMasterUserPassword && dbInstance.masterUserSecret) {
+        // Access the ARN using get(0) and then secretArn property
+        masterUserSecretArn = dbInstance.masterUserSecret.get(0).secretArn;
+      }
 
-    return {
-      dbInstance: dbInstance,
-      masterUserSecretArn: masterUserSecretArn,
-    };
-  });
+      return {
+        dbInstance: dbInstance,
+        masterUserSecretArn: masterUserSecretArn,
+      };
+    });
 
   return instances;
 }

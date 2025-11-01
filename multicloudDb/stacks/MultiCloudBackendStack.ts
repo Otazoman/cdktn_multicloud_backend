@@ -64,7 +64,9 @@ export class MultiCloudBackendStack extends TerraformStack {
     const databaseResourcesOutput: DatabaseResourcesOutput | undefined = createDatabaseResources(
       this,
       awsProvider,
-      vpcResources.awsVpcResources
+      googleProvider,
+      vpcResources.awsVpcResources,
+      vpcResources.googleVpcResources
     );
 
     if (databaseResourcesOutput) {
@@ -75,6 +77,10 @@ export class MultiCloudBackendStack extends TerraformStack {
       new TerraformOutput(this, "aurora_master_user_secret_arns", {
         value: databaseResourcesOutput.auroraMasterUserSecretArns,
         description: "ARNs of Secrets Manager secrets for Aurora master users",
+      });
+      new TerraformOutput(this, "google_cloudsql_connection_names", {
+        value: databaseResourcesOutput.googleCloudSqlConnectionNames,
+        description: "Connection names for Google CloudSQL instances",
       });
     }
   }

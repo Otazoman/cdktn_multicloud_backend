@@ -34,6 +34,24 @@ export const firewallIngressRules = [
         sourceRanges: ["10.2.0.0/16"],
         priority: 1000,
     },
+    {
+        name: "allow-cloudsql-mysql",
+        permission: {
+            protocol: "tcp",
+            ports: ["3306"],
+        },
+        sourceRanges: ["10.0.0.0/8"],
+        priority: 1000,
+    },
+    {
+        name: "allow-cloudsql-postgres",
+        permission: {
+            protocol: "tcp",
+            ports: ["5432"],
+        },
+        sourceRanges: ["10.0.0.0/8"],
+        priority: 1000,
+    },
 ];
 
 // Egress Rule
