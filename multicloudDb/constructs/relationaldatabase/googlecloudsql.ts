@@ -7,7 +7,6 @@ import { SqlUser } from "@cdktf/provider-google/lib/sql-user";
 import { Construct } from "constructs";
 import * as path from "path";
 
-// インターフェースは変更しません
 export interface CloudSqlConfig {
   project: string;
   name: string;

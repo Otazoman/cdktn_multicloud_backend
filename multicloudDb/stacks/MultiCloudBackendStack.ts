@@ -2,12 +2,14 @@ import { TerraformOutput, TerraformStack } from "cdktf";
 import { Construct } from "constructs";
 import { useVms, useVpn } from "../config/commonsettings";
 import { createProviders } from "../providers/providers";
-import { createDatabaseResources, DatabaseResourcesOutput } from "../resources/databaseResources";
+import {
+  createDatabaseResources,
+  DatabaseResourcesOutput,
+} from "../resources/databaseResources";
 import { createVmResources } from "../resources/vmResources";
 import { createVpcResources } from "../resources/vpcResources";
 import { createVpnResources } from "../resources/vpnResources";
 import { createSshKey } from "../utils/sshKey";
-
 
 export class MultiCloudBackendStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
@@ -61,23 +63,17 @@ export class MultiCloudBackendStack extends TerraformStack {
     }
 
     // Database
-    const databaseResourcesOutput: DatabaseResourcesOutput | undefined = createDatabaseResources(
-      this,
-      awsProvider,
-      googleProvider,
-      vpcResources.awsVpcResources,
-      vpcResources.googleVpcResources
-    );
+    const databaseResourcesOutput: DatabaseResourcesOutput | undefined =
+      createDatabaseResources(
+        this,
+        awsProvider,
+        googleProvider,
+        vpcResources.awsVpcResources,
+        vpcResources.googleVpcResources
+      );
 
     if (databaseResourcesOutput) {
-      new TerraformOutput(this, "rds_master_user_secret_arns", {
-        value: databaseResourcesOutput.rdsMasterUserSecretArns,
-        description: "ARNs of Secrets Manager secrets for RDS master users",
-      });
-      new TerraformOutput(this, "aurora_master_user_secret_arns", {
-        value: databaseResourcesOutput.auroraMasterUserSecretArns,
-        description: "ARNs of Secrets Manager secrets for Aurora master users",
-      });
+      // rdsMasterUserSecretArnsとauroraMasterUserSecretArnsはdatabaseResources.ts内でTerraformOutputとして直接生成されるため、ここでは参照しない
       new TerraformOutput(this, "google_cloudsql_connection_names", {
         value: databaseResourcesOutput.googleCloudSqlConnectionNames,
         description: "Connection names for Google CloudSQL instances",

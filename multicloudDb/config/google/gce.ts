@@ -12,6 +12,7 @@ export const gceInstancesParams = {
   project: "multicloud-sitevpn-project",
   instanceConfigs: [
     {
+      build: false,
       name: "gce-instance-1",
       machineType: "e2-micro",
       zone: "asia-northeast1-a",
@@ -27,10 +28,10 @@ export const gceInstancesParams = {
       bootDiskDeviceName: "test-instance1-boot-disk",
       subnetworkName: "subnet1",
       serviceAccountScopes: serviceAccountScopes,
-      build: false,
       startupScriptPath: "./scripts/vm_init.sh",
     },
     {
+      build: false,
       name: "gce-instance-2",
       machineType: "e2-micro",
       zone: "asia-northeast1-b",
@@ -46,7 +47,6 @@ export const gceInstancesParams = {
       bootDiskDeviceName: "test-instance2-boot-disk",
       subnetworkName: "subnet2",
       serviceAccountScopes: serviceAccountScopes,
-      build: false,
     },
   ],
 };

@@ -1,7 +1,9 @@
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { ComputeGlobalAddress } from "@cdktf/provider-google/lib/compute-global-address";
+import { ComputeNetworkPeeringRoutesConfig } from "@cdktf/provider-google/lib/compute-network-peering-routes-config";
 import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
 import { ServiceNetworkingConnection } from "@cdktf/provider-google/lib/service-networking-connection";
+import { TerraformOutput } from "cdktf";
 import { Construct } from "constructs";
 import { auroraConfigs, rdsConfigs } from "../config/aws/aurorards/aurorards";
 import {
@@ -10,8 +12,10 @@ import {
   googleToAzure,
 } from "../config/commonsettings";
 import { cloudSqlConfig } from "../config/google/cloudsql/cloudsql";
-import { createAwsAuroraClusters } from "../constructs/relationaldatabase/awsaurora";
-import { createAwsRdsInstances } from "../constructs/relationaldatabase/awsrds";
+import {
+  AwsRelationalDatabaseConfig,
+  createAwsRelationalDatabases,
+} from "../constructs/relationaldatabase/awsrelationaldatabase";
 import {
   CloudSqlConfig,
   createGoogleCloudSqlInstance,
@@ -19,16 +23,115 @@ import {
 import { AwsVpcResources, GoogleVpcResources } from "./interfaces";
 
 export interface DatabaseResourcesOutput {
-  rdsMasterUserSecretArns: {
-    [identifier: string]: string;
-  };
-  auroraMasterUserSecretArns: {
-    [identifier: string]: string;
-  };
   googleCloudSqlConnectionNames: {
     [instanceName: string]: string;
   };
 }
+
+/**
+ * Helper function to create database secret ARN outputs with safe conditional access
+ * This function only creates outputs when AWS-managed passwords are actually enabled
+ * and the secret exists to prevent access to non-existent resources during transitions
+ */
+const createSecretArnOutput = (
+  scope: Construct,
+  config: AwsRelationalDatabaseConfig,
+  dbOutput: any,
+  index: number
+): void => {
+  // Skip output creation if suppressSecretOutput flag is set (for migration scenarios)
+  if (config.suppressSecretOutput) {
+    console.log(
+      `Skipping secret ARN output for ${config.identifier}: suppressSecretOutput enabled for migration`
+    );
+    return;
+  }
+
+  // Only create outputs if manageMasterUserPassword is true
+  if (!config.manageMasterUserPassword) {
+    console.log(
+      `Skipping secret ARN output for ${config.identifier}: manageMasterUserPassword is false`
+    );
+    return;
+  }
+
+  const sanitizedId = config.identifier.replace(/[^a-zA-Z0-9]/g, "-");
+
+  try {
+    if (dbOutput.rdsCluster) {
+      // For Aurora clusters - only create output if the secret property exists
+      const secretProperty = dbOutput.rdsCluster.masterUserSecret;
+      if (secretProperty) {
+        new TerraformOutput(
+          scope,
+          `aurora-secret-arn-${sanitizedId}-${index}`,
+          {
+            value: secretProperty,
+            description: `Master user secret for Aurora cluster: ${config.identifier}`,
+          }
+        );
+      } else {
+        console.log(
+          `Aurora cluster ${config.identifier}: masterUserSecret not available yet (transition in progress)`
+        );
+      }
+    } else if (dbOutput.dbInstance) {
+      // For RDS instances - only create output if the secret property exists
+      const secretProperty = dbOutput.dbInstance.masterUserSecret;
+      if (secretProperty) {
+        new TerraformOutput(scope, `rds-secret-arn-${sanitizedId}-${index}`, {
+          value: secretProperty,
+          description: `Master user secret for RDS instance: ${config.identifier}`,
+        });
+      } else {
+        console.log(
+          `RDS instance ${config.identifier}: masterUserSecret not available yet (transition in progress)`
+        );
+      }
+    }
+  } catch (error) {
+    console.warn(
+      `Warning: Could not create secret ARN output for ${config.identifier}:`,
+      error
+    );
+  }
+};
+
+/**
+ * Helper function to map RDS configs to AWS relational database configs
+ */
+const mapRdsConfigs = (): AwsRelationalDatabaseConfig[] => {
+  return rdsConfigs.map((config) => ({
+    ...config,
+    type: "rds" as const,
+    masterUsername:
+      typeof config.username === "string" ? config.username : undefined,
+    masterPassword:
+      !config.manageMasterUserPassword &&
+      typeof (config as any).password === "string"
+        ? (config as any).password
+        : undefined,
+    instanceCount: undefined,
+    dbClusterParameterGroupName: undefined,
+    dbClusterParameterGroupFamily: undefined,
+    dbClusterParameterGroupParametersFile: undefined,
+    instanceParameterGroupName: undefined,
+    instanceParameterGroupFamily: undefined,
+    instanceParameterGroupParametersFile: undefined,
+    instancePreferredMaintenanceWindow: undefined,
+  }));
+};
+
+/**
+ * Helper function to map Aurora configs to AWS relational database configs
+ */
+const mapAuroraConfigs = (): AwsRelationalDatabaseConfig[] => {
+  return auroraConfigs.map((config) => ({
+    ...config,
+    type: "aurora" as const,
+    identifier: config.clusterIdentifier,
+  }));
+};
 
 export const createDatabaseResources = (
   scope: Construct,
@@ -37,45 +140,45 @@ export const createDatabaseResources = (
   awsVpcResources?: AwsVpcResources,
   googleVpcResources?: GoogleVpcResources
 ): DatabaseResourcesOutput | undefined => {
-  const rdsMasterUserSecretArns: {
-    [identifier: string]: string;
-  } = {};
-  const auroraMasterUserSecretArns: {
-    [identifier: string]: string;
-  } = {};
   const googleCloudSqlConnectionNames: {
     [instanceName: string]: string;
   } = {};
 
   // AWS RDS and Aurora (only if AWS VPC resources exist)
   if ((awsToGoogle || awsToAzure) && awsProvider && awsVpcResources) {
-    // AWS RDS Instances
-    const awsRdsInstances = createAwsRdsInstances(scope, awsProvider, {
-      instanceConfigs: rdsConfigs.filter((config) => config.build),
-      subnets: awsVpcResources.subnetsByName,
-      securityGroups: awsVpcResources.securityGroupMapping,
-    });
-    awsRdsInstances.forEach((instance) => {
-      instance.dbInstance.node.addDependency(awsVpcResources);
-      if (instance.masterUserSecretArn) {
-        rdsMasterUserSecretArns[instance.dbInstance.identifier] =
-          instance.masterUserSecretArn;
-      }
-    });
+    const combinedAwsDatabaseConfigs: AwsRelationalDatabaseConfig[] = [
+      ...mapRdsConfigs(),
+      ...mapAuroraConfigs(),
+    ];
 
-    // AWS Aurora Clusters
-    const awsAuroraClusters = createAwsAuroraClusters(scope, awsProvider, {
-      clusterConfigs: auroraConfigs.filter((config) => config.build),
-      subnets: awsVpcResources.subnetsByName,
-      securityGroups: awsVpcResources.securityGroupMapping,
-    });
-    awsAuroraClusters.forEach((cluster) => {
-      cluster.rdsCluster.node.addDependency(awsVpcResources);
-      if (cluster.masterUserSecretArn) {
-        auroraMasterUserSecretArns[cluster.rdsCluster.clusterIdentifier] =
-          cluster.masterUserSecretArn;
+    const awsRelationalDatabases = createAwsRelationalDatabases(
+      scope,
+      awsProvider,
+      {
+        databaseConfigs: combinedAwsDatabaseConfigs.filter(
+          (config) => config.build
+        ),
+        subnets: awsVpcResources.subnetsByName,
+        securityGroups: awsVpcResources.securityGroupMapping,
       }
-    });
+    );
+
+    // Create outputs for managed secrets and add dependencies
+    combinedAwsDatabaseConfigs
+      .filter((config) => config.build)
+      .forEach((config, index) => {
+        const dbOutput = awsRelationalDatabases[index];
+
+        // Add VPC dependency
+        if (dbOutput.rdsCluster) {
+          dbOutput.rdsCluster.node.addDependency(awsVpcResources);
+        } else if (dbOutput.dbInstance) {
+          dbOutput.dbInstance.node.addDependency(awsVpcResources);
+        }
+
+        // Create secret ARN output if managed password is enabled
+        createSecretArnOutput(scope, config, dbOutput, index);
+      });
   }
 
   // Google CloudSQL (only if conditions are met and resources exist)
@@ -113,6 +216,21 @@ export const createDatabaseResources = (
       }
     );
 
+    // Enable custom route export for VPC peering
+    new ComputeNetworkPeeringRoutesConfig(
+      scope,
+      "cloudsql-export-custom-routes",
+      {
+        provider: googleProvider,
+        project: cloudSqlConfig.project,
+        peering: "servicenetworking-googleapis-com",
+        network: googleVpcResources.vpc.name,
+        exportCustomRoutes: true,
+        importCustomRoutes: true,
+        dependsOn: [serviceNetworkingConnection],
+      }
+    );
+
     // Create CloudSQL instances in a loop and handle build flags
     const googleCloudSqlInstances = cloudSqlConfig.instances
       .filter((config) => config.build)
@@ -140,8 +258,6 @@ export const createDatabaseResources = (
   }
 
   return {
-    rdsMasterUserSecretArns: rdsMasterUserSecretArns,
-    auroraMasterUserSecretArns: auroraMasterUserSecretArns,
     googleCloudSqlConnectionNames: googleCloudSqlConnectionNames,
   };
 };

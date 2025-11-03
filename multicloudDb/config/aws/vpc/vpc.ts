@@ -1,9 +1,9 @@
 /* VPC configuration parameters */
-import { securityGroups } from './securitygroups';
-import { subnets } from './subnets';
+import { securityGroups } from "./securitygroups";
+import { subnets } from "./subnets";
 
 export const awsVpcResourcesparams = {
-  isEnabled: false,
+  isEnabled: true,
   vpcCidrBlock: "10.0.0.0/16",
   vpcName: "my-aws-vpc",
   vpcTags: {
@@ -35,7 +35,7 @@ export const awsVpcResourcesparams = {
       associatedSubnetNames: [
         "my-aws-vpc-public-subnet1a",
         "my-aws-vpc-public-subnet1c",
-        "my-aws-vpc-public-subnet1d"
+        "my-aws-vpc-public-subnet1d",
       ],
       tags: {
         Purpose: "Public",

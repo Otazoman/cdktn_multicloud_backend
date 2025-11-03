@@ -1,9 +1,9 @@
 /* VPC configuration parameters */
-import { firewallEgressRules, firewallIngressRules } from './firewallRules';
-import { subnets } from './subnets';
+import { firewallEgressRules, firewallIngressRules } from "./firewallRules";
+import { subnets } from "./subnets";
 
 export const googleVpcResourcesparams = {
-  isEnabled: true,
+  isEnabled: false,
   vpcName: "multicloud-gcp-vpc",
   vpcCidrblock: "10.1.0.0/16",
   vpcLabels: {

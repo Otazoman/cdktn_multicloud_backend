@@ -18,7 +18,7 @@ export const cloudSqlConfig = {
       diskSize: 20,
       diskAutoresize: true,
       diskAutoresizeLimit: 100,
-      username: "admin",
+      username: "root",
       password: "mysecurepassword",
       managedPasswordEnabled: false, // Set to true to use Google-managed passwords
       privateNetwork: true, // Enable private IP
@@ -50,7 +50,7 @@ export const cloudSqlConfig = {
         environment: "dev",
       },
       databaseFlagsFile: "config/google/cloudsql/mysql-parameters.ts",
-      build: true,
+      build: false,
     },
     // PostgreSQL Instance
     {
@@ -64,7 +64,7 @@ export const cloudSqlConfig = {
       diskSize: 20,
       diskAutoresize: true,
       diskAutoresizeLimit: 100,
-      username: "dbadmin",
+      username: "root",
       password: "mysecurepassword",
       managedPasswordEnabled: false,
       privateNetwork: true,
@@ -96,7 +96,7 @@ export const cloudSqlConfig = {
         environment: "dev",
       },
       databaseFlagsFile: "config/google/cloudsql/postgres-parameters.ts",
-      build: true,
+      build: false,
     },
   ],
 };
