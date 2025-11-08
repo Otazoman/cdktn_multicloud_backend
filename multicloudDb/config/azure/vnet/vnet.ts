@@ -1,10 +1,10 @@
-import { LOCATION, RESOURCE_GROUP, VNET_NAME } from '../common';
-import { nsgRules, nsgTags } from './nsgRules';
-import { bastionSubnetcidr, subnets } from './subnets';
+import { LOCATION, RESOURCE_GROUP, VNET_NAME } from "../common";
+import { nsgConfigs } from "./nsgRules";
+import { bastionSubnetcidr, subnets } from "./subnets";
 
 /* Virtual Network (VNet) configuration parameters */
 export const azureVnetResourcesparams = {
-  isEnabled: false,
+  isEnabled: true,
   resourceGroupName: RESOURCE_GROUP,
   location: LOCATION,
   vnetName: VNET_NAME,
@@ -12,14 +12,9 @@ export const azureVnetResourcesparams = {
   vnetTags: {
     Project: "MultiCloud",
   },
-
   subnets: subnets,
-
   natenabled: true,
-
   bastionenabled: true,
   bastionSubnetcidr: bastionSubnetcidr,
-   
-  nsgTags: nsgTags,
-  nsgRules: nsgRules,
+  nsgConfigs: nsgConfigs,
 };

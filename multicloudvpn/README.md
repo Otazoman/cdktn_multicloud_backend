@@ -9,9 +9,7 @@ Run the following command to create a resource with a CDKTF with a secret key to
 
 ```
 cdktf plan
-export ARM_RETRIES=5    # For Azure control
-export ARM_BACKOFF=30   # For Azure control
-cdktf deploy --parallelism=2 --outputs-file ./outputs/outputs.json --outputs-file-include-sensitive-outputs
+cdktf deploy --outputs-file ./outputs/outputs.json --outputs-file-include-sensitive-outputs
 ```
 
 Note : In Azure, an error may occur in the SubnetNetworkSecurityGroupAssociation, but the resource itself is created without any problem when re-run.

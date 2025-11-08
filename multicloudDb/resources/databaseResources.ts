@@ -1,4 +1,5 @@
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
+import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
 import { ComputeGlobalAddress } from "@cdktf/provider-google/lib/compute-global-address";
 import { ComputeNetworkPeeringRoutesConfig } from "@cdktf/provider-google/lib/compute-network-peering-routes-config";
 import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
@@ -6,6 +7,7 @@ import { ServiceNetworkingConnection } from "@cdktf/provider-google/lib/service-
 import { TerraformOutput } from "cdktf";
 import { Construct } from "constructs";
 import { auroraConfigs, rdsConfigs } from "../config/aws/aurorards/aurorards";
+import { azureDatabaseConfig } from "../config/azure/azuredatabase/databases";
 import {
   awsToAzure,
   awsToGoogle,
@@ -16,11 +18,16 @@ import {
   AwsRelationalDatabaseConfig,
   createAwsRelationalDatabases,
 } from "../constructs/relationaldatabase/awsrelationaldatabase";
+import { createAzureDatabases } from "../constructs/relationaldatabase/azuredatabase";
 import {
   CloudSqlConfig,
   createGoogleCloudSqlInstance,
 } from "../constructs/relationaldatabase/googlecloudsql";
-import { AwsVpcResources, GoogleVpcResources } from "./interfaces";
+import {
+  AwsVpcResources,
+  AzureVnetResources,
+  GoogleVpcResources,
+} from "./interfaces";
 
 export interface DatabaseResourcesOutput {
   googleCloudSqlConnectionNames: {
@@ -137,8 +144,10 @@ export const createDatabaseResources = (
   scope: Construct,
   awsProvider: AwsProvider,
   googleProvider?: GoogleProvider,
+  azurermProvider?: AzurermProvider,
   awsVpcResources?: AwsVpcResources,
-  googleVpcResources?: GoogleVpcResources
+  googleVpcResources?: GoogleVpcResources,
+  azureVnetResources?: AzureVnetResources
 ): DatabaseResourcesOutput | undefined => {
   const googleCloudSqlConnectionNames: {
     [instanceName: string]: string;
@@ -254,6 +263,40 @@ export const createDatabaseResources = (
       instance.sqlInstance.node.addDependency(serviceNetworkingConnection);
       googleCloudSqlConnectionNames[instance.sqlInstance.name] =
         instance.connectionName;
+    });
+  }
+
+  // Azure Database (only if conditions are met and resources exist)
+  if ((awsToAzure || googleToAzure) && azurermProvider && azureVnetResources) {
+    // Ensure we have a proper VirtualNetwork object
+    if (
+      typeof azureVnetResources.vnet === "object" &&
+      "name" in azureVnetResources.vnet &&
+      !("id" in azureVnetResources.vnet)
+    ) {
+      console.warn(
+        "Azure VNet is not properly initialized for database creation"
+      );
+      return {
+        googleCloudSqlConnectionNames: googleCloudSqlConnectionNames,
+      };
+    }
+
+    // Create Azure Databases using the new construct function
+    // Pass all subnets so each database can select its own subnet based on subnetKey
+    const azureDatabases = createAzureDatabases(scope, azurermProvider, {
+      resourceGroupName: azureDatabaseConfig.resourceGroupName,
+      location: azureDatabaseConfig.location,
+      databaseConfigs: azureDatabaseConfig.databases.filter(
+        (config) => config.build
+      ),
+      virtualNetwork: azureVnetResources.vnet as any, // Type assertion needed due to interface union
+      subnets: azureVnetResources.subnets as any, // Pass all subnets as a map
+    });
+
+    // Add VNet dependencies
+    azureDatabases.forEach((dbOutput: any) => {
+      dbOutput.server.node.addDependency(azureVnetResources);
     });
   }
 

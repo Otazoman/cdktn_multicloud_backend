@@ -1,8 +1,9 @@
-import { LOCATION, RESOURCE_GROUP } from './common';
+import { LOCATION, RESOURCE_GROUP } from "./common";
 
 /* Azure Virtual Machine (VM) configurations */
 export const azureVmsConfigparams = [
   {
+    build: true,
     name: "example-vm-1",
     resourceGroupName: RESOURCE_GROUP,
     location: LOCATION,
@@ -19,15 +20,15 @@ export const azureVmsConfigparams = [
       sku: "server",
       version: "latest",
     },
-    subnetKey: "subnet1",
+    subnetKey: "app-subnet",
     tags: {
       Name: "MyAzureVM1",
       Owner: "Team-A",
     },
-    build: false,
     vmInitScriptPath: "./scripts/vm_init.sh",
   },
   {
+    build: false,
     name: "example-vm-2",
     resourceGroupName: RESOURCE_GROUP,
     location: LOCATION,
@@ -44,11 +45,10 @@ export const azureVmsConfigparams = [
       sku: "server",
       version: "latest",
     },
-    subnetKey: "subnet2",
+    subnetKey: "app-subnet",
     tags: {
       Name: "MyAzureVM2",
       Owner: "Team-B",
     },
-    build: false,
   },
 ];

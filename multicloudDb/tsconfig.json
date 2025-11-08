@@ -27,7 +27,8 @@
   },
   "include": [
     "**/*.ts",
-    "outputs/pemkey-extraction.js"
+    "outputs/pemkey-extraction.js",
+    "config/azure/sqldatabase/databases.ts"
   ],
   "exclude": [
     "node_modules",

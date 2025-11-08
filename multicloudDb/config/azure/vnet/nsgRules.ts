@@ -1,9 +1,11 @@
-export const nsgTags = {
-    Purpose: "VnetSecurity",
-};
-
-export const nsgRules = [
-    {
+export const nsgConfigs = [
+  // NSG for Web Subnet
+  {
+    name: "azure-web-nsg",
+    subnetKeys: ["web-subnet"],
+    tags: { Purpose: "WebTierSecurity" },
+    rules: [
+      {
         name: "AllowVnetInBound",
         priority: 100,
         direction: "Inbound",
@@ -13,8 +15,71 @@ export const nsgRules = [
         destinationPortRange: "*",
         sourceAddressPrefix: "VirtualNetwork",
         destinationAddressPrefix: "VirtualNetwork",
-    },
-    {
+      },
+      {
+        name: "AllowHttpInbound",
+        priority: 150,
+        direction: "Inbound",
+        access: "Allow",
+        protocol: "Tcp",
+        sourcePortRange: "*",
+        destinationPortRange: "80",
+        sourceAddressPrefix: "Internet",
+        destinationAddressPrefix: "*",
+      },
+      {
+        name: "AllowHttpsInbound",
+        priority: 160,
+        direction: "Inbound",
+        access: "Allow",
+        protocol: "Tcp",
+        sourcePortRange: "*",
+        destinationPortRange: "443",
+        sourceAddressPrefix: "Internet",
+        destinationAddressPrefix: "*",
+      },
+      {
+        name: "AllowSshFromBastion",
+        priority: 200,
+        direction: "Inbound",
+        access: "Allow",
+        protocol: "Tcp",
+        sourcePortRange: "*",
+        destinationPortRange: "22",
+        sourceAddressPrefix: "10.2.110.0/24", // Bastion Subnet CIDR
+        destinationAddressPrefix: "*",
+      },
+      {
+        name: "DenyAllInbound",
+        priority: 4096,
+        direction: "Inbound",
+        access: "Deny",
+        protocol: "*",
+        sourcePortRange: "*",
+        destinationPortRange: "*",
+        sourceAddressPrefix: "*",
+        destinationAddressPrefix: "*",
+      },
+    ],
+  },
+  // NSG for App Subnet
+  {
+    name: "azure-app-nsg",
+    subnetKeys: ["app-subnet"],
+    tags: { Purpose: "AppTierSecurity" },
+    rules: [
+      {
+        name: "AllowVnetInBound",
+        priority: 100,
+        direction: "Inbound",
+        access: "Allow",
+        protocol: "*",
+        sourcePortRange: "*",
+        destinationPortRange: "*",
+        sourceAddressPrefix: "VirtualNetwork",
+        destinationAddressPrefix: "VirtualNetwork",
+      },
+      {
         name: "AllowAzureLoadBalancerInBound",
         priority: 101,
         direction: "Inbound",
@@ -24,20 +89,20 @@ export const nsgRules = [
         destinationPortRange: "*",
         sourceAddressPrefix: "AzureLoadBalancer",
         destinationAddressPrefix: "*",
-    },
-    {
-        name: "allow-ssh-from-bastion",
-        priority: 102,
+      },
+      {
+        name: "AllowSshFromBastion",
+        priority: 200,
         direction: "Inbound",
         access: "Allow",
         protocol: "Tcp",
-        sourcePortRange: "22",
+        sourcePortRange: "*",
         destinationPortRange: "22",
-        sourceAddressPrefix: "10.2.110.0/24",
+        sourceAddressPrefix: "10.2.110.0/24", // Bastion Subnet CIDR
         destinationAddressPrefix: "*",
-    },
-    {
-        name: "DenyAllInBound",
+      },
+      {
+        name: "DenyAllInbound",
         priority: 4096,
         direction: "Inbound",
         access: "Deny",
@@ -46,49 +111,89 @@ export const nsgRules = [
         destinationPortRange: "*",
         sourceAddressPrefix: "*",
         destinationAddressPrefix: "*",
-    },
-    {
-        name: "AllowVnetOutBound",
+      },
+    ],
+  },
+  // NSG for DB MySQL Subnet
+  {
+    name: "azure-db-mysql-nsg",
+    subnetKeys: ["db-mysql-subnet"],
+    tags: { Purpose: "DatabaseSecurity" },
+    rules: [
+      {
+        name: "AllowVnetInBound",
         priority: 100,
-        direction: "Outbound",
+        direction: "Inbound",
         access: "Allow",
         protocol: "*",
         sourcePortRange: "*",
         destinationPortRange: "*",
         sourceAddressPrefix: "VirtualNetwork",
         destinationAddressPrefix: "VirtualNetwork",
-    },
-    {
-        name: "AllowWebTrafficOutBound",
-        priority: 101,
-        direction: "Outbound",
-        access: "Allow",
-        protocol: "*",
-        sourcePortRange: "*",
-        destinationPortRange: "*",
-        sourceAddressPrefix: "VirtualNetwork",
-        destinationAddressPrefix: "Internet",
-    },
-    {
-        name: "AllowAllOutBound",
-        priority: 4095,
-        direction: "Outbound",
-        access: "Allow",
-        protocol: "*",
-        sourcePortRange: "*",
-        destinationPortRange: "*",
-        sourceAddressPrefix: "*",
-        destinationAddressPrefix: "*",
-    },
-    {
-        name: "DenyAllOutBound",
+      },
+      // {
+      //   name: "AllowMysqlFromApp",
+      //   priority: 160,
+      //   direction: "Inbound",
+      //   access: "Allow",
+      //   protocol: "Tcp",
+      //   sourcePortRange: "*",
+      //   destinationPortRange: "3306",
+      //   sourceAddressPrefix: "10.2.20.0/24", // App Subnet CIDR
+      //   destinationAddressPrefix: "*",
+      // },
+      {
+        name: "DenyAllInbound",
         priority: 4096,
-        direction: "Outbound",
+        direction: "Inbound",
         access: "Deny",
         protocol: "*",
         sourcePortRange: "*",
         destinationPortRange: "*",
         sourceAddressPrefix: "*",
         destinationAddressPrefix: "*",
-    },
+      },
+    ],
+  },
+  // NSG for DB PostgreSQL Subnet
+  {
+    name: "azure-db-postgres-nsg",
+    subnetKeys: ["db-postgres-subnet"],
+    tags: { Purpose: "DatabaseSecurity" },
+    rules: [
+      {
+        name: "AllowVnetInBound",
+        priority: 100,
+        direction: "Inbound",
+        access: "Allow",
+        protocol: "*",
+        sourcePortRange: "*",
+        destinationPortRange: "*",
+        sourceAddressPrefix: "VirtualNetwork",
+        destinationAddressPrefix: "VirtualNetwork",
+      },
+      // {
+      //   name: "AllowPostgresFromApp",
+      //   priority: 150,
+      //   direction: "Inbound",
+      //   access: "Allow",
+      //   protocol: "Tcp",
+      //   sourcePortRange: "*",
+      //   destinationPortRange: "5432",
+      //   sourceAddressPrefix: "10.2.20.0/24", // App Subnet CIDR
+      //   destinationAddressPrefix: "*",
+      // },
+      {
+        name: "DenyAllInbound",
+        priority: 4096,
+        direction: "Inbound",
+        access: "Deny",
+        protocol: "*",
+        sourcePortRange: "*",
+        destinationPortRange: "*",
+        sourceAddressPrefix: "*",
+        destinationAddressPrefix: "*",
+      },
+    ],
+  },
 ];

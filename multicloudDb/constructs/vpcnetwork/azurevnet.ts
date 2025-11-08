@@ -11,9 +11,17 @@ import { SubnetNetworkSecurityGroupAssociation } from "@cdktf/provider-azurerm/l
 import { VirtualNetwork } from "@cdktf/provider-azurerm/lib/virtual-network";
 import { Construct } from "constructs";
 
+// --- Interface Definitions ---
+
+interface SubnetDelegation {
+  name: string;
+  serviceName: string;
+}
+
 interface SubnetConfig {
   name: string;
   cidr: string;
+  delegations?: SubnetDelegation[];
 }
 
 interface NSGRuleConfig {
@@ -28,6 +36,13 @@ interface NSGRuleConfig {
   destinationAddressPrefix: string;
 }
 
+interface NSGConfig {
+  name: string;
+  subnetKeys: string[];
+  tags: { [key: string]: string };
+  rules: NSGRuleConfig[];
+}
+
 interface AzureResourcesParams {
   resourceGroupName: string;
   location: string;
@@ -36,8 +51,7 @@ interface AzureResourcesParams {
   vnetTags?: { [key: string]: string };
   subnets: SubnetConfig[];
   bastionSubnetcidr: string;
-  nsgTags?: { [key: string]: string };
-  nsgRules: NSGRuleConfig[];
+  nsgConfigs: NSGConfig[];
   natenabled: boolean;
   bastionenabled: boolean;
 }
@@ -47,7 +61,7 @@ export function createAzureVnetResources(
   provider: AzurermProvider,
   params: AzureResourcesParams
 ) {
-  // VNet
+  // --- Virtual Network ---
   const vnet = new VirtualNetwork(scope, "azureVnet", {
     provider: provider,
     name: params.vnetName,
@@ -60,42 +74,9 @@ export function createAzureVnetResources(
     },
   });
 
-  // NSG
-  const nsg = new NetworkSecurityGroup(scope, "multicloudVpnNsg", {
-    provider: provider,
-    resourceGroupName: params.resourceGroupName,
-    location: params.location,
-    name: `${params.vnetName}-nsg`,
-    tags: {
-      Name: `${params.vnetName}-nsg`,
-      ...(params.nsgTags || {}),
-    },
-  });
-
-  // NSG rule
-  const nsgRules: NetworkSecurityRule[] = [];
-  params.nsgRules.forEach((rule: NSGRuleConfig, _) => {
-    const nsgRule = new NetworkSecurityRule(scope, `nsgRule-${rule.name}`, {
-      provider: provider,
-      resourceGroupName: params.resourceGroupName,
-      networkSecurityGroupName: nsg.name,
-      name: rule.name,
-      priority: rule.priority,
-      direction: rule.direction,
-      access: rule.access,
-      protocol: rule.protocol,
-      sourcePortRange: rule.sourcePortRange,
-      destinationPortRange: rule.destinationPortRange,
-      sourceAddressPrefix: rule.sourceAddressPrefix,
-      destinationAddressPrefix: rule.destinationAddressPrefix,
-    });
-    nsgRules.push(nsgRule);
-  });
-
-  // Subnets
+  // --- Subnets ---
+  // Create all subnets first and store them in a map for easy lookup.
   const subnets: { [key: string]: Subnet } = {};
-  const subnetAssociations: SubnetNetworkSecurityGroupAssociation[] = [];
-
   for (const subnetConfig of params.subnets) {
     const subnetResource = new Subnet(
       scope,
@@ -106,26 +87,83 @@ export function createAzureVnetResources(
         virtualNetworkName: vnet.name,
         name: `${params.vnetName}-${subnetConfig.name}`,
         addressPrefixes: [subnetConfig.cidr],
+        // Add delegation for services like Azure DB
+        delegation: subnetConfig.delegations
+          ? subnetConfig.delegations.map((d) => ({
+              name: d.name,
+              serviceDelegation: {
+                name: d.serviceName,
+                actions: [
+                  "Microsoft.Network/virtualNetworks/subnets/join/action",
+                ],
+              },
+            }))
+          : [],
       }
     );
-
-    // NSG associate
-    const nsgAssociation = new SubnetNetworkSecurityGroupAssociation(
-      scope,
-      `nsgAssociation-${subnetConfig.name}`,
-      {
-        provider: provider,
-        subnetId: subnetResource.id,
-        networkSecurityGroupId: nsg.id,
-        dependsOn: [subnetResource, nsg],
-      }
-    );
-
     subnets[subnetConfig.name] = subnetResource;
-    subnetAssociations.push(nsgAssociation);
   }
 
-  // NAT Gateway
+  // --- Network Security Groups and Associations ---
+  const nsgs: { [key: string]: NetworkSecurityGroup } = {};
+  const nsgRules: { [key: string]: NetworkSecurityRule[] } = {};
+  const subnetAssociations: SubnetNetworkSecurityGroupAssociation[] = [];
+
+  for (const nsgConfig of params.nsgConfigs) {
+    // Create the NSG
+    const nsg = new NetworkSecurityGroup(scope, `nsg-${nsgConfig.name}`, {
+      provider: provider,
+      resourceGroupName: params.resourceGroupName,
+      location: params.location,
+      name: nsgConfig.name,
+      tags: nsgConfig.tags,
+    });
+    nsgs[nsgConfig.name] = nsg;
+    nsgRules[nsgConfig.name] = [];
+
+    // Create the rules for this NSG
+    for (const rule of nsgConfig.rules) {
+      const nsgRule = new NetworkSecurityRule(
+        scope,
+        `nsgRule-${nsgConfig.name}-${rule.name}`,
+        {
+          provider: provider,
+          resourceGroupName: params.resourceGroupName,
+          networkSecurityGroupName: nsg.name,
+          name: rule.name,
+          priority: rule.priority,
+          direction: rule.direction,
+          access: rule.access,
+          protocol: rule.protocol,
+          sourcePortRange: rule.sourcePortRange,
+          destinationPortRange: rule.destinationPortRange,
+          sourceAddressPrefix: rule.sourceAddressPrefix,
+          destinationAddressPrefix: rule.destinationAddressPrefix,
+        }
+      );
+      nsgRules[nsgConfig.name].push(nsgRule);
+    }
+
+    // Associate the NSG with its designated subnets
+    for (const subnetKey of nsgConfig.subnetKeys) {
+      const subnetResource = subnets[subnetKey];
+      if (subnetResource) {
+        const association = new SubnetNetworkSecurityGroupAssociation(
+          scope,
+          `nsgAssoc-${subnetKey}`,
+          {
+            provider: provider,
+            subnetId: subnetResource.id,
+            networkSecurityGroupId: nsg.id,
+            dependsOn: [subnetResource, nsg],
+          }
+        );
+        subnetAssociations.push(association);
+      }
+    }
+  }
+
+  // --- NAT Gateway ---
   if (params.natenabled) {
     const natPublicIp = new PublicIp(scope, "AzureNatPublicIp", {
       provider,
@@ -168,7 +206,7 @@ export function createAzureVnetResources(
     });
   }
 
-  // Bastion
+  // --- Bastion ---
   if (params.bastionenabled) {
     const bastionSubnet = new Subnet(scope, "AzureBastionSubnet", {
       provider,
@@ -210,7 +248,7 @@ export function createAzureVnetResources(
 
   return {
     vnet,
-    nsg,
+    nsgs,
     nsgRules,
     subnets,
     subnetAssociations,

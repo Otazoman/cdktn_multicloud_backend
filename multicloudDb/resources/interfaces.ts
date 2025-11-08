@@ -36,8 +36,8 @@ export interface GoogleVpcResources {
 // Azure Virtual Network resources interface
 export interface AzureVnetResources {
   vnet: VirtualNetwork | { name: string };
-  nsg?: NetworkSecurityGroup;
-  nsgRules?: NetworkSecurityRule[];
+  nsgs?: { [key: string]: NetworkSecurityGroup };
+  nsgRules?: { [key: string]: NetworkSecurityRule[] };
   subnets:
     | Record<string, AzureSubnet>
     | Record<string, { id: string; name: string }>;
