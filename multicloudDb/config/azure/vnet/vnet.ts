@@ -13,8 +13,8 @@ export const azureVnetResourcesparams = {
     Project: "MultiCloud",
   },
   subnets: subnets,
-  natenabled: true,
-  bastionenabled: true,
+  natenabled: false,
+  bastionenabled: false,
   bastionSubnetcidr: bastionSubnetcidr,
   nsgConfigs: nsgConfigs,
 };

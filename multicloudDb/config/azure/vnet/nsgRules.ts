@@ -172,17 +172,6 @@ export const nsgConfigs = [
         sourceAddressPrefix: "VirtualNetwork",
         destinationAddressPrefix: "VirtualNetwork",
       },
-      // {
-      //   name: "AllowPostgresFromApp",
-      //   priority: 150,
-      //   direction: "Inbound",
-      //   access: "Allow",
-      //   protocol: "Tcp",
-      //   sourcePortRange: "*",
-      //   destinationPortRange: "5432",
-      //   sourceAddressPrefix: "10.2.20.0/24", // App Subnet CIDR
-      //   destinationAddressPrefix: "*",
-      // },
       {
         name: "DenyAllInbound",
         priority: 4096,

@@ -28,6 +28,8 @@ export interface AzureDatabaseConfig {
   // High Availability
   highAvailabilityMode?: string;
   standbyAvailabilityZone?: string;
+  // Primary Server Setting zone
+  zone?: string;
   // Networking
   publicNetworkAccessEnabled?: boolean;
   // Maintenance window
@@ -168,6 +170,7 @@ function createAzureMySqlFlexibleServer(
       name: config.serverName,
       resourceGroupName: resourceGroupName,
       location: location,
+      zone: config.zone,
       administratorLogin: config.serverAdminLogin,
       administratorPassword: config.serverAdminPassword,
       skuName: config.skuName,
@@ -258,6 +261,7 @@ function createAzurePostgreSqlFlexibleServer(
       name: config.serverName,
       resourceGroupName: resourceGroupName,
       location: location,
+      zone: config.zone,
       administratorLogin: config.serverAdminLogin,
       administratorPassword: config.serverAdminPassword,
       skuName: config.skuName,

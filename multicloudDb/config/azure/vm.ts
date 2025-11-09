@@ -3,7 +3,7 @@ import { LOCATION, RESOURCE_GROUP } from "./common";
 /* Azure Virtual Machine (VM) configurations */
 export const azureVmsConfigparams = [
   {
-    build: true,
+    build: false,
     name: "example-vm-1",
     resourceGroupName: RESOURCE_GROUP,
     location: LOCATION,

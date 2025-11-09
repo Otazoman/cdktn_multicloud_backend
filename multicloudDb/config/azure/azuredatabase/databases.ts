@@ -23,6 +23,7 @@ export const azureDatabaseConfig = {
       backupRetentionDays: 7,
       geoRedundantBackupEnabled: false,
       // High Availability
+      zone: "1",
       highAvailabilityMode: undefined, // "ZoneRedundant" or "SameZone" or undefined
       standbyAvailabilityZone: undefined,
       // Networking
@@ -62,6 +63,7 @@ export const azureDatabaseConfig = {
       backupRetentionDays: 7,
       geoRedundantBackupEnabled: false,
       // High Availability
+      zone: "1",
       highAvailabilityMode: undefined, // "ZoneRedundant" or "SameZone" or undefined
       standbyAvailabilityZone: undefined,
       // Networking
@@ -75,7 +77,7 @@ export const azureDatabaseConfig = {
       // Labels
       tags: {
         Environment: "Dev",
-        Owner: "TeamA",
+        Owner: "TeamB",
         Database: "PostgreSQL",
       },
       configurationParametersFile:
