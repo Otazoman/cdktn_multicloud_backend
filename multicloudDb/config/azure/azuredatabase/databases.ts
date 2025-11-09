@@ -7,7 +7,7 @@ export const azureDatabaseConfig = {
   databases: [
     // Azure Database for MySQL Flexible Server
     {
-      build: false,
+      build: true,
       type: "mysql" as const,
       name: "mysql-database",
       serverName: "azure-mysql-server-2025-1108",

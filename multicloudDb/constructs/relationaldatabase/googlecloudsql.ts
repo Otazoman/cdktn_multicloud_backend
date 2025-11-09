@@ -173,6 +173,9 @@ export function createGoogleCloudSqlInstance(
       dependsOn: config.privateNetwork
         ? [vpc, serviceNetworkingConnection]
         : [vpc],
+      lifecycle: {
+        createBeforeDestroy: true,
+      },
     }
   );
 

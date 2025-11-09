@@ -4,7 +4,7 @@ import { bastionSubnetcidr, subnets } from "./subnets";
 
 /* Virtual Network (VNet) configuration parameters */
 export const azureVnetResourcesparams = {
-  isEnabled: true,
+  isEnabled: false,
   resourceGroupName: RESOURCE_GROUP,
   location: LOCATION,
   vnetName: VNET_NAME,
@@ -13,8 +13,8 @@ export const azureVnetResourcesparams = {
     Project: "MultiCloud",
   },
   subnets: subnets,
-  natenabled: false,
-  bastionenabled: false,
+  natenabled: true,
+  bastionenabled: true,
   bastionSubnetcidr: bastionSubnetcidr,
   nsgConfigs: nsgConfigs,
 };

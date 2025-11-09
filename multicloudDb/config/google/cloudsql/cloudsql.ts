@@ -8,7 +8,8 @@ export const cloudSqlConfig = {
   instances: [
     // MySQL Instance
     {
-      name: "cloudsql-mysql-instance-2025-1101-1500",
+      build: true,
+      name: "cloudsql-mysql-instance-2025-1108-1600",
       databaseVersion: "MYSQL_8_0",
       edition: "ENTERPRISE",
       tier: "db-f1-micro",
@@ -50,11 +51,11 @@ export const cloudSqlConfig = {
         environment: "dev",
       },
       databaseFlagsFile: "config/google/cloudsql/mysql-parameters.ts",
-      build: false,
     },
     // PostgreSQL Instance
     {
-      name: "cloudsql-postgres-instance-2025-1101-1500",
+      build: true,
+      name: "cloudsql-postgres-instance-2025-1108-1600",
       databaseVersion: "POSTGRES_15",
       edition: "ENTERPRISE",
       tier: "db-f1-micro",
@@ -96,7 +97,6 @@ export const cloudSqlConfig = {
         environment: "dev",
       },
       databaseFlagsFile: "config/google/cloudsql/postgres-parameters.ts",
-      build: false,
     },
   ],
 };
