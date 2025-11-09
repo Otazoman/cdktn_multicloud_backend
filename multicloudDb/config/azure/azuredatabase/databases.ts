@@ -7,14 +7,15 @@ export const azureDatabaseConfig = {
   databases: [
     // Azure Database for MySQL Flexible Server
     {
-      build: true,
+      build: false,
       type: "mysql" as const,
       name: "mysql-database",
       serverName: "azure-mysql-server-2025-1108",
       subnetKey: "db-mysql-subnet", // Each database needs its own subnet
       serverAdminLogin: "mysqladmin",
       serverAdminPassword: "YourSecurePassword123!",
-      skuName: "GP_Standard_D4ads_v5", // General Purpose D2ads_v5, 2 vCore, 8GB RAM (minimum for VNet)
+      // skuName: "GP_Standard_D2ds_v4", // General Purpose D2ads_v5, 2 vCore, 8GB RAM (minimum for VNet) Cpacity Error
+      skuName: "B_Standard_B1ms",
       storageMb: 32768, // 32 GB
       storageIops: 400, // Storage IOPS
       version: "8.0.21", // MySQL 8.0 (meets requirement)
@@ -22,7 +23,7 @@ export const azureDatabaseConfig = {
       backupRetentionDays: 7,
       geoRedundantBackupEnabled: false,
       // High Availability
-      highAvailabilityMode: "SameZone", // "ZoneRedundant" or "SameZone"
+      highAvailabilityMode: undefined, // "ZoneRedundant" or "SameZone" or undefined
       standbyAvailabilityZone: undefined,
       // Networking
       publicNetworkAccessEnabled: false, // VNet integration only
@@ -45,14 +46,15 @@ export const azureDatabaseConfig = {
     },
     // Azure Database for PostgreSQL Flexible Server
     {
-      build: false,
+      build: true,
       type: "postgresql" as const,
       name: "postgres-database",
       serverName: "azure-postgres-server-2025-1108",
       subnetKey: "db-postgres-subnet", // Each database needs its own subnet (matches subnets.ts)
       serverAdminLogin: "postgresadmin",
       serverAdminPassword: "YourSecurePassword123!",
-      skuName: "GP_Standard_D2ds_v4", // General Purpose D2ds_v4, 2 vCore, 8GB RAM (minimum for VNet)
+      // skuName: "GP_Standard_D2ds_v4", // General Purpose D2ds_v4, 2 vCore, 8GB RAM (minimum for VNet)  Cpacity Error
+      skuName: "B_Standard_B1ms",
       storageMb: 32768, // 32 GB
       storageIops: 360, // Storage IOPS
       version: "15", // PostgreSQL 15 (meets requirement)
@@ -60,7 +62,7 @@ export const azureDatabaseConfig = {
       backupRetentionDays: 7,
       geoRedundantBackupEnabled: false,
       // High Availability
-      highAvailabilityMode: "SameZone", // "ZoneRedundant" or "SameZone"
+      highAvailabilityMode: undefined, // "ZoneRedundant" or "SameZone" or undefined
       standbyAvailabilityZone: undefined,
       // Networking
       publicNetworkAccessEnabled: false, // VNet integration only
