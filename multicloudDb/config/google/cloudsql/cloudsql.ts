@@ -8,7 +8,7 @@ export const cloudSqlConfig = {
   instances: [
     // MySQL Instance
     {
-      build: true,
+      build: false,
       name: "cloudsql-mysql-instance-2025-1108-1600",
       databaseVersion: "MYSQL_8_0",
       edition: "ENTERPRISE",
@@ -54,7 +54,7 @@ export const cloudSqlConfig = {
     },
     // PostgreSQL Instance
     {
-      build: true,
+      build: false,
       name: "cloudsql-postgres-instance-2025-1108-1600",
       databaseVersion: "POSTGRES_15",
       edition: "ENTERPRISE",

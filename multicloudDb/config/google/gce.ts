@@ -12,7 +12,7 @@ export const gceInstancesParams = {
   project: "multicloud-sitevpn-project",
   instanceConfigs: [
     {
-      build: true,
+      build: false,
       name: "gce-instance-1",
       machineType: "e2-micro",
       zone: "asia-northeast1-a",

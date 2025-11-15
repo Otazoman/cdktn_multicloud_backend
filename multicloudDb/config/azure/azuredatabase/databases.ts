@@ -28,12 +28,12 @@ export const azureDatabaseConfig = {
       standbyAvailabilityZone: undefined,
       // Networking
       publicNetworkAccessEnabled: false, // VNet integration only
-      // Maintenance window
-      maintenanceWindow: {
-        dayOfWeek: 0, // Sunday
-        startHour: 2,
-        startMinute: 0,
-      },
+      // // Maintenance window
+      // maintenanceWindow: {
+      //   dayOfWeek: 0, // Sunday
+      //   startHour: 2,
+      //   startMinute: 0,
+      // },
       // Security
       tlsEnforcementEnabled: true,
       // Labels
@@ -69,11 +69,11 @@ export const azureDatabaseConfig = {
       // Networking
       publicNetworkAccessEnabled: false, // VNet integration only
       // Maintenance window
-      maintenanceWindow: {
-        dayOfWeek: 1, // Monday
-        startHour: 2,
-        startMinute: 0,
-      },
+      // maintenanceWindow: {
+      //   dayOfWeek: 1, // Monday
+      //   startHour: 2,
+      //   startMinute: 0,
+      // },
       // Labels
       tags: {
         Environment: "Dev",
