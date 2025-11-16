@@ -4,4 +4,4 @@ export const awsToAzure: boolean = true; // Enable/disable VPN connection betwee
 export const googleToAzure: boolean = false; // Enable/disable VPN connection between Google and Azure
 export const useVpn: boolean = false; // Enable/disable VPN usage
 export const useVms: boolean = true; // Enable/disable VM usage
-export const useDbs: boolean = true; // Enable/disable DataBase usage
+export const useDbs: boolean = false; // Enable/disable DataBase usage

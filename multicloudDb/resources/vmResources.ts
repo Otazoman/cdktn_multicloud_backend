@@ -27,8 +27,7 @@ export const createVmResources = (
   azureProvider: AzurermProvider,
   awsVpcResources?: AwsVpcResources,
   googleVpcResources?: GoogleVpcResources,
-  azureVnetResources?: AzureVnetResources,
-  sshKey?: any
+  azureVnetResources?: AzureVnetResources
 ) => {
   if ((awsToAzure || awsToGoogle) && awsVpcResources) {
     //AWS EC2 Instances
@@ -82,7 +81,6 @@ export const createVmResources = (
       vnetName: azureVnetResources.vnet.name,
       subnets: azureVnetResources.subnets,
       vmConfigs: azureVmsConfigparams,
-      sshKey: sshKey,
     };
     const azureVms = createAzureVms(scope, azureProvider, azureVmParams);
     azureVms.forEach((vm) => vm.node.addDependency(azureVnetResources.subnets));

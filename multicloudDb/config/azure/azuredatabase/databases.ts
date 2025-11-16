@@ -18,7 +18,8 @@ export const azureDatabaseConfig = {
       skuName: "B_Standard_B1ms",
       storageMb: 32768, // 32 GB
       storageIops: 400, // Storage IOPS
-      version: "8.0.21", // MySQL 8.0 (meets requirement)
+      // version: "8.4.5", // MySQL 8.4
+      version: "8.0.21", // MySQL 8.0
       // Backup configuration
       backupRetentionDays: 7,
       geoRedundantBackupEnabled: false,
@@ -58,7 +59,7 @@ export const azureDatabaseConfig = {
       skuName: "B_Standard_B1ms",
       storageMb: 32768, // 32 GB
       storageIops: 360, // Storage IOPS
-      version: "15", // PostgreSQL 15 (meets requirement)
+      version: "15", // PostgreSQL 17
       // Backup configuration
       backupRetentionDays: 7,
       geoRedundantBackupEnabled: false,

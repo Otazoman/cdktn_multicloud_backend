@@ -1,10 +1,8 @@
 import { LinuxVirtualMachine } from "@cdktf/provider-azurerm/lib/linux-virtual-machine";
 import { NetworkInterface } from "@cdktf/provider-azurerm/lib/network-interface";
 import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
-import { PrivateKey } from "@cdktf/provider-tls/lib/private-key";
 import { Construct } from "constructs";
 import * as fs from "fs";
-
 
 interface AzureVmConfig {
   name: string;
@@ -12,6 +10,7 @@ interface AzureVmConfig {
   location: string;
   size: string;
   adminUsername: string;
+  publicKeyPath: string;
   osDisk: {
     caching: string;
     storageAccountType: string;
@@ -33,7 +32,6 @@ interface CreateAzureVmParams {
   vnetName: string;
   subnets: Record<string, { id: string; name: string }>;
   vmConfigs: AzureVmConfig[];
-  sshKey: PrivateKey;
 }
 
 export function createAzureVms(
@@ -56,14 +54,22 @@ export function createAzureVms(
 
     // Startup script
     let encodedCustomData: string | undefined = undefined;
-    
+
     if (vmConfig.vmInitScriptPath) {
       try {
-        const vmInitScript = fs.readFileSync(vmConfig.vmInitScriptPath, "utf-8");
+        const vmInitScript = fs.readFileSync(
+          vmConfig.vmInitScriptPath,
+          "utf-8"
+        );
         encodedCustomData = Buffer.from(vmInitScript).toString("base64");
       } catch (error) {
-        console.error(`Error reading VM init script at ${vmConfig.vmInitScriptPath!}:`, error);
-        throw new Error(`Failed to read VM initialization script from path: ${vmConfig.vmInitScriptPath}. Please check if the file exists and is accessible.`);
+        console.error(
+          `Error reading VM init script at ${vmConfig.vmInitScriptPath!}:`,
+          error
+        );
+        throw new Error(
+          `Failed to read VM initialization script from path: ${vmConfig.vmInitScriptPath}. Please check if the file exists and is accessible.`
+        );
       }
     }
 
@@ -92,7 +98,7 @@ export function createAzureVms(
       adminSshKey: [
         {
           username: vmConfig.adminUsername,
-          publicKey: params.sshKey.publicKeyOpenssh,
+          publicKey: fs.readFileSync(vmConfig.publicKeyPath, "utf-8"),
         },
       ],
       osDisk: {

@@ -1,7 +1,6 @@
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
 import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
-import { TlsProvider } from "@cdktf/provider-tls/lib/provider";
 import { Construct } from "constructs";
 
 export const createProviders = (scope: Construct) => {
@@ -18,7 +17,9 @@ export const createProviders = (scope: Construct) => {
     features: [{}],
   });
 
-  const tlsProvider = new TlsProvider(scope, "tls", {});
-
-  return { awsProvider, googleProvider, azureProvider, tlsProvider };
+  return {
+    awsProvider,
+    googleProvider,
+    azureProvider,
+  };
 };

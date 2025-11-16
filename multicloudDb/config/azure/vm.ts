@@ -9,6 +9,7 @@ export const azureVmsConfigparams = [
     location: LOCATION,
     size: "Standard_B1ls",
     adminUsername: "azureuser",
+    publicKeyPath: "pubkey/azurevmauthkey.pub",
     osDisk: {
       caching: "ReadWrite",
       storageAccountType: "Standard_LRS",
@@ -34,6 +35,7 @@ export const azureVmsConfigparams = [
     location: LOCATION,
     size: "Standard_B1ls",
     adminUsername: "azureuser",
+    publicKeyPath: "pubkey/azurevmauthkey.pub",
     osDisk: {
       caching: "ReadWrite",
       storageAccountType: "Standard_LRS",
