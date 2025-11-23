@@ -113,7 +113,7 @@ const mapRdsConfigs = (): AwsRelationalDatabaseConfig[] => {
     type: "rds" as const,
     masterUsername:
       typeof config.username === "string" ? config.username : undefined,
-    masterPassword:
+    password:
       !config.manageMasterUserPassword &&
       typeof (config as any).password === "string"
         ? (config as any).password

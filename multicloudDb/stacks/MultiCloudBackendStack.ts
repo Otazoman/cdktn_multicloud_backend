@@ -1,6 +1,6 @@
 import { TerraformOutput, TerraformStack } from "cdktf";
 import { Construct } from "constructs";
-import { useVms, useVpn } from "../config/commonsettings";
+import { useVms, useVpn, useDbs } from "../config/commonsettings";
 import { createProviders } from "../providers/providers";
 import {
   createDatabaseResources,
@@ -53,23 +53,25 @@ export class MultiCloudBackendStack extends TerraformStack {
     }
 
     // Database
-    const databaseResourcesOutput: DatabaseResourcesOutput | undefined =
-      createDatabaseResources(
-        this,
-        awsProvider,
-        googleProvider,
-        azureProvider,
-        vpcResources.awsVpcResources,
-        vpcResources.googleVpcResources,
-        vpcResources.azureVnetResources
-      );
+    if (useDbs) {
+      const databaseResourcesOutput: DatabaseResourcesOutput | undefined =
+        createDatabaseResources(
+          this,
+          awsProvider,
+          googleProvider,
+          azureProvider,
+          vpcResources.awsVpcResources,
+          vpcResources.googleVpcResources,
+          vpcResources.azureVnetResources
+        );
 
-    if (databaseResourcesOutput) {
-      // rdsMasterUserSecretArnsとauroraMasterUserSecretArnsはdatabaseResources.ts内でTerraformOutputとして直接生成されるため、ここでは参照しない
-      new TerraformOutput(this, "google_cloudsql_connection_names", {
-        value: databaseResourcesOutput.googleCloudSqlConnectionNames,
-        description: "Connection names for Google CloudSQL instances",
-      });
+      if (databaseResourcesOutput) {
+        // rdsMasterUserSecretArnsとauroraMasterUserSecretArnsはdatabaseResources.ts内でTerraformOutputとして直接生成されるため、ここでは参照しない
+        new TerraformOutput(this, "google_cloudsql_connection_names", {
+          value: databaseResourcesOutput.googleCloudSqlConnectionNames,
+          description: "Connection names for Google CloudSQL instances",
+        });
+      }
     }
   }
 }

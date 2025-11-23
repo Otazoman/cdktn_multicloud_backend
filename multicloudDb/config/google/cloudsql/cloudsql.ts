@@ -8,15 +8,18 @@ export const cloudSqlConfig = {
   instances: [
     // MySQL Instance
     {
-      build: false,
-      name: "cloudsql-mysql-instance-2025-1108-1600",
-      databaseVersion: "MYSQL_8_0",
+      build: true,
+      name: "cloudsql-mysql-instance-2025-1123-1600",
       edition: "ENTERPRISE",
+      databaseVersion: "MYSQL_8_0",
       tier: "db-f1-micro",
+      // edition: "ENTERPRISE_PLUS",
+      // databaseVersion: "MYSQL_8_4",
+      // tier: "db-perf-optimized-N-2",
       region: "asia-northeast1",
       availabilityType: "ZONAL", // ZONAL or REGIONAL
       diskType: "PD_SSD",
-      diskSize: 20,
+      diskSize: 10,
       diskAutoresize: true,
       diskAutoresizeLimit: 100,
       username: "root",
@@ -27,7 +30,7 @@ export const cloudSqlConfig = {
       // Backup configuration
       backupEnabled: true,
       backupStartTime: "03:00",
-      backupRetainedBackups: 7,
+      backupRetainedBackups: 8,
       backupTransactionLogRetentionDays: 7,
       // Point-in-time recovery for MySQL requires binary logging
       binaryLogEnabled: true,
@@ -54,15 +57,18 @@ export const cloudSqlConfig = {
     },
     // PostgreSQL Instance
     {
-      build: false,
-      name: "cloudsql-postgres-instance-2025-1108-1600",
-      databaseVersion: "POSTGRES_15",
+      build: true,
+      name: "cloudsql-postgres-instance-2025-1123-1600",
       edition: "ENTERPRISE",
+      databaseVersion: "POSTGRES_15",
       tier: "db-f1-micro",
+      // edition: "ENTERPRISE_PLUS",
+      // databaseVersion: "POSTGRES_17",
+      // tier: "db-perf-optimized-N-2",
       region: "asia-northeast1",
       availabilityType: "ZONAL",
       diskType: "PD_SSD",
-      diskSize: 20,
+      diskSize: 10,
       diskAutoresize: true,
       diskAutoresizeLimit: 100,
       username: "root",
@@ -73,7 +79,7 @@ export const cloudSqlConfig = {
       // Backup configuration
       backupEnabled: true,
       backupStartTime: "02:00",
-      backupRetainedBackups: 14,
+      backupRetainedBackups: 8,
       backupTransactionLogRetentionDays: 7,
       // Point-in-time recovery
       pointInTimeRecoveryEnabled: true,

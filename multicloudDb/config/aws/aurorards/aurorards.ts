@@ -55,6 +55,7 @@ export const rdsConfigs = [
     engineVersion: "10.6",
     allocatedStorage: 20,
     storageType: "gp3",
+    username: "root",
     manageMasterUserPassword: true,
     subnetKeys: [
       "my-aws-vpc-db-private-subnet1a",
@@ -89,17 +90,19 @@ export const rdsConfigs = [
     identifier: "rds-postgres-instance",
     instanceClass: "db.t3.medium",
     engine: "postgres",
-    engineVersion: "17.10",
+    engineVersion: "17.6",
     allocatedStorage: 20,
     storageType: "gp3",
     username: "root",
-    manageMasterUserPassword: true,
+    password: "MySecurePassword123!",
+    manageMasterUserPassword: false,
+    // manageMasterUserPassword: true,
     subnetKeys: [
       "my-aws-vpc-db-private-subnet1a",
       "my-aws-vpc-db-private-subnet1c",
     ],
     vpcSecurityGroupNames: ["myaws-db-sg"],
-    parameterGroupFamily: "postgres15",
+    parameterGroupFamily: "postgres17",
     parameterGroupParametersFile: "config/aws/aurorards/postgres-parameters.ts", // Path to parameter file
     skipFinalSnapshot: true,
     // Backup
@@ -119,7 +122,7 @@ export const rdsConfigs = [
     // Maintenance
     preferredMaintenanceWindow: "sat:03:00-sat:04:00",
     // Multi-AZ
-    multiAz: true,
+    multiAz: false,
     storageEncrypted: true, // encrypted
     tags: {
       Name: "MyRdsPostgresInstance",
@@ -137,7 +140,8 @@ export const auroraConfigs = [
     engine: "aurora-mysql",
     engineVersion: "8.0.mysql_aurora.3.08.2",
     masterUsername: "root",
-    manageMasterUserPassword: true,
+    password: "MySecurePassword123!",
+    manageMasterUserPassword: false,
     subnetKeys: [
       "my-aws-vpc-db-private-subnet1a",
       "my-aws-vpc-db-private-subnet1c",
@@ -184,7 +188,7 @@ export const auroraConfigs = [
     engine: "aurora-postgresql",
     engineVersion: "17.4",
     masterUsername: "root",
-    masterPassword: "MySecurePassword123!",
+    password: "MySecurePassword123!",
     manageMasterUserPassword: false,
     subnetKeys: [
       "my-aws-vpc-db-private-subnet1a",
@@ -192,11 +196,11 @@ export const auroraConfigs = [
       "my-aws-vpc-db-private-subnet1d",
     ],
     vpcSecurityGroupNames: ["myaws-db-sg"],
-    dbClusterParameterGroupFamily: "aurora-postgresql15",
+    dbClusterParameterGroupFamily: "aurora-postgresql17",
     skipFinalSnapshot: true,
     instanceClass: "db.t4g.medium",
     instanceCount: 1,
-    instanceParameterGroupFamily: "aurora-postgresql15",
+    instanceParameterGroupFamily: "aurora-postgresql17",
     // Backup
     backupRetentionPeriod: 14,
     preferredBackupWindow: "03:00-04:00",

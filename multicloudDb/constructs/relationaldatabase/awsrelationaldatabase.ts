@@ -35,7 +35,7 @@ export interface AwsRelationalDatabaseConfig {
   engine: string;
   engineVersion: string;
   masterUsername?: string;
-  masterPassword?: string;
+  password?: string;
   masterPasswordSecretKey?: string;
   manageMasterUserPassword?: boolean;
   // Migration support - prevents output generation during password management transitions
@@ -203,7 +203,7 @@ function getMasterPasswordProps(
   } else {
     // Case 3: Password provided directly. Only return the password.
     return {
-      password: config.masterPassword,
+      password: config.password,
     };
   }
 }

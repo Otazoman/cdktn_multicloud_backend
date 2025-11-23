@@ -7,7 +7,7 @@ export const azureDatabaseConfig = {
   databases: [
     // Azure Database for MySQL Flexible Server
     {
-      build: true,
+      build: false,
       type: "mysql" as const,
       name: "mysql-database",
       serverName: "azure-mysql-server-2025-1108",
@@ -19,7 +19,7 @@ export const azureDatabaseConfig = {
       storageMb: 32768, // 32 GB
       storageIops: 400, // Storage IOPS
       // version: "8.4.5", // MySQL 8.4
-      version: "8.0.21", // MySQL 8.0
+      version: "8.0.21", // MySQL 8.0  (8.0.42)
       // Backup configuration
       backupRetentionDays: 7,
       geoRedundantBackupEnabled: false,
@@ -48,7 +48,7 @@ export const azureDatabaseConfig = {
     },
     // Azure Database for PostgreSQL Flexible Server
     {
-      build: true,
+      build: false,
       type: "postgresql" as const,
       name: "postgres-database",
       serverName: "azure-postgres-server-2025-1108",
@@ -59,7 +59,7 @@ export const azureDatabaseConfig = {
       skuName: "B_Standard_B1ms",
       storageMb: 32768, // 32 GB
       storageIops: 360, // Storage IOPS
-      version: "15", // PostgreSQL 17
+      version: "17", // PostgreSQL 17
       // Backup configuration
       backupRetentionDays: 7,
       geoRedundantBackupEnabled: false,

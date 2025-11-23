@@ -48,10 +48,17 @@ apt purge -y nano
 wait_for_apt_lock
 apt update -y
 wait_for_apt_lock
+
 # install MySQL and PostgreSQL clients
 echo "Installing required clients..."
+apt install -y postgresql-common
+wait_for_apt_lock
+if [ -f /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh ]; then
+  yes "" | /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+fi
 apt install -y mysql-client postgresql-client
 wait_for_apt_lock
+
 # package upgrade
 echo "Running system upgrade..."
 apt upgrade -y

@@ -1,7 +1,7 @@
 /* EC2 instance configurations */
 export const ec2Configs = [
   {
-    build: false,
+    build: true,
     ami: "ami-0b20f552f63953f0e",
     instanceType: "t3.micro",
     keyName: "multicloud_test",
