@@ -5,6 +5,7 @@ export const googleVpnParams = {
   cloudRouterName: "google-cloud-router",
   bgpGoogleAsn: 65000,
   ikeVersion: 2,
+  customIpRanges: ["10.100.0.0/16"], // Custom IP ranges for Cloud Router (e.g., ["10.100.0.0/16"] for CloudSQL)
   labels: {
     owner: "team-a",
   },

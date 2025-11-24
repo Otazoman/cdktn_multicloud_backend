@@ -3,23 +3,23 @@ import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
 import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
 import { Construct } from "constructs";
 import {
-    awsVpcResourcesparams,
-    awsVpnparams,
-    createCustomerGatewayParams,
+  awsVpcResourcesparams,
+  awsVpnparams,
+  createCustomerGatewayParams,
 } from "../config/aws/awssettings";
 import {
-    azureAwsVpnparams,
-    azureCommonparams,
-    azureGoogleVpnparams,
-    azureVnetResourcesparams,
-    azureVpnGatewayParams,
-    azureVpnparams,
-    createLocalGatewayParams,
+  azureAwsVpnparams,
+  azureCommonparams,
+  azureGoogleVpnparams,
+  azureVnetResourcesparams,
+  azureVpnGatewayParams,
+  azureVpnparams,
+  createLocalGatewayParams,
 } from "../config/azure/azuresettings";
 import {
-    createGoogleVpnPeerParams,
-    googleVpcResourcesparams,
-    googleVpnParams,
+  createGoogleVpnPeerParams,
+  googleVpcResourcesparams,
+  googleVpnParams,
 } from "../config/google/googlesettings";
 import { createAwsCustomerGateway } from "../constructs/vpnnetwork/awscgw";
 import { createAwsVpnGateway } from "../constructs/vpnnetwork/awsvpngw";
@@ -30,17 +30,17 @@ import { createGooglePeerTunnel } from "../constructs/vpnnetwork/googletunnels";
 import { createGoogleVpnGateway } from "../constructs/vpnnetwork/googlevpngw";
 
 import {
-    awsToAzure,
-    awsToGoogle,
-    env,
-    googleToAzure,
+  awsToAzure,
+  awsToGoogle,
+  env,
+  googleToAzure,
 } from "../config/commonsettings";
 import {
-    AwsVpcResources,
-    AzureVnetResources,
-    GoogleVpcResources,
-    TunnelConfig,
-    VpnResources,
+  AwsVpcResources,
+  AzureVnetResources,
+  GoogleVpcResources,
+  TunnelConfig,
+  VpnResources,
 } from "./interfaces";
 
 const DESTINATION = {
@@ -187,6 +187,7 @@ function setupGoogleVpnTunnels(
 
   return createGooglePeerTunnel(scope, googleProvider, {
     ...vpnPeerParams,
+    customIpRanges: vpnParams.customIpRanges,
   });
 }
 
@@ -284,8 +285,9 @@ function setupAwsToGoogleVpn(
     googleVpnParams.labels
   );
 
-  // Single tunnel routes
-  if (isSingleTunnel && resources.awsGoogleCgwVpns[0]?.vpnConnection?.id) {
+  // Single tunnel routes - VPC CIDR and CloudSQL range
+  if (isSingleTunnel && resources.awsGoogleCgwVpns?.[0]?.vpnConnection?.id) {
+    // Route to Google VPC CIDR
     createAwsVpnRoutes(
       scope,
       awsProvider,
@@ -293,6 +295,22 @@ function setupAwsToGoogleVpn(
       DESTINATION.GOOGLE,
       googleVpcResourcesparams.vpcCidrblock
     );
+
+    // Route to CloudSQL private service connection range (dev environment only)
+    if (
+      googleVpnParams.customIpRanges &&
+      googleVpnParams.customIpRanges.length > 0
+    ) {
+      googleVpnParams.customIpRanges.forEach((ipRange) => {
+        createAwsVpnRoutes(
+          scope,
+          awsProvider,
+          resources.awsGoogleCgwVpns![0].vpnConnection.id,
+          "cloudsql",
+          ipRange
+        );
+      });
+    }
   }
 }
 
@@ -507,6 +525,12 @@ export function createVpnResources(
     googleVpcResources &&
     !resources.googleVpnGateway
   ) {
+    // Determine if custom IP ranges should be passed (only for HA VPN and when customIpRanges is set)
+    const shouldUseCustomIpRanges =
+      !isSingleTunnel &&
+      googleVpnParams.customIpRanges &&
+      googleVpnParams.customIpRanges.length > 0;
+
     resources.googleVpnGateways = createGoogleVpnGateway(
       scope,
       googleProvider,
@@ -517,6 +541,9 @@ export function createVpnResources(
         cloudRouterName: googleVpnParams.cloudRouterName,
         bgpGoogleAsn: googleVpnParams.bgpGoogleAsn,
         isSingleTunnel,
+        ...(shouldUseCustomIpRanges && {
+          customIpRanges: googleVpnParams.customIpRanges,
+        }),
         labels: googleVpnParams.labels,
       }
     );

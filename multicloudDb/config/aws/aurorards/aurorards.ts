@@ -138,7 +138,7 @@ export const auroraConfigs = [
     build: false,
     clusterIdentifier: "aurora-mysql-cluster",
     engine: "aurora-mysql",
-    engineVersion: "8.0.mysql_aurora.3.08.2",
+    engineVersion: "8.0.mysql_aurora.3.10.2",
     masterUsername: "root",
     password: "MySecurePassword123!",
     manageMasterUserPassword: false,
@@ -183,7 +183,7 @@ export const auroraConfigs = [
   },
   // Aurora PostgreSQL (Self-managed password)
   {
-    build: false,
+    build: true,
     clusterIdentifier: "aurora-postgres-cluster",
     engine: "aurora-postgresql",
     engineVersion: "17.4",

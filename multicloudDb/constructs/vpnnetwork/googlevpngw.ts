@@ -13,6 +13,7 @@ interface GoogleVpnParams {
   cloudRouterName: string;
   bgpGoogleAsn: number;
   isSingleTunnel: boolean;
+  customIpRanges?: string[];
   labels?: { [key: string]: string };
 }
 
@@ -108,6 +109,19 @@ function createHaVpnGateway(
   );
 
   // Create Cloud Router
+  const bgpConfig: any = {
+    asn: params.bgpGoogleAsn,
+  };
+
+  // Add custom IP ranges if provided
+  if (params.customIpRanges && params.customIpRanges.length > 0) {
+    bgpConfig.advertiseMode = "CUSTOM";
+    bgpConfig.advertisedGroups = ["ALL_SUBNETS"];
+    bgpConfig.advertisedIpRanges = params.customIpRanges.map((range) => ({
+      range: range,
+      description: "CloudSQL Private Service Access",
+    }));
+  }
 
   const cloudRouter = new ComputeRouter(
     scope,
@@ -116,9 +130,7 @@ function createHaVpnGateway(
       provider: provider,
       name: params.cloudRouterName,
       network: params.vpcNetwork,
-      bgp: {
-        asn: params.bgpGoogleAsn,
-      },
+      bgp: bgpConfig,
     }
   );
 

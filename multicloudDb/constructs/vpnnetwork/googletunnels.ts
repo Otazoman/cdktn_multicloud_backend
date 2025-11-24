@@ -38,6 +38,7 @@ interface GoogleVpnParams {
   peerVpcCidr: string;
   gcpNetwork: string;
   forwardingRules?: ComputeForwardingRule[];
+  customIpRanges?: string[];
   labels?: { [key: string]: string };
 }
 
@@ -63,6 +64,16 @@ function createSingleTunnel(
 
   // VPN Tunnels
   const vpnTunnels = params.vpnConnections.slice(0, 2).map((tunnel, index) => {
+    // Include CloudSQL private service connection range in local traffic selector for dev environment
+    const localTrafficSelector = [params.gcpVpcCidr];
+    if (
+      params.isSingleTunnel &&
+      params.customIpRanges &&
+      params.customIpRanges.length > 0
+    ) {
+      localTrafficSelector.push(...params.customIpRanges);
+    }
+
     return new ComputeVpnTunnel(
       scope,
       `VpnTunnel-${params.connectDestination}-${index + 1}`,
@@ -73,7 +84,7 @@ function createSingleTunnel(
         peerIp: tunnel.peerAddress,
         sharedSecret: tunnel.preshared_key,
         ikeVersion: params.ikeVersion,
-        localTrafficSelector: [params.gcpVpcCidr],
+        localTrafficSelector: localTrafficSelector,
         remoteTrafficSelector: [params.peerVpcCidr],
         labels: params.labels,
         dependsOn: forwardingRules,
@@ -81,7 +92,7 @@ function createSingleTunnel(
     );
   });
 
-  // Add routes for VPN tunnels
+  // Add routes for VPN tunnels - Main VPC CIDR route
   const vpnRoutes = vpnTunnels.map((tunnel, index) => {
     return new ComputeRoute(
       scope,
