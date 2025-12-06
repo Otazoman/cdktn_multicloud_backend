@@ -8,8 +8,8 @@ export const cloudSqlConfig = {
   instances: [
     // MySQL Instance
     {
-      build: false,
-      name: "cloudsql-mysql-instance-2025-1124-0900",
+      build: true,
+      name: "cloudsql-mysql-instance-2025-1206-1100",
       edition: "ENTERPRISE",
       databaseVersion: "MYSQL_8_0",
       tier: "db-f1-micro",
@@ -23,7 +23,7 @@ export const cloudSqlConfig = {
       diskAutoresize: true,
       diskAutoresizeLimit: 100,
       username: "root",
-      password: "mysecurepassword",
+      password: "MySecurePassword123!",
       managedPasswordEnabled: false, // Set to true to use Google-managed passwords
       privateNetwork: true, // Enable private IP
       authorizedNetworks: [], // For public IP access (empty for private only)
@@ -58,7 +58,7 @@ export const cloudSqlConfig = {
     // PostgreSQL Instance
     {
       build: true,
-      name: "cloudsql-postgres-instance-2025-1124-1400",
+      name: "cloudsql-postgres-instance-2025-1206-1100",
       edition: "ENTERPRISE",
       databaseVersion: "POSTGRES_15",
       tier: "db-f1-micro",
@@ -72,7 +72,7 @@ export const cloudSqlConfig = {
       diskAutoresize: true,
       diskAutoresizeLimit: 100,
       username: "root",
-      password: "mysecurepassword",
+      password: "MySecurePassword123!",
       managedPasswordEnabled: false,
       privateNetwork: true,
       authorizedNetworks: [],

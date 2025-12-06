@@ -2,7 +2,7 @@
 export const rdsConfigs = [
   // MySQL (Transitioning to AWS-managed password)
   {
-    build: false,
+    build: true,
     identifier: "rds-mysql-instance",
     instanceClass: "db.t3.medium",
     engine: "mysql",
@@ -10,7 +10,7 @@ export const rdsConfigs = [
     allocatedStorage: 20,
     storageType: "gp3",
     username: "root",
-    password: "mysecurepassword", // Removed for AWS-managed password
+    password: "MySecurePassword123!", // Removed for AWS-managed password
     manageMasterUserPassword: false,
     // suppressSecretOutput: true, // Temporarily suppress output during migration
     subnetKeys: [
@@ -86,7 +86,7 @@ export const rdsConfigs = [
   },
   // PostgreSQL (parameter file path)
   {
-    build: false,
+    build: true,
     identifier: "rds-postgres-instance",
     instanceClass: "db.t3.medium",
     engine: "postgres",
@@ -135,7 +135,7 @@ export const rdsConfigs = [
 export const auroraConfigs = [
   // Aurora MySQL (RDS-managed password with advanced features)
   {
-    build: false,
+    build: true,
     clusterIdentifier: "aurora-mysql-cluster",
     engine: "aurora-mysql",
     engineVersion: "8.0.mysql_aurora.3.10.2",

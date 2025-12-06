@@ -463,6 +463,15 @@ function setupGoogleToAzureVpn(
     googleVpnParams.labels
   );
 
+  const googleLocalAddressSpaces = [googleVpcResourcesparams.vpcCidrblock];
+  if (
+    isSingleTunnel &&
+    googleVpnParams.customIpRanges &&
+    googleVpnParams.customIpRanges.length > 0
+  ) {
+    googleLocalAddressSpaces.push(...googleVpnParams.customIpRanges);
+  }
+
   // Create Azure Local Gateway
   resources.googleAzureLocalGateways = createAzureLocalGateways(
     scope,
@@ -474,7 +483,7 @@ function setupGoogleToAzureVpn(
         (address, index) => ({
           localNetworkGatewayName: `${azureVnetResources.vnet.name}-${DESTINATION.GOOGLE}-lng`,
           localGatewayAddress: address,
-          localAddressSpaces: [googleVpcResourcesparams.vpcCidrblock],
+          localAddressSpaces: googleLocalAddressSpaces,
           sharedKey: azureGoogleVpnparams.presharedKey,
           bgpSettings: {
             asn: googleVpnParams.bgpGoogleAsn,
