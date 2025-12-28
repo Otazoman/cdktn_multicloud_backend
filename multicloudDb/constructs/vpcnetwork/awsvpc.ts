@@ -267,6 +267,12 @@ export function createAwsVpcResources(
     ])
   );
 
+  // Provide a mapping of security group name -> SecurityGroup resource
+  const securityGroupsByName: Record<string, SecurityGroup> =
+    Object.fromEntries(
+      securityGroups.map((sg, index) => [params.securityGroups[index].name, sg])
+    );
+
   const ec2InstanceConnectEndpoint = new Ec2InstanceConnectEndpoint(
     scope,
     "ec2InstanceConnectEndpoint",
@@ -328,7 +334,11 @@ export function createAwsVpcResources(
     natGateway,
     publicRouteTable,
     privateRouteTable,
+    // Backwards-compatible: array of SecurityGroup resources
     securityGroups,
+    // Mapping name -> SecurityGroup resource (used by privateZoneResources)
+    securityGroupsByName,
+    // Mapping name -> security group id
     securityGroupMapping,
     ec2InstanceConnectEndpoint,
   };

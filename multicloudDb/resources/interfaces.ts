@@ -19,7 +19,9 @@ export interface AwsVpcResources {
     | Record<string, any>
     | Record<string, { id: string; name: string }>;
   securityGroups: SecurityGroup[] | { id: string; name: string }[];
+  securityGroupsByName?: Record<string, SecurityGroup>;
   securityGroupMapping: { [key: string]: Token };
+  publicRouteTable: any | { id: string; name: string };
   privateRouteTable: any | { id: string; name: string };
   ec2InstanceConnectEndpoint?: Ec2InstanceConnectEndpoint;
 }
@@ -120,4 +122,20 @@ export interface NsgRuleConfig {
   destinationPortRange: string;
   sourceAddressPrefix: string;
   destinationAddressPrefix: string;
+}
+
+// AWS RDS/Aurora resources interface
+export interface AwsDbResources {
+  rdsInstances?: Array<{
+    identifier: string;
+    endpoint: string;
+    address: string;
+    port: number;
+  }>;
+  auroraClusters?: Array<{
+    clusterIdentifier: string;
+    endpoint: string;
+    readerEndpoint?: string;
+    port: number;
+  }>;
 }

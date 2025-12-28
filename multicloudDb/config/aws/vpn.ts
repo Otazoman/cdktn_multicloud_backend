@@ -2,7 +2,10 @@
 export const awsVpnparams = {
   bgpAwsAsn: 64512,
   logRetentionDays: 14,
-  propageteRouteTableNames: ["my-aws-vpc-private-routetable"],
+  propageteRouteTableNames: [
+    "my-aws-vpc-private-routetable",
+    "my-aws-vpc-public-routetable",
+  ],
   vpnGatewayTags: {
     Project: "MultiCloud",
   },

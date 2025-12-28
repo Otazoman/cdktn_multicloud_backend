@@ -1,11 +1,12 @@
-import { TerraformOutput, TerraformStack } from "cdktf";
+import { TerraformStack } from "cdktf";
 import { Construct } from "constructs";
-import { useVms, useVpn, useDbs } from "../config/commonsettings";
+import { hostZones, useDbs, useVms, useVpn } from "../config/commonsettings";
 import { createProviders } from "../providers/providers";
 import {
   createDatabaseResources,
   DatabaseResourcesOutput,
 } from "../resources/databaseResources";
+import { createPrivateZoneResources } from "../resources/privateZoneResources";
 import { createVmResources } from "../resources/vmResources";
 import { createVpcResources } from "../resources/vpcResources";
 import { createVpnResources } from "../resources/vpnResources";
@@ -53,25 +54,34 @@ export class MultiCloudBackendStack extends TerraformStack {
     }
 
     // Database
+    let databaseResourcesOutput: DatabaseResourcesOutput | undefined;
     if (useDbs) {
-      const databaseResourcesOutput: DatabaseResourcesOutput | undefined =
-        createDatabaseResources(
-          this,
-          awsProvider,
-          googleProvider,
-          azureProvider,
-          vpcResources.awsVpcResources,
-          vpcResources.googleVpcResources,
-          vpcResources.azureVnetResources
-        );
+      databaseResourcesOutput = createDatabaseResources(
+        this,
+        awsProvider,
+        googleProvider,
+        azureProvider,
+        vpcResources.awsVpcResources,
+        vpcResources.googleVpcResources,
+        vpcResources.azureVnetResources
+      );
+    }
 
-      if (databaseResourcesOutput) {
-        // rdsMasterUserSecretArnsとauroraMasterUserSecretArnsはdatabaseResources.ts内でTerraformOutputとして直接生成されるため、ここでは参照しない
-        new TerraformOutput(this, "google_cloudsql_connection_names", {
-          value: databaseResourcesOutput.googleCloudSqlConnectionNames,
-          description: "Connection names for Google CloudSQL instances",
-        });
-      }
+    // Private DNS zones (Route53 / Cloud DNS) associated with VPCs
+    // Create and register private zones for AWS/GCP/Azure networks
+    // Must be created after databases to reference actual endpoints for CNAME records
+    if (hostZones) {
+      createPrivateZoneResources(
+        this,
+        awsProvider,
+        googleProvider,
+        azureProvider,
+        vpcResources.awsVpcResources,
+        vpcResources.googleVpcResources,
+        vpcResources.azureVnetResources,
+        databaseResourcesOutput?.awsDbResources,
+        databaseResourcesOutput?.googleCloudSqlInstances
+      );
     }
   }
 }

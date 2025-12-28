@@ -1,4 +1,4 @@
-export * from './ec2';
-export * from './vpc/vpc';
-export * from './vpn';
-
+export * from "./ec2";
+export * from "./privatezone";
+export * from "./vpc/vpc";
+export * from "./vpn";

@@ -24,6 +24,7 @@ import {
   createGoogleCloudSqlInstance,
 } from "../constructs/relationaldatabase/googlecloudsql";
 import {
+  AwsDbResources,
   AwsVpcResources,
   AzureVnetResources,
   GoogleVpcResources,
@@ -33,6 +34,12 @@ export interface DatabaseResourcesOutput {
   googleCloudSqlConnectionNames: {
     [instanceName: string]: string;
   };
+  googleCloudSqlInstances?: Array<{
+    name: string;
+    privateIpAddress: string;
+    connectionName: string;
+  }>;
+  awsDbResources?: AwsDbResources;
 }
 
 /**
@@ -153,6 +160,14 @@ export const createDatabaseResources = (
     [instanceName: string]: string;
   } = {};
 
+  const googleCloudSqlInstancesData: Array<{
+    name: string;
+    privateIpAddress: string;
+    connectionName: string;
+  }> = [];
+
+  let awsDbResources: AwsDbResources | undefined;
+
   // AWS RDS and Aurora (only if AWS VPC resources exist)
   if ((awsToGoogle || awsToAzure) && awsProvider && awsVpcResources) {
     const combinedAwsDatabaseConfigs: AwsRelationalDatabaseConfig[] = [
@@ -172,6 +187,20 @@ export const createDatabaseResources = (
       }
     );
 
+    // Collect DB resources for CNAME records
+    const rdsInstances: Array<{
+      identifier: string;
+      endpoint: string;
+      address: string;
+      port: number;
+    }> = [];
+    const auroraClusters: Array<{
+      clusterIdentifier: string;
+      endpoint: string;
+      readerEndpoint?: string;
+      port: number;
+    }> = [];
+
     // Create outputs for managed secrets and add dependencies
     combinedAwsDatabaseConfigs
       .filter((config) => config.build)
@@ -181,13 +210,32 @@ export const createDatabaseResources = (
         // Add VPC dependency
         if (dbOutput.rdsCluster) {
           dbOutput.rdsCluster.node.addDependency(awsVpcResources);
+          // Collect Aurora cluster info
+          auroraClusters.push({
+            clusterIdentifier: config.identifier,
+            endpoint: dbOutput.rdsCluster.endpoint,
+            readerEndpoint: dbOutput.rdsCluster.readerEndpoint,
+            port: dbOutput.rdsCluster.port,
+          });
         } else if (dbOutput.dbInstance) {
           dbOutput.dbInstance.node.addDependency(awsVpcResources);
+          // Collect RDS instance info
+          rdsInstances.push({
+            identifier: config.identifier,
+            endpoint: dbOutput.dbInstance.address,
+            address: dbOutput.dbInstance.address,
+            port: dbOutput.dbInstance.port,
+          });
         }
 
         // Create secret ARN output if managed password is enabled
         createSecretArnOutput(scope, config, dbOutput, index);
       });
+
+    awsDbResources = {
+      rdsInstances: rdsInstances.length > 0 ? rdsInstances : undefined,
+      auroraClusters: auroraClusters.length > 0 ? auroraClusters : undefined,
+    };
   }
 
   // Google CloudSQL (only if conditions are met and resources exist)
@@ -263,6 +311,13 @@ export const createDatabaseResources = (
       instance.sqlInstance.node.addDependency(serviceNetworkingConnection);
       googleCloudSqlConnectionNames[instance.sqlInstance.name] =
         instance.connectionName;
+
+      // Collect Cloud SQL instance data with private IP for DNS A records
+      googleCloudSqlInstancesData.push({
+        name: instance.sqlInstance.name,
+        privateIpAddress: instance.sqlInstance.privateIpAddress,
+        connectionName: instance.connectionName,
+      });
     });
   }
 
@@ -302,5 +357,10 @@ export const createDatabaseResources = (
 
   return {
     googleCloudSqlConnectionNames: googleCloudSqlConnectionNames,
+    googleCloudSqlInstances:
+      googleCloudSqlInstancesData.length > 0
+        ? googleCloudSqlInstancesData
+        : undefined,
+    awsDbResources: awsDbResources,
   };
 };

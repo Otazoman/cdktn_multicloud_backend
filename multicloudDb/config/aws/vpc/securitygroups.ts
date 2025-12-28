@@ -1,5 +1,86 @@
 export const securityGroups = [
   {
+    resourcetype: "other",
+    name: "route53-resolver-sg",
+    tags: {
+      Purpose: "Route53ResolverEndpoint",
+    },
+    ingress: [
+      {
+        fromPort: 53,
+        toPort: 53,
+        protocol: "tcp",
+        cidrBlocks: ["10.0.0.0/16"],
+        description: "Allow DNS TCP from VPC",
+      },
+      {
+        fromPort: 53,
+        toPort: 53,
+        protocol: "udp",
+        cidrBlocks: ["10.0.0.0/16"],
+        description: "Allow DNS UDP from VPC",
+      },
+      {
+        fromPort: 53,
+        toPort: 53,
+        protocol: "tcp",
+        cidrBlocks: ["35.199.192.0/19"],
+        description: "Allow DNS TCP from Google",
+      },
+      {
+        fromPort: 53,
+        toPort: 53,
+        protocol: "udp",
+        cidrBlocks: ["35.199.192.0/19"],
+        description: "Allow DNS UDP from Google",
+      },
+      {
+        fromPort: 53,
+        toPort: 53,
+        protocol: "tcp",
+        cidrBlocks: ["10.2.0.0/16"],
+        description: "Allow DNS TCP from Azure",
+      },
+      {
+        fromPort: 53,
+        toPort: 53,
+        protocol: "udp",
+        cidrBlocks: ["10.2.0.0/16"],
+        description: "Allow DNS UDP from Azure",
+      },
+    ],
+    egress: [
+      {
+        fromPort: 53,
+        toPort: 53,
+        protocol: "tcp",
+        cidrBlocks: ["10.2.0.0/16"],
+        description: "Allow DNS TCP to Azure",
+      },
+      {
+        fromPort: 53,
+        toPort: 53,
+        protocol: "udp",
+        cidrBlocks: ["10.2.0.0/16"],
+        description: "Allow DNS UDP to Azure",
+      },
+      {
+        fromPort: 53,
+        toPort: 53,
+        protocol: "tcp",
+        cidrBlocks: ["35.199.192.0/19"],
+        description: "Allow DNS TCP to Google",
+      },
+      {
+        fromPort: 53,
+        toPort: 53,
+        protocol: "udp",
+        cidrBlocks: ["35.199.192.0/19"],
+        description: "Allow DNS UDP to Google",
+      },
+    ],
+  },
+  {
     resourcetype: "ec2",
     name: "myaws-ec2-sg",
     tags: {

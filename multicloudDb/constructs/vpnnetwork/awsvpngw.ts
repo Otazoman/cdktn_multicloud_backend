@@ -8,7 +8,7 @@ interface VpnGatewayParams {
   vpcId: string;
   vgwName: string;
   amazonSideAsn: number;
-  routeTableId: string;
+  routeTableIds: string[];
   tags?: { [key: string]: string };
 }
 
@@ -34,10 +34,12 @@ export function createAwsVpnGateway(
   });
 
   // Configure route propagation for virtual private gateways
-  new VpnGatewayRoutePropagation(scope, `vgw-route-propagation`, {
-    provider: provider,
-    routeTableId: params.routeTableId,
-    vpnGatewayId: vpnGateway.id,
+  params.routeTableIds.forEach((rtId, index) => {
+    new VpnGatewayRoutePropagation(scope, `vgw-route-propagation-${index}`, {
+      provider: provider,
+      routeTableId: rtId,
+      vpnGatewayId: vpnGateway.id,
+    });
   });
 
   return vpnGateway;

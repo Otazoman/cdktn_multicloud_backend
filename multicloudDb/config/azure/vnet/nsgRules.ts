@@ -1,4 +1,67 @@
 export const nsgConfigs = [
+  // NSG for DNS Private Resolver Subnet
+  {
+    name: "azure-dns-resolver-nsg",
+    subnetKeys: ["dns-resolver-inbound-subnet", "dns-resolver-outbound-subnet"],
+    tags: { Purpose: "DnsResolverSecurity" },
+    rules: [
+      {
+        name: "AllowDnsFromAWS",
+        priority: 100,
+        direction: "Inbound",
+        access: "Allow",
+        protocol: "*",
+        sourcePortRange: "*",
+        destinationPortRange: "53",
+        sourceAddressPrefix: "10.0.0.0/16", // AWS VPC CIDR
+        destinationAddressPrefix: "*",
+      },
+      {
+        name: "AllowDnsFromGCP",
+        priority: 110,
+        direction: "Inbound",
+        access: "Allow",
+        protocol: "*",
+        sourcePortRange: "*",
+        destinationPortRange: "53",
+        sourceAddressPrefix: "35.199.192.0/19", // GCP Resolver CIDR
+        destinationAddressPrefix: "*",
+      },
+      {
+        name: "AllowVnetInBound",
+        priority: 120,
+        direction: "Inbound",
+        access: "Allow",
+        protocol: "*",
+        sourcePortRange: "*",
+        destinationPortRange: "*",
+        sourceAddressPrefix: "VirtualNetwork",
+        destinationAddressPrefix: "VirtualNetwork",
+      },
+      {
+        name: "AllowAzureInfrastructure",
+        priority: 130,
+        direction: "Inbound",
+        access: "Allow",
+        protocol: "*",
+        sourcePortRange: "*",
+        destinationPortRange: "*",
+        sourceAddressPrefix: "AzureLoadBalancer",
+        destinationAddressPrefix: "*",
+      },
+      {
+        name: "DenyAllInbound",
+        priority: 4096,
+        direction: "Inbound",
+        access: "Deny",
+        protocol: "*",
+        sourcePortRange: "*",
+        destinationPortRange: "*",
+        sourceAddressPrefix: "*",
+        destinationAddressPrefix: "*",
+      },
+    ],
+  },
   // NSG for Web Subnet
   {
     name: "azure-web-nsg",
