@@ -80,7 +80,8 @@ export class MultiCloudBackendStack extends TerraformStack {
         vpcResources.googleVpcResources,
         vpcResources.azureVnetResources,
         databaseResourcesOutput?.awsDbResources,
-        databaseResourcesOutput?.googleCloudSqlInstances
+        databaseResourcesOutput?.googleCloudSqlInstances,
+        databaseResourcesOutput?.azureDatabaseResources
       );
     }
   }

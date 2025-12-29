@@ -43,6 +43,12 @@ export const createPrivateZoneResources = (
     name: string;
     privateIpAddress: string;
     connectionName: string;
+  }>,
+  azureDatabaseResources?: Array<{
+    server: any;
+    database: any;
+    privateDnsZone?: any;
+    fqdn: string;
   }>
 ): PrivateZoneResources => {
   const output: PrivateZoneResources = {};
@@ -408,6 +414,69 @@ export const createPrivateZoneResources = (
     };
   } else if (azureResolverTemp) {
     output.azure = azureResolverTemp;
+  }
+
+  // Step 5: Create azure.inner Private DNS Zone and CNAME records (if Azure databases exist)
+  if (
+    azureProvider &&
+    azureVnetResources &&
+    azureDatabaseResources &&
+    azureDatabaseResources.length > 0
+  ) {
+    const {
+      createAzureInnerPrivateDnsZone,
+      createAzureInnerCnameRecords,
+    } = require("../constructs/privatezone/azureprivatezone");
+
+    // Create azure.inner Private DNS Zone if enabled
+    if (azurePrivateZoneParams.azureInnerDomain?.enabled) {
+      console.log(`Creating azure.inner Private DNS Zone for CNAME records`);
+
+      const azureInnerZone = createAzureInnerPrivateDnsZone(
+        scope,
+        azureProvider,
+        azurePrivateZoneParams.resourceGroup,
+        azureVnetResources.vnet as any,
+        azurePrivateZoneParams.azureInnerDomain.zoneName
+      );
+
+      // Create CNAME records directly from configuration
+      const cnameRecordsToCreate =
+        azurePrivateZoneParams.azureInnerDomain?.cnameRecords
+          ?.filter((record) => record.enabled)
+          ?.map((record) => ({
+            name: record.name,
+            target: record.target,
+          })) || [];
+
+      if (cnameRecordsToCreate.length > 0) {
+        console.log(
+          `Creating ${cnameRecordsToCreate.length} CNAME records in azure.inner zone`
+        );
+
+        const cnameRecords = createAzureInnerCnameRecords(
+          scope,
+          azureProvider,
+          azurePrivateZoneParams.resourceGroup,
+          azureInnerZone.privateDnsZone,
+          cnameRecordsToCreate
+        );
+
+        // Add to output
+        if (!output.azure) {
+          output.azure = {};
+        }
+        output.azure.azureInnerZone = azureInnerZone;
+        output.azure.azureInnerCnameRecords = cnameRecords;
+
+        console.log(
+          `Created azure.inner zone with CNAME records:`,
+          cnameRecordsToCreate.map(
+            (r) => `${r.name}.azure.inner -> ${r.target}`
+          )
+        );
+      }
+    }
   }
 
   return output;

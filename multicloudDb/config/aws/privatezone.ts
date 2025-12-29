@@ -10,6 +10,8 @@ export const awsPrivateZoneParams = {
     // Private Link domains for Azure Private Endpoints
     "privatelink.mysql.database.azure.com",
     "privatelink.postgres.database.azure.com",
+    // for CNAME
+    "azure.inner",
   ],
 
   // Optional: Custom names and descriptions for Route53 resources
@@ -30,7 +32,7 @@ export const awsPrivateZoneParams = {
 
   // RDS short name configuration
   rdsInternalZone: {
-    zoneName: "db.internal",
+    zoneName: "aws.inner",
     comment: "Private hosted zone for RDS short names",
     tags: {
       Purpose: "RDS-ShortNames",

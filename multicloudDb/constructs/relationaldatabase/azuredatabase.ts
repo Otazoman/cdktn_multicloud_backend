@@ -1,8 +1,6 @@
 import { MysqlFlexibleDatabase } from "@cdktf/provider-azurerm/lib/mysql-flexible-database";
 import { MysqlFlexibleServer } from "@cdktf/provider-azurerm/lib/mysql-flexible-server";
 import { PostgresqlFlexibleServer } from "@cdktf/provider-azurerm/lib/postgresql-flexible-server";
-import { PrivateDnsZone } from "@cdktf/provider-azurerm/lib/private-dns-zone";
-import { PrivateDnsZoneVirtualNetworkLink } from "@cdktf/provider-azurerm/lib/private-dns-zone-virtual-network-link";
 import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
 import { Subnet } from "@cdktf/provider-azurerm/lib/subnet";
 import { VirtualNetwork } from "@cdktf/provider-azurerm/lib/virtual-network";
@@ -48,7 +46,7 @@ export interface AzureDatabaseConfig {
 export interface AzureDatabaseOutput {
   server: MysqlFlexibleServer | PostgresqlFlexibleServer;
   database: MysqlFlexibleDatabase | any; // Use any for now to resolve the type issue
-  privateDnsZone?: PrivateDnsZone;
+  privateDnsZone?: any; // DNS Zone is managed externally
   fqdn: string;
 }
 
@@ -58,6 +56,10 @@ interface CreateAzureDatabasesParams {
   databaseConfigs: AzureDatabaseConfig[];
   virtualNetwork: VirtualNetwork;
   subnets: { [key: string]: Subnet }; // Map of subnet keys to Subnet objects
+  sharedDnsZones: Map<
+    AzureDatabaseType,
+    { privateDnsZone: any; vnetLink: any }
+  >; // Pre-created DNS zones
 }
 
 interface ConfigurationParameter {
@@ -84,65 +86,6 @@ function loadConfigurationFromFile(filePath: string): ConfigurationParameter[] {
 }
 
 /**
- * Creates shared Private DNS Zones for all database types and links them to the VNet
- */
-function createSharedPrivateDnsZones(
-  scope: Construct,
-  provider: AzurermProvider,
-  resourceGroupName: string,
-  virtualNetwork: VirtualNetwork,
-  databaseTypes: Set<AzureDatabaseType>
-): Map<
-  AzureDatabaseType,
-  { privateDnsZone: PrivateDnsZone; vnetLink: PrivateDnsZoneVirtualNetworkLink }
-> {
-  const dnsZones = new Map<
-    AzureDatabaseType,
-    {
-      privateDnsZone: PrivateDnsZone;
-      vnetLink: PrivateDnsZoneVirtualNetworkLink;
-    }
-  >();
-
-  databaseTypes.forEach((dbType) => {
-    // Use the standard Azure private link DNS zone format
-    const dnsZoneName =
-      dbType === "mysql"
-        ? "privatelink.mysql.database.azure.com"
-        : "privatelink.postgres.database.azure.com";
-
-    const privateDnsZone = new PrivateDnsZone(
-      scope,
-      `azure-${dbType}-shared-dns-zone`,
-      {
-        provider: provider,
-        name: dnsZoneName,
-        resourceGroupName: resourceGroupName,
-      }
-    );
-
-    // Link the Private DNS Zone to the Virtual Network
-    const vnetLink = new PrivateDnsZoneVirtualNetworkLink(
-      scope,
-      `azure-${dbType}-shared-dns-vnet-link`,
-      {
-        provider: provider,
-        name: `${dbType}-shared-vnet-link`,
-        resourceGroupName: resourceGroupName,
-        privateDnsZoneName: privateDnsZone.name,
-        virtualNetworkId: virtualNetwork.id,
-        registrationEnabled: false,
-        dependsOn: [privateDnsZone, virtualNetwork],
-      }
-    );
-
-    dnsZones.set(dbType, { privateDnsZone, vnetLink });
-  });
-
-  return dnsZones;
-}
-
-/**
  * Creates an Azure MySQL Flexible Server and Database
  */
 function createAzureMySqlFlexibleServer(
@@ -152,8 +95,8 @@ function createAzureMySqlFlexibleServer(
   resourceGroupName: string,
   location: string,
   delegatedSubnet: Subnet,
-  privateDnsZone: PrivateDnsZone,
-  vnetLink: PrivateDnsZoneVirtualNetworkLink,
+  privateDnsZone: any, // DNS Zone managed externally
+  vnetLink: any, // VNet Link managed externally
   index: number
 ): AzureDatabaseOutput {
   // Load configuration parameters if specified
@@ -242,8 +185,8 @@ function createAzurePostgreSqlFlexibleServer(
   resourceGroupName: string,
   location: string,
   delegatedSubnet: Subnet,
-  privateDnsZone: PrivateDnsZone,
-  vnetLink: PrivateDnsZoneVirtualNetworkLink,
+  privateDnsZone: any, // DNS Zone managed externally
+  vnetLink: any, // VNet Link managed externally
   index: number
 ): AzureDatabaseOutput {
   // Load configuration parameters if specified
@@ -326,20 +269,6 @@ export function createAzureDatabases(
   provider: AzurermProvider,
   params: CreateAzureDatabasesParams
 ): AzureDatabaseOutput[] {
-  // Determine which database types are being deployed
-  const databaseTypes = new Set<AzureDatabaseType>(
-    params.databaseConfigs.map((config) => config.type)
-  );
-
-  // Create shared Private DNS Zones for all database types
-  const sharedDnsZones = createSharedPrivateDnsZones(
-    scope,
-    provider,
-    params.resourceGroupName,
-    params.virtualNetwork,
-    databaseTypes
-  );
-
   return params.databaseConfigs.map((config, index) => {
     // Get the subnet for this database using the subnetKey
     const delegatedSubnet = params.subnets[config.subnetKey];
@@ -351,8 +280,8 @@ export function createAzureDatabases(
       );
     }
 
-    // Get the shared DNS Zone for this database type
-    const dnsZoneInfo = sharedDnsZones.get(config.type);
+    // Get the shared DNS Zone for this database type from pre-created zones
+    const dnsZoneInfo = params.sharedDnsZones.get(config.type);
     if (!dnsZoneInfo) {
       throw new Error(`DNS Zone not found for database type '${config.type}'`);
     }

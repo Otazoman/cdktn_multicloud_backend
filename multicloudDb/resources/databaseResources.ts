@@ -14,6 +14,7 @@ import {
   googleToAzure,
 } from "../config/commonsettings";
 import { cloudSqlConfig } from "../config/google/cloudsql/cloudsql";
+import { createSharedPrivateDnsZones } from "../constructs/privatezone/azureprivatezone";
 import {
   AwsRelationalDatabaseConfig,
   createAwsRelationalDatabases,
@@ -40,6 +41,12 @@ export interface DatabaseResourcesOutput {
     connectionName: string;
   }>;
   awsDbResources?: AwsDbResources;
+  azureDatabaseResources?: Array<{
+    server: any;
+    database: any;
+    privateDnsZone?: any;
+    fqdn: string;
+  }>;
 }
 
 /**
@@ -167,6 +174,14 @@ export const createDatabaseResources = (
   }> = [];
 
   let awsDbResources: AwsDbResources | undefined;
+  let azureDatabaseResources:
+    | Array<{
+        server: any;
+        database: any;
+        privateDnsZone?: any;
+        fqdn: string;
+      }>
+    | undefined;
 
   // AWS RDS and Aurora (only if AWS VPC resources exist)
   if ((awsToGoogle || awsToAzure) && awsProvider && awsVpcResources) {
@@ -337,6 +352,22 @@ export const createDatabaseResources = (
       };
     }
 
+    // Determine which database types are being deployed
+    const databaseTypes = new Set<"mysql" | "postgresql">(
+      azureDatabaseConfig.databases
+        .filter((config) => config.build)
+        .map((config) => config.type)
+    );
+
+    // Create shared Private DNS Zones for all database types before database creation
+    const sharedDnsZones = createSharedPrivateDnsZones(
+      scope,
+      azurermProvider,
+      azureDatabaseConfig.resourceGroupName,
+      azureVnetResources.vnet as any,
+      databaseTypes
+    );
+
     // Create Azure Databases using the new construct function
     // Pass all subnets so each database can select its own subnet based on subnetKey
     const azureDatabases = createAzureDatabases(scope, azurermProvider, {
@@ -347,12 +378,21 @@ export const createDatabaseResources = (
       ),
       virtualNetwork: azureVnetResources.vnet as any, // Type assertion needed due to interface union
       subnets: azureVnetResources.subnets as any, // Pass all subnets as a map
+      sharedDnsZones: sharedDnsZones, // Pass pre-created DNS zones
     });
 
-    // Add VNet dependencies
+    // Add VNet dependencies and collect database information
     azureDatabases.forEach((dbOutput: any) => {
       dbOutput.server.node.addDependency(azureVnetResources);
     });
+
+    // Collect Azure database resources for Private DNS Zone CNAME creation
+    azureDatabaseResources = azureDatabases.map((dbOutput: any) => ({
+      server: dbOutput.server,
+      database: dbOutput.database,
+      privateDnsZone: dbOutput.privateDnsZone,
+      fqdn: dbOutput.fqdn,
+    }));
   }
 
   return {
@@ -362,5 +402,6 @@ export const createDatabaseResources = (
         ? googleCloudSqlInstancesData
         : undefined,
     awsDbResources: awsDbResources,
+    azureDatabaseResources: azureDatabaseResources,
   };
 };

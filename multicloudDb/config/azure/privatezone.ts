@@ -18,17 +18,35 @@ export const azurePrivateZoneParams = {
   forwardingRules: [
     {
       name: "aws-rds-forward",
-      domainName: "db.internal.",
+      domainName: "aws.inner.",
       enabled: true,
       target: "aws",
     },
     {
       name: "google-cloudsql-forward",
-      domainName: "cloudsql.internal.",
+      domainName: "google.inner.",
       enabled: true,
       target: "google",
     },
   ],
+
+  // Azure Inner Domain Configuration
+  azureInnerDomain: {
+    zoneName: "azure.inner",
+    enabled: true,
+    cnameRecords: [
+      {
+        name: "mysql-prod",
+        target: "azure-mysql-server-2025-1108.mysql.database.azure.com",
+        enabled: true,
+      },
+      {
+        name: "postgres-prod",
+        target: "azure-postgres-server-2025-1108.postgres.database.azure.com",
+        enabled: true,
+      },
+    ],
+  },
 
   tags: {
     purpose: "dns-forwarding-for-aws-gcp",

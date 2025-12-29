@@ -1,13 +1,18 @@
+import { PrivateDnsCnameRecord } from "@cdktf/provider-azurerm/lib/private-dns-cname-record";
 import { PrivateDnsResolver } from "@cdktf/provider-azurerm/lib/private-dns-resolver";
 import { PrivateDnsResolverDnsForwardingRuleset } from "@cdktf/provider-azurerm/lib/private-dns-resolver-dns-forwarding-ruleset";
 import { PrivateDnsResolverForwardingRule } from "@cdktf/provider-azurerm/lib/private-dns-resolver-forwarding-rule";
 import { PrivateDnsResolverInboundEndpoint } from "@cdktf/provider-azurerm/lib/private-dns-resolver-inbound-endpoint";
 import { PrivateDnsResolverOutboundEndpoint } from "@cdktf/provider-azurerm/lib/private-dns-resolver-outbound-endpoint";
 import { PrivateDnsResolverVirtualNetworkLink } from "@cdktf/provider-azurerm/lib/private-dns-resolver-virtual-network-link";
+import { PrivateDnsZone } from "@cdktf/provider-azurerm/lib/private-dns-zone";
+import { PrivateDnsZoneVirtualNetworkLink } from "@cdktf/provider-azurerm/lib/private-dns-zone-virtual-network-link";
 import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
 import { Subnet } from "@cdktf/provider-azurerm/lib/subnet";
 import { VirtualNetwork } from "@cdktf/provider-azurerm/lib/virtual-network";
 import { Construct } from "constructs";
+
+export type AzureDatabaseType = "mysql" | "postgresql";
 
 export interface AzurePrivateResolverParams {
   resourceGroupName: string;
@@ -234,4 +239,124 @@ export function createAzureForwardingRuleset(
     virtualNetworkLink,
     rules,
   };
+}
+
+/**
+ * Creates shared Private DNS Zones for all database types and links them to the VNet
+ */
+export function createSharedPrivateDnsZones(
+  scope: Construct,
+  provider: AzurermProvider,
+  resourceGroupName: string,
+  virtualNetwork: VirtualNetwork,
+  databaseTypes: Set<AzureDatabaseType>
+): Map<AzureDatabaseType, { privateDnsZone: any; vnetLink: any }> {
+  const dnsZones = new Map<
+    AzureDatabaseType,
+    {
+      privateDnsZone: any;
+      vnetLink: any;
+    }
+  >();
+
+  databaseTypes.forEach((dbType) => {
+    // Use the standard Azure private link DNS zone format
+    const dnsZoneName =
+      dbType === "mysql"
+        ? "privatelink.mysql.database.azure.com"
+        : "privatelink.postgres.database.azure.com";
+
+    const privateDnsZone = new PrivateDnsZone(
+      scope,
+      `azure-${dbType}-shared-dns-zone`,
+      {
+        provider: provider,
+        name: dnsZoneName,
+        resourceGroupName: resourceGroupName,
+      }
+    );
+
+    // Link the Private DNS Zone to the Virtual Network
+    const vnetLink = new PrivateDnsZoneVirtualNetworkLink(
+      scope,
+      `azure-${dbType}-shared-dns-vnet-link`,
+      {
+        provider: provider,
+        name: `${dbType}-shared-vnet-link`,
+        resourceGroupName: resourceGroupName,
+        privateDnsZoneName: privateDnsZone.name,
+        virtualNetworkId: virtualNetwork.id,
+        registrationEnabled: false,
+        dependsOn: [privateDnsZone, virtualNetwork],
+      }
+    );
+
+    dnsZones.set(dbType, { privateDnsZone, vnetLink });
+  });
+
+  return dnsZones;
+}
+
+/**
+ * Creates azure.inner Private DNS Zone for CNAME records
+ */
+export function createAzureInnerPrivateDnsZone(
+  scope: Construct,
+  provider: AzurermProvider,
+  resourceGroupName: string,
+  virtualNetwork: VirtualNetwork,
+  zoneName: string = "azure.inner"
+): { privateDnsZone: any; vnetLink: any } {
+  const privateDnsZone = new PrivateDnsZone(scope, "azure-inner-dns-zone", {
+    provider: provider,
+    name: zoneName,
+    resourceGroupName: resourceGroupName,
+  });
+
+  // Link the Private DNS Zone to the Virtual Network
+  const vnetLink = new PrivateDnsZoneVirtualNetworkLink(
+    scope,
+    "azure-inner-dns-vnet-link",
+    {
+      provider: provider,
+      name: "azure-inner-vnet-link",
+      resourceGroupName: resourceGroupName,
+      privateDnsZoneName: privateDnsZone.name,
+      virtualNetworkId: virtualNetwork.id,
+      registrationEnabled: false,
+      dependsOn: [privateDnsZone, virtualNetwork],
+    }
+  );
+
+  return { privateDnsZone, vnetLink };
+}
+
+/**
+ * Creates CNAME records in azure.inner Private DNS Zone
+ */
+export function createAzureInnerCnameRecords(
+  scope: Construct,
+  provider: AzurermProvider,
+  resourceGroupName: string,
+  privateDnsZone: any,
+  cnameRecords: Array<{
+    name: string; // e.g., "mysql-prod"
+    target: string; // e.g., "azure-mysql-server-2025-1108.privatelink.mysql.database.azure.com"
+  }>
+): any[] {
+  return cnameRecords.map((record, index) => {
+    return new PrivateDnsCnameRecord(
+      scope,
+      `azure-inner-cname-${record.name}-${index}`,
+      {
+        provider: provider,
+        name: record.name,
+        resourceGroupName: resourceGroupName,
+        zoneName: privateDnsZone.name,
+        record: record.target,
+        ttl: 300,
+        dependsOn: [privateDnsZone],
+      }
+    );
+  });
 }
