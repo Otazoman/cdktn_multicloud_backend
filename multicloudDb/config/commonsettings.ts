@@ -1,4 +1,4 @@
-export const env: string = "prod"; // 'dev' for SingleVPN, 'prod' for HAVpn
+export const env: string = "dev"; // 'dev' for SingleVPN, 'prod' for HAVpn
 export const awsToGoogle: boolean = true; // Enable/disable VPN connection between AWS and Google
 export const awsToAzure: boolean = false; // Enable/disable VPN connection between AWS and Azure
 export const googleToAzure: boolean = false; // Enable/disable VPN connection between Google and Azure

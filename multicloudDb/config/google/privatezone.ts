@@ -27,8 +27,6 @@ export const googlePrivateZoneParams = {
   // Inbound/Outbound endpoint configurations
   inboundServerPolicyName: "gcp-resolver-inbound",
   outboundForwardingZonePrefix: "gcp-resolver-outbound",
-  // Google Cloud DNS Inbound Forwarding IPs (GCE VM internal Forwording IPs)
-  inboundForwardingIps: ["10.1.20.2"],
 
   // Cloud SQL A record configuration
   cloudSqlARecords: {

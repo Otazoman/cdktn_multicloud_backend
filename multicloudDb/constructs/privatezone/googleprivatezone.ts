@@ -1,8 +1,37 @@
+import { DataGoogleComputeAddresses } from "@cdktf/provider-google/lib/data-google-compute-addresses";
 import { DnsManagedZone } from "@cdktf/provider-google/lib/dns-managed-zone";
 import { DnsPolicy } from "@cdktf/provider-google/lib/dns-policy";
 import { DnsRecordSet } from "@cdktf/provider-google/lib/dns-record-set";
 import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
 import { Construct } from "constructs";
+
+/**
+ * Retrieves Google Cloud DNS Inbound Resolver IP addresses
+ * These are automatically assigned when DNS Policy with inbound forwarding is created
+ */
+export function getGoogleDnsInboundIps(
+  scope: Construct,
+  provider: GoogleProvider,
+  params: {
+    project: string;
+    networkName: string;
+    region?: string;
+  }
+): DataGoogleComputeAddresses {
+  const filter = `purpose="DNS_RESOLVER"`;
+  const dataSource = new DataGoogleComputeAddresses(
+    scope,
+    "google-dns-resolver-ips",
+    {
+      provider: provider,
+      project: params.project,
+      filter: filter,
+      region: params.region,
+    }
+  );
+
+  return dataSource;
+}
 
 export interface GooglePrivateZoneParams {
   project: string;
@@ -348,6 +377,7 @@ export function createGoogleDnsInboundAndCloudSql(
 /**
  * Creates a Google Cloud DNS Inbound Server Policy to allow external networks
  * to query Google Cloud private DNS zones.
+ * Returns the policy and related information needed for IP address retrieval
  */
 export function createGoogleCloudDnsInboundPolicy(
   scope: Construct,
@@ -374,11 +404,12 @@ export function createGoogleCloudDnsInboundPolicy(
     enableInboundForwarding: true,
   });
 
-  // The actual IP addresses are exposed via the 'alternate_name_servers' attribute
-  // We extract them as a set of IPs
-  // In CDKTF, this is usually accessed via the attribute on the resource
-
-  return inboundPolicy;
+  // Return policy along with parameters needed for IP retrieval
+  return {
+    policy: inboundPolicy,
+    project: params.project,
+    networkSelfLink: params.networkSelfLink,
+  };
 }
 
 /**
