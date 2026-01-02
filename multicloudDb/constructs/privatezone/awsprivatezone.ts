@@ -12,6 +12,9 @@ export interface AwsPrivateZoneParams {
   createPostgresZone?: boolean;
   // Optional: For conditional forwarding to Azure DNS
   azureDnsResolverIps?: string[]; // Azure DNS Private Resolver inbound endpoint IPs
+  // Optional: For conditional forwarding to Google DNS
+  googleDnsForwardingEnabled?: boolean; // Enable Google DNS forwarding support
+  googleDnsIps?: string[]; // Google DNS IPs for forwarding google.inner domains
   resolverSubnetIds?: string[]; // Subnet IDs for Route53 Resolver endpoints (used for both INBOUND and OUTBOUND)
   resolverSecurityGroupIds?: string[]; // Security group IDs for Route53 Resolver endpoints
 }
@@ -35,60 +38,83 @@ export function createAwsPrivateHostedZones(
   const zones: { [name: string]: Route53Zone } = {};
 
   // --- 1. Conditional Forwarding / Outbound Resolver Logic ---
-  // If Azure DNS Resolver IPs are provided and forwarding is enabled, create an Outbound Endpoint and forwarding rules.
+  // Create single Outbound Endpoint if either Azure or Google DNS forwarding is enabled
+  const hasAzureForwarding =
+    params.azureDnsResolverIps && params.azureDnsResolverIps.length > 0;
+  const hasGoogleForwarding =
+    params.googleDnsIps && params.googleDnsIps.length > 0;
+
   if (
-    params.azureDnsResolverIps &&
-    params.azureDnsResolverIps.length > 0 &&
-    config.enableConditionalForwarding
+    config.enableConditionalForwarding &&
+    (hasAzureForwarding || hasGoogleForwarding) &&
+    params.resolverSubnetIds &&
+    params.resolverSubnetIds.length > 0 &&
+    params.resolverSecurityGroupIds &&
+    params.resolverSecurityGroupIds.length > 0
   ) {
-    if (
-      params.resolverSubnetIds &&
-      params.resolverSubnetIds.length > 0 &&
-      params.resolverSecurityGroupIds &&
-      params.resolverSecurityGroupIds.length > 0
-    ) {
-      const endpointName = config.outboundEndpointName || "azure-dns-forwarder";
+    const endpointName =
+      config.outboundEndpointName || "multicloud-dns-forwarder";
 
-      // Create Route53 Resolver Outbound Endpoint for forwarding to Azure
-      const outboundEndpoint = new Route53ResolverEndpoint(
-        scope,
-        "azure-dns-outbound-resolver",
-        {
-          provider: provider,
-          name: endpointName,
-          direction: "OUTBOUND",
-          securityGroupIds: params.resolverSecurityGroupIds,
-          // Use up to the first two subnets for high availability
-          ipAddress: params.resolverSubnetIds.slice(0, 2).map((subnetId) => ({
-            subnetId: subnetId,
-          })),
-          tags: {
-            ...config.tags,
-            Name: endpointName,
-          },
-        }
-      );
+    // Create single Route53 Resolver Outbound Endpoint for forwarding to multiple clouds
+    const outboundEndpoint = new Route53ResolverEndpoint(
+      scope,
+      "multicloud-dns-outbound-resolver",
+      {
+        provider: provider,
+        name: endpointName,
+        direction: "OUTBOUND",
+        securityGroupIds: params.resolverSecurityGroupIds,
+        // Use up to the first two subnets for high availability
+        ipAddress: params.resolverSubnetIds.slice(0, 2).map((subnetId) => ({
+          subnetId: subnetId,
+        })),
+        tags: {
+          ...config.tags,
+          Name: endpointName,
+        },
+      }
+    );
 
-      // Create forwarding rules for each domain
-      const ruleNamePrefix = config.resolverRuleNamePrefix || "forward";
-      config.forwardingDomains.forEach((domain, idx) => {
-        const domainSafeName = domain.replace(/\./g, "-");
+    // Create forwarding rules for each domain with appropriate target IPs
+    const ruleNamePrefix = config.resolverRuleNamePrefix || "forward";
+    config.forwardingDomains.forEach((domain, idx) => {
+      const domainSafeName = domain.replace(/\./g, "-");
+      let targetIps: Array<{ ip: string; port: number }> = [];
+      let ruleType = "forwarding";
+
+      // Determine target IPs based on domain
+      if (domain === "google.inner" && hasGoogleForwarding) {
+        // Forward google.inner to Google DNS IPs
+        targetIps = params.googleDnsIps!.map((ip) => ({ ip: ip, port: 53 }));
+        ruleType = "google";
+      } else if (
+        (domain.includes("azure") || domain === "azure.inner") &&
+        hasAzureForwarding
+      ) {
+        // Forward azure.inner and Azure privatelink domains to Azure DNS
+        targetIps = params.azureDnsResolverIps!.map((ip) => ({
+          ip: ip,
+          port: 53,
+        }));
+        ruleType = "azure";
+      }
+
+      // Only create rule if we have target IPs
+      if (targetIps.length > 0) {
         const rule = new Route53ResolverRule(
           scope,
-          `azure-forwarding-rule-${idx}`,
+          `${ruleType}-forwarding-rule-${idx}`,
           {
             provider: provider,
             name: `${ruleNamePrefix}-${domainSafeName}`,
             domainName: domain,
             ruleType: "FORWARD",
             resolverEndpointId: outboundEndpoint.id,
-            targetIp: params.azureDnsResolverIps!.map((ip) => ({
-              ip: ip,
-              port: 53,
-            })),
+            targetIp: targetIps,
             tags: {
               ...config.tags,
               Name: `${ruleNamePrefix}-${domainSafeName}`,
+              Target: ruleType,
             },
           }
         );
@@ -97,7 +123,7 @@ export function createAwsPrivateHostedZones(
         params.vpcIds.forEach((vpcId, vpcIdx) => {
           new Route53ResolverRuleAssociation(
             scope,
-            `rule-assoc-${idx}-vpc-${vpcIdx}`,
+            `rule-assoc-${domain.replace(/\./g, "-")}-vpc-${vpcIdx}`,
             {
               provider: provider,
               resolverRuleId: rule.id,
@@ -105,8 +131,8 @@ export function createAwsPrivateHostedZones(
             }
           );
         });
-      });
-    }
+      }
+    });
   } else {
     // Fallback: Create local private hosted zones (original behavior)
     config.forwardingDomains.forEach((domain) => {

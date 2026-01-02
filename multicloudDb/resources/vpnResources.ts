@@ -285,7 +285,7 @@ function setupAwsToGoogleVpn(
     googleVpnParams.labels
   );
 
-  // Single tunnel routes - VPC CIDR and CloudSQL range
+  // Single tunnel routes - VPC CIDR, CloudSQL range, and Google DNS range
   if (isSingleTunnel && resources.awsGoogleCgwVpns?.[0]?.vpnConnection?.id) {
     // Route to Google VPC CIDR
     createAwsVpnRoutes(
@@ -296,17 +296,19 @@ function setupAwsToGoogleVpn(
       googleVpcResourcesparams.vpcCidrblock
     );
 
-    // Route to CloudSQL private service connection range (dev environment only)
+    // Route to CloudSQL private service connection range and Google DNS range
     if (
       googleVpnParams.customIpRanges &&
       googleVpnParams.customIpRanges.length > 0
     ) {
       googleVpnParams.customIpRanges.forEach((ipRange) => {
+        const routeTarget =
+          ipRange === "35.199.192.0/19" ? "google-dns" : "cloudsql";
         createAwsVpnRoutes(
           scope,
           awsProvider,
           resources.awsGoogleCgwVpns![0].vpnConnection.id,
-          "cloudsql",
+          routeTarget,
           ipRange
         );
       });

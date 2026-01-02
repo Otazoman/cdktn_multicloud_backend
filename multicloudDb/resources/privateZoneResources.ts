@@ -16,7 +16,10 @@ import {
   createAwsRdsCnameRecords,
 } from "../constructs/privatezone/awsprivatezone";
 import { createAzurePrivateResolver } from "../constructs/privatezone/azureprivatezone";
-import { createGooglePrivateDnsZones } from "../constructs/privatezone/googleprivatezone";
+import {
+  createGoogleCloudDnsInboundPolicy,
+  createGooglePrivateDnsZones,
+} from "../constructs/privatezone/googleprivatezone";
 import {
   AwsDbResources,
   AwsVpcResources,
@@ -56,10 +59,9 @@ export const createPrivateZoneResources = (
   // Collect DNS endpoint IPs for cross-cloud forwarding
   let azureDnsResolverIps: string[] = [];
   let awsInboundEndpointIps: string[] = [];
+  let googleDnsIpsForAws: string[] = []; // Google DNS uses 35.199.192.0/19 range
 
-  // Note: Azure DNS resolver setup will be done after AWS/Google to get their IPs
-
-  // Temporary: Create Azure DNS resolver first to get IP, then recreate later with forwarding
+  // Step 1: Create Azure DNS resolver (if needed by any Azure connection)
   let azureResolverTemp: any = undefined;
   if (azureProvider && azureVnetResources && (awsToAzure || googleToAzure)) {
     const virtualNetwork = azureVnetResources.vnet as any;
@@ -94,20 +96,40 @@ export const createPrivateZoneResources = (
     }
   }
 
-  // Step 2: Create AWS Route53 resources (if needed by conditions)
+  // Step 2: Create Google Cloud DNS Inbound Policy first (needed for AWS forwarding)
+  let googleInboundPolicy: any = undefined;
+  if (googleProvider && googleVpcResources && awsToGoogle) {
+    const networkSelfLink =
+      (googleVpcResources.vpc as any).selfLink ||
+      (googleVpcResources.vpc as any).id ||
+      googleVpcResources.vpc.name;
+    const project = (googleProvider as any).project || "";
+
+    googleInboundPolicy = createGoogleCloudDnsInboundPolicy(
+      scope,
+      googleProvider,
+      {
+        project: project,
+        networkSelfLink: networkSelfLink,
+        policyName: googlePrivateZoneParams.inboundServerPolicyName,
+        labels: googlePrivateZoneParams.labels,
+      }
+    );
+
+    // Use pre-configured Google DNS inbound IPs from config
+    googleDnsIpsForAws = googlePrivateZoneParams.inboundForwardingIps;
+    console.log(
+      "Using pre-configured Google DNS inbound IPs for AWS forwarding"
+    );
+  }
+
+  // Step 3: Create AWS Route53 resources
+  // Step 3: Create AWS Route53 resources (if needed by conditions)
   if (awsProvider && awsVpcResources && (awsToAzure || awsToGoogle)) {
     const uniqueVpcIds = [awsVpcResources.vpc.id];
 
     // Get subnet IDs for Route53 Resolver endpoints (use first 2 subnets)
     let subnetIds: string[] = [];
-
-    // // Debug: Check available subnet structures
-    // console.log("AWS VPC Resources available subnets:", {
-    //   subnetsByName: Object.keys(awsVpcResources.subnetsByName || {}),
-    //   subnets: Array.isArray(awsVpcResources.subnets)
-    //     ? awsVpcResources.subnets.length
-    //     : 0,
-    // });
 
     // Try multiple subnet sources - use subnetsByName first, then subnets array
     if (
@@ -168,24 +190,54 @@ export const createPrivateZoneResources = (
       console.error("securityGroupsByName is not available in awsVpcResources");
     }
 
+    // Prepare forwarding target IPs based on enabled connections
+    let allForwardingTargetIps: string[] = [];
+    if (awsToAzure && azureDnsResolverIps.length > 0) {
+      allForwardingTargetIps.push(...azureDnsResolverIps);
+    }
+
+    // Set Google DNS IPs for AWS Outbound Endpoint forwarding
+    if (awsToGoogle && googleDnsIpsForAws.length > 0) {
+      allForwardingTargetIps.push(...googleDnsIpsForAws);
+      console.log(
+        `AWS-Google DNS forwarding will use Google Cloud DNS Inbound Policy IPs: ${googleDnsIpsForAws.join(
+          ", "
+        )}`
+      );
+    }
+
     // Create AWS private zones with conditional forwarding
     const awsOutput = createAwsPrivateHostedZones(
       scope,
       awsProvider,
       {
         vpcIds: uniqueVpcIds,
-        createMysqlZone: azureDnsResolverIps.length === 0, // Only create local zones if not forwarding
-        createPostgresZone: azureDnsResolverIps.length === 0,
+        createMysqlZone: allForwardingTargetIps.length === 0 && !awsToGoogle,
+        createPostgresZone: allForwardingTargetIps.length === 0 && !awsToGoogle,
         azureDnsResolverIps: azureDnsResolverIps,
+        googleDnsForwardingEnabled: awsToGoogle, // Enable Google DNS forwarding support
+        googleDnsIps:
+          googleDnsIpsForAws.length > 0 ? googleDnsIpsForAws : undefined, // Pass Google DNS IPs for outbound forwarding
         resolverSubnetIds: subnetIds.length > 0 ? subnetIds : undefined,
         resolverSecurityGroupIds:
           securityGroupIds.length > 0 ? securityGroupIds : undefined,
       },
       {
         enableConditionalForwarding:
-          awsToAzure && azureDnsResolverIps.length > 0,
-        forwardingDomains: awsPrivateZoneParams.forwardingDomains,
-        tags: awsPrivateZoneParams.tags,
+          (awsToAzure && azureDnsResolverIps.length > 0) || awsToGoogle,
+        forwardingDomains: awsPrivateZoneParams.forwardingDomains.filter(
+          (domain) => {
+            // Filter domains based on active connections
+            if (domain === "google.inner") return awsToGoogle;
+            if (domain.includes("azure") || domain === "azure.inner")
+              return awsToAzure;
+            return awsToAzure; // Default to Azure domains for backward compatibility
+          }
+        ),
+        tags: {
+          ...awsPrivateZoneParams.tags,
+          ...(awsToGoogle && { Purpose: "AWS-Google-DNS-Forwarding" }),
+        },
         outboundEndpointName: awsPrivateZoneParams.outboundEndpointName,
         resolverRuleNamePrefix: awsPrivateZoneParams.resolverRuleNamePrefix,
         privateZoneComments: awsPrivateZoneParams.privateZoneComments,
@@ -203,7 +255,7 @@ export const createPrivateZoneResources = (
       const ip2 = `\${tolist(${awsOutput.inboundEndpoint.fqn}.ip_address)[1].ip}`;
       awsInboundEndpointIps = [ip1, ip2];
       console.log(
-        `AWS Route53 Resolver Inbound Endpoint IPs configured for Azure DNS forwarding`
+        `AWS Route53 Resolver Inbound Endpoint IPs configured for cross-cloud DNS resolution`
       );
     }
 
@@ -291,45 +343,95 @@ export const createPrivateZoneResources = (
     }
   }
 
-  // Step 3: Create Google Cloud DNS resources (if needed by conditions)
+  // Step 4: Create Google Cloud DNS zones and Cloud SQL A records
   if (googleProvider && googleVpcResources && (awsToGoogle || googleToAzure)) {
     const networkSelfLink =
       (googleVpcResources.vpc as any).selfLink ||
       (googleVpcResources.vpc as any).id ||
       googleVpcResources.vpc.name;
-
     const project = (googleProvider as any).project || "";
 
-    // Create Google DNS zones with forwarding to Azure (if googleToAzure)
-    output.google = createGooglePrivateDnsZones(
-      scope,
-      googleProvider,
-      {
-        project: project,
-        networkSelfLink: networkSelfLink,
-        zoneNames: googlePrivateZoneParams.forwardingDomains,
-        azureDnsResolverIp: googleToAzure ? azureDnsResolverIps[0] : undefined,
-      },
-      {
-        enableForwarding: googleToAzure && azureDnsResolverIps.length > 0,
-        forwardingDomains: googlePrivateZoneParams.forwardingDomains,
-        labels: googlePrivateZoneParams.labels,
-        forwardingZoneNamePrefix:
-          googlePrivateZoneParams.forwardingZoneNamePrefix,
-        forwardingZoneDescription:
-          googlePrivateZoneParams.forwardingZoneDescription,
-        privateZoneNamePrefix: googlePrivateZoneParams.privateZoneNamePrefix,
-        privateZoneDescription: googlePrivateZoneParams.privateZoneDescription,
-      }
-    );
+    let targetDnsResolverIp: string | undefined;
+    let enableForwarding = false;
+    let filteredForwardingDomains: string[] = [];
 
-    // Create A records for Cloud SQL instances (short names)
+    // Handle Azure DNS forwarding
+    if (googleToAzure && azureDnsResolverIps.length > 0) {
+      targetDnsResolverIp = azureDnsResolverIps[0];
+      enableForwarding = true;
+      filteredForwardingDomains.push(
+        ...googlePrivateZoneParams.forwardingDomains.filter(
+          (domain) => domain.includes("azure") || domain === "azure.inner"
+        )
+      );
+    }
+
+    // Handle AWS DNS forwarding
+    if (awsToGoogle) {
+      if (awsInboundEndpointIps.length > 0) {
+        // HA VPN case: forward to AWS Route53 Resolver inbound endpoints
+        if (!targetDnsResolverIp) {
+          targetDnsResolverIp = awsInboundEndpointIps[0];
+        }
+        enableForwarding = true;
+      }
+      filteredForwardingDomains.push(
+        ...googlePrivateZoneParams.forwardingDomains.filter(
+          (domain) => domain === "aws.inner"
+        )
+      );
+    }
+
+    // Create Google DNS zones with conditional forwarding
+    output.google = {
+      ...createGooglePrivateDnsZones(
+        scope,
+        googleProvider,
+        {
+          project: project,
+          networkSelfLink: networkSelfLink,
+          zoneNames: enableForwarding
+            ? filteredForwardingDomains
+            : googlePrivateZoneParams.forwardingDomains,
+          azureDnsResolverIp: targetDnsResolverIp,
+          awsInboundEndpointIps: awsToGoogle
+            ? awsInboundEndpointIps
+            : undefined,
+        },
+        {
+          enableForwarding: enableForwarding,
+          forwardingDomains:
+            filteredForwardingDomains.length > 0
+              ? filteredForwardingDomains
+              : googlePrivateZoneParams.forwardingDomains,
+          labels: {
+            ...googlePrivateZoneParams.labels,
+            ...(awsToGoogle && { "aws-dns-forwarding": "enabled" }),
+            ...(googleToAzure && { "azure-dns-forwarding": "enabled" }),
+          },
+          forwardingZoneNamePrefix:
+            googlePrivateZoneParams.forwardingZoneNamePrefix,
+          forwardingZoneDescription: enableForwarding
+            ? `Forwarding zone to ${awsToGoogle ? "AWS Route53 and " : ""}${
+                googleToAzure ? "Azure DNS" : ""
+              } Resolver`
+            : googlePrivateZoneParams.forwardingZoneDescription,
+          privateZoneNamePrefix: googlePrivateZoneParams.privateZoneNamePrefix,
+          privateZoneDescription:
+            googlePrivateZoneParams.privateZoneDescription,
+        }
+      ),
+      inboundPolicy: googleInboundPolicy,
+    };
+
+    // Create google.inner private zone and A records for Cloud SQL instances
     if (googleCloudSqlInstances && googleCloudSqlInstances.length > 0) {
+      // Import the createGoogleCloudSqlARecords function
       const {
         createGoogleCloudSqlARecords,
       } = require("../constructs/privatezone/googleprivatezone");
 
-      const cloudSqlAResult = createGoogleCloudSqlARecords(
+      const cloudSqlResult = createGoogleCloudSqlARecords(
         scope,
         googleProvider,
         {
@@ -339,17 +441,28 @@ export const createPrivateZoneResources = (
             googlePrivateZoneParams.cloudSqlARecords.internalZoneName,
           zoneDescription:
             googlePrivateZoneParams.cloudSqlARecords.zoneDescription,
-          cloudSqlInstances: googleCloudSqlInstances,
+          cloudSqlInstances: googleCloudSqlInstances.map((instance) => {
+            // Use aRecordName directly from CloudSQL config
+            // e.g., "cloudsql-mysql.google.inner"
+            return {
+              name: (instance as any).aRecordName,
+              privateIpAddress: instance.privateIpAddress,
+            };
+          }),
           labels: googlePrivateZoneParams.labels,
         }
       );
 
-      output.google.cloudSqlInternalZone = cloudSqlAResult.internalZone;
-      output.google.cloudSqlARecords = cloudSqlAResult.records;
+      output.google.cloudSqlInternalZone = cloudSqlResult.internalZone;
+      output.google.cloudSqlARecords = cloudSqlResult.records;
+
+      console.log(
+        `Created google.inner zone with ${googleCloudSqlInstances.length} A records for Cloud SQL instances`
+      );
     }
   }
 
-  // Step 4: Complete Azure DNS Forwarding Ruleset with collected IPs
+  // Step 5: Complete Azure DNS Forwarding Ruleset with collected IPs
   if (
     azureResolverTemp &&
     (awsInboundEndpointIps.length > 0 || googleToAzure)
@@ -359,10 +472,15 @@ export const createPrivateZoneResources = (
       createAzureForwardingRuleset,
     } = require("../constructs/privatezone/azureprivatezone");
 
+    const logMessages: string[] = [];
+    if (awsInboundEndpointIps.length > 0) {
+      logMessages.push(`AWS IPs: ${awsInboundEndpointIps.join(", ")}`);
+    }
+    if (googleDnsIpsForAws.length > 0) {
+      logMessages.push(`Google DNS IPs: ${googleDnsIpsForAws.join(", ")}`);
+    }
     console.log(
-      `Creating Azure DNS Forwarding Ruleset with AWS IPs: ${awsInboundEndpointIps.join(
-        ", "
-      )}`
+      `Creating Azure DNS Forwarding Ruleset with ${logMessages.join(" and ")}`
     );
 
     // Prepare forwarding rules with actual target IPs
@@ -375,9 +493,12 @@ export const createPrivateZoneResources = (
           // Add target IPs based on the 'target' property in config
           if (rule.target === "aws" && awsInboundEndpointIps.length > 0) {
             targetIps.push(...awsInboundEndpointIps);
+          } else if (
+            rule.target === "google" &&
+            googleDnsIpsForAws.length > 0
+          ) {
+            targetIps.push(...googleDnsIpsForAws);
           }
-
-          // Future: Add Google Cloud DNS IPs for Google domains
 
           return {
             name: rule.name,

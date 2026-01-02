@@ -39,6 +39,7 @@ export interface DatabaseResourcesOutput {
     name: string;
     privateIpAddress: string;
     connectionName: string;
+    aRecordName: string; // DNS A record name for google.inner zone
   }>;
   awsDbResources?: AwsDbResources;
   azureDatabaseResources?: Array<{
@@ -171,6 +172,7 @@ export const createDatabaseResources = (
     name: string;
     privateIpAddress: string;
     connectionName: string;
+    aRecordName: string;
   }> = [];
 
   let awsDbResources: AwsDbResources | undefined;
@@ -322,16 +324,22 @@ export const createDatabaseResources = (
         );
       });
 
-    googleCloudSqlInstances.forEach((instance) => {
+    googleCloudSqlInstances.forEach((instance, index) => {
       instance.sqlInstance.node.addDependency(serviceNetworkingConnection);
       googleCloudSqlConnectionNames[instance.sqlInstance.name] =
         instance.connectionName;
 
-      // Collect Cloud SQL instance data with private IP for DNS A records
+      // Get the corresponding instance configuration to access aRecordName
+      const instanceConfig = cloudSqlConfig.instances.filter(
+        (config) => config.build
+      )[index];
+
+      // Collect Cloud SQL instance data with private IP and aRecordName for DNS A records
       googleCloudSqlInstancesData.push({
         name: instance.sqlInstance.name,
         privateIpAddress: instance.sqlInstance.privateIpAddress,
         connectionName: instance.connectionName,
+        aRecordName: instanceConfig.aRecordName, // Include aRecordName from config
       });
     });
   }

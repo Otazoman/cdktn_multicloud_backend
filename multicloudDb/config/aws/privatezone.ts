@@ -12,6 +12,9 @@ export const awsPrivateZoneParams = {
     "privatelink.postgres.database.azure.com",
     // for CNAME
     "azure.inner",
+    // Google Cloud domains
+    "google.inner", // Google internal domain for CloudSQL short names
+    "project-region-instance.sql.goog", // Cloud SQL FQDN domain (example)
   ],
 
   // Optional: Custom names and descriptions for Route53 resources

@@ -7,6 +7,10 @@ export const googlePrivateZoneParams = {
     // Private Link domains for Azure Private Endpoints
     "privatelink.mysql.database.azure.com",
     "privatelink.postgres.database.azure.com",
+    // for CNAME
+    "azure.inner",
+    // AWS domains
+    "aws.inner", // AWS internal domain for RDS short names
   ],
   labels: {
     purpose: "azure-dns-forwarding",
@@ -18,15 +22,17 @@ export const googlePrivateZoneParams = {
   forwardingZoneNamePrefix: "forward",
   forwardingZoneDescription: "Forwarding zone to Azure DNS Private Resolver",
   privateZoneNamePrefix: "private",
-  privateZoneDescription: "Private DNS zone for Azure services",
+  privateZoneDescription: "Private DNS zone for AWS or Azure services",
 
   // Inbound/Outbound endpoint configurations
   inboundServerPolicyName: "gcp-resolver-inbound",
   outboundForwardingZonePrefix: "gcp-resolver-outbound",
+  // Google Cloud DNS Inbound Forwarding IPs (GCE VM internal Forwording IPs)
+  inboundForwardingIps: ["10.1.20.2"],
 
   // Cloud SQL A record configuration
   cloudSqlARecords: {
-    internalZoneName: "cloudsql.internal",
+    internalZoneName: "google.inner",
     zoneDescription: "Private DNS zone for Cloud SQL short names",
   },
 };

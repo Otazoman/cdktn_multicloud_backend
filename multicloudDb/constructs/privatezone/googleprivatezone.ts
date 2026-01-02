@@ -1,4 +1,5 @@
 import { DnsManagedZone } from "@cdktf/provider-google/lib/dns-managed-zone";
+import { DnsPolicy } from "@cdktf/provider-google/lib/dns-policy";
 import { DnsRecordSet } from "@cdktf/provider-google/lib/dns-record-set";
 import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
 import { Construct } from "constructs";
@@ -9,6 +10,9 @@ export interface GooglePrivateZoneParams {
   zoneNames?: string[]; // e.g. ["privatelink.mysql.database.azure.com"]
   // Optional: For DNS forwarding to Azure DNS
   azureDnsResolverIp?: string; // Azure DNS Private Resolver inbound endpoint IP
+
+  // Optional: For DNS forwarding to AWS Route53 Resolver
+  awsInboundEndpointIps?: string[]; // AWS Route53 Resolver inbound endpoint IPs
 
   // New: Inbound DNS policy configuration
   createInboundPolicy?: boolean;
@@ -39,36 +43,94 @@ export function createGooglePrivateDnsZones(
 
   const names = params.zoneNames || config.forwardingDomains;
 
-  // If Azure DNS Resolver IP is provided, create forwarding zones
+  // If DNS resolver IPs are provided, create forwarding zones
   // Otherwise, create standard private zones
-  if (params.azureDnsResolverIp && config.enableForwarding) {
+  if (
+    config.enableForwarding &&
+    (params.azureDnsResolverIp || params.awsInboundEndpointIps?.length)
+  ) {
     names.forEach((zoneName, idx) => {
       const zoneSafeName = zoneName.replace(/\./g, "-");
       const namePrefix = config.forwardingZoneNamePrefix || "forward";
-      const description =
-        config.forwardingZoneDescription ||
-        `Forwarding zone for ${zoneName} to Azure DNS Private Resolver`;
+      let description = config.forwardingZoneDescription;
+      let targetNameServers: Array<{ ipv4Address: string }> = [];
 
-      const mz = new DnsManagedZone(scope, `gcp-forwarding-zone-${idx}`, {
-        provider: provider,
-        name: `${namePrefix}-${zoneSafeName}`,
-        dnsName: zoneName + ".",
-        project: params.project,
-        visibility: "private",
-        description: description,
-        labels: config.labels,
-        privateVisibilityConfig: {
-          networks: [{ networkUrl: params.networkSelfLink }],
-        },
-        forwardingConfig: {
-          targetNameServers: [
-            {
-              ipv4Address: params.azureDnsResolverIp,
-            },
-          ],
-        },
-      });
-      zones[zoneName] = mz;
+      // Determine target DNS resolver based on domain and available IPs
+      if (zoneName === "aws.inner") {
+        if (params.awsInboundEndpointIps?.length) {
+          // HA VPN case: Forward to AWS Route53 Resolver inbound endpoints
+          description =
+            description ||
+            `Forwarding zone for ${zoneName} to AWS Route53 Resolver`;
+          // Use all AWS inbound endpoint IPs for high availability
+          params.awsInboundEndpointIps.forEach((awsIp) => {
+            // Extract IP from Terraform expression if needed
+            const cleanIp = awsIp.includes("${") ? awsIp : awsIp;
+            targetNameServers.push({ ipv4Address: cleanIp });
+          });
+        } else {
+          // Single VPN case: Use Google's default DNS for VPN routing
+          // Google DNS will resolve through VPN connection using static routes
+          description =
+            description ||
+            `Forwarding zone for ${zoneName} via VPN routing (Single VPN)`;
+          // Use Google's public DNS as target for VPN-routed resolution
+          targetNameServers.push({ ipv4Address: "8.8.8.8" });
+        }
+      } else if (
+        (zoneName.includes("azure") || zoneName === "azure.inner") &&
+        params.azureDnsResolverIp
+      ) {
+        // For Azure domains, forward to Azure DNS Private Resolver
+        description =
+          description ||
+          `Forwarding zone for ${zoneName} to Azure DNS Private Resolver`;
+        targetNameServers.push({ ipv4Address: params.azureDnsResolverIp });
+      } else if (params.azureDnsResolverIp) {
+        // Default fallback to Azure (for backward compatibility)
+        description =
+          description ||
+          `Forwarding zone for ${zoneName} to Azure DNS Private Resolver`;
+        targetNameServers.push({ ipv4Address: params.azureDnsResolverIp });
+      }
+
+      // Only create forwarding zone if we have target name servers
+      if (targetNameServers.length > 0) {
+        const mz = new DnsManagedZone(scope, `gcp-forwarding-zone-${idx}`, {
+          provider: provider,
+          name: `${namePrefix}-${zoneSafeName}`,
+          dnsName: zoneName + ".",
+          project: params.project,
+          visibility: "private",
+          description: description,
+          labels: config.labels,
+          privateVisibilityConfig: {
+            networks: [{ networkUrl: params.networkSelfLink }],
+          },
+          forwardingConfig: {
+            targetNameServers: targetNameServers,
+          },
+        });
+        zones[zoneName] = mz;
+      } else {
+        console.warn(
+          `No target DNS resolver found for zone: ${zoneName}, creating private zone instead`
+        );
+        // Fall back to creating a private zone
+        const mz = new DnsManagedZone(scope, `gcp-private-zone-${idx}`, {
+          provider: provider,
+          name: `private-${zoneSafeName}`,
+          dnsName: zoneName + ".",
+          project: params.project,
+          visibility: "private",
+          description: `Private DNS zone for ${zoneName}`,
+          labels: config.labels,
+          privateVisibilityConfig: {
+            networks: [{ networkUrl: params.networkSelfLink }],
+          },
+        });
+        zones[zoneName] = mz;
+      }
     });
   } else {
     // Fallback: Create standard private zones (original behavior)
@@ -281,4 +343,84 @@ export function createGoogleDnsInboundAndCloudSql(
   // The inboundServerPolicyName parameter is kept for consistency but not used
 
   return output;
+}
+
+/**
+ * Creates a Google Cloud DNS Inbound Server Policy to allow external networks
+ * to query Google Cloud private DNS zones.
+ */
+export function createGoogleCloudDnsInboundPolicy(
+  scope: Construct,
+  provider: GoogleProvider,
+  params: {
+    project: string;
+    networkSelfLink: string;
+    policyName?: string;
+    labels?: { [key: string]: string };
+  }
+) {
+  const policyName = params.policyName || "gcp-inbound-dns-policy";
+
+  const inboundPolicy = new DnsPolicy(scope, "gcp-inbound-dns-policy", {
+    provider: provider,
+    project: params.project,
+    name: policyName,
+    description: "Inbound DNS policy for cross-cloud DNS resolution",
+    networks: [
+      {
+        networkUrl: params.networkSelfLink,
+      },
+    ],
+    enableInboundForwarding: true,
+  });
+
+  // The actual IP addresses are exposed via the 'alternate_name_servers' attribute
+  // We extract them as a set of IPs
+  // In CDKTF, this is usually accessed via the attribute on the resource
+
+  return inboundPolicy;
+}
+
+/**
+ * Creates CNAME records for Cloud SQL instances to provide short, easy-to-remember names.
+ * This function maps short names to Cloud SQL connection names (FQDNs).
+ */
+export function createGoogleCloudSqlCnameRecords(
+  scope: Construct,
+  provider: GoogleProvider,
+  params: {
+    project: string;
+    networkSelfLink: string;
+    internalZone: DnsManagedZone; // The google.inner managed zone
+    cloudSqlInstances: Array<{
+      name: string; // Short name for the CNAME record
+      connectionName: string; // Cloud SQL connection name (e.g., project:region:instance)
+    }>;
+    labels?: { [key: string]: string };
+  }
+) {
+  const records: DnsRecordSet[] = [];
+
+  if (!params.cloudSqlInstances || params.cloudSqlInstances.length === 0) {
+    return records;
+  }
+
+  // Create CNAME records for each Cloud SQL instance
+  params.cloudSqlInstances.forEach((instance, idx) => {
+    const cnameRecord = new DnsRecordSet(scope, `gcp-cloudsql-cname-${idx}`, {
+      provider: provider,
+      name: instance.name.endsWith(".") ? instance.name : instance.name + ".",
+      managedZone: params.internalZone.name,
+      type: "CNAME",
+      ttl: 300,
+      rrdatas: [
+        instance.connectionName.endsWith(".")
+          ? instance.connectionName
+          : instance.connectionName + ".",
+      ],
+    });
+    records.push(cnameRecord);
+  });
+
+  return records;
 }
