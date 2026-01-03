@@ -4,6 +4,7 @@ import { Route53ResolverEndpoint } from "@cdktf/provider-aws/lib/route53-resolve
 import { Route53ResolverRule } from "@cdktf/provider-aws/lib/route53-resolver-rule";
 import { Route53ResolverRuleAssociation } from "@cdktf/provider-aws/lib/route53-resolver-rule-association";
 import { Route53Zone } from "@cdktf/provider-aws/lib/route53-zone";
+import { TerraformIterator, Token } from "cdktf";
 import { Construct } from "constructs";
 
 export interface AwsPrivateZoneParams {
@@ -79,28 +80,35 @@ export function createAwsPrivateHostedZones(
     const ruleNamePrefix = config.resolverRuleNamePrefix || "forward";
     config.forwardingDomains.forEach((domain, idx) => {
       const domainSafeName = domain.replace(/\./g, "-");
-      let targetIps: Array<{ ip: string; port: number }> = [];
+      let targetIps: any = [];
       let ruleType = "forwarding";
 
       // Determine target IPs based on domain
       if (domain === "google.inner" && hasGoogleForwarding) {
         // Forward google.inner to Google DNS IPs
-        targetIps = params.googleDnsIps!.map((ip) => ({ ip: ip, port: 53 }));
         ruleType = "google";
+
+        const googleIpsList = Token.asList(params.googleDnsIps![0]);
+        const iterator = TerraformIterator.fromList(googleIpsList);
+
+        targetIps = iterator.dynamic({
+          ip: Token.asString(iterator.getString("address")),
+          port: 53,
+        });
       } else if (
         (domain.includes("azure") || domain === "azure.inner") &&
         hasAzureForwarding
       ) {
         // Forward azure.inner and Azure privatelink domains to Azure DNS
+        ruleType = "azure";
         targetIps = params.azureDnsResolverIps!.map((ip) => ({
           ip: ip,
           port: 53,
         }));
-        ruleType = "azure";
       }
 
       // Only create rule if we have target IPs
-      if (targetIps.length > 0) {
+      if (targetIps) {
         const rule = new Route53ResolverRule(
           scope,
           `${ruleType}-forwarding-rule-${idx}`,

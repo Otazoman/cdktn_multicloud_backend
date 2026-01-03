@@ -142,10 +142,10 @@ export const createPrivateZoneResources = (
 
     // Extract IP addresses from the data source using Terraform expressions
     // Google DNS Resolver typically provides 2 IPs for high availability
-    googleInboundIps = [
-      `\${${dnsIpsDataSource.fqn}.addresses[0].address}`,
-      `\${${dnsIpsDataSource.fqn}.addresses[1].address}`,
-    ];
+
+    const googleIpsListRef = `${dnsIpsDataSource.fqn}.addresses`;
+    googleInboundIps = [googleIpsListRef];
+    dnsIpsDataSource.node.addDependency(googleInboundPolicy);
 
     console.log(
       "Dynamically retrieving Google DNS inbound IPs from DNS Resolver addresses"
