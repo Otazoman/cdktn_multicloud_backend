@@ -2,10 +2,8 @@ import { TerraformStack } from "cdktf";
 import { Construct } from "constructs";
 import { hostZones, useDbs, useVms, useVpn } from "../config/commonsettings";
 import { createProviders } from "../providers/providers";
-import {
-  createDatabaseResources,
-  DatabaseResourcesOutput,
-} from "../resources/databaseResources";
+import { createDatabaseResources } from "../resources/databaseResources";
+import { DatabaseResourcesOutput } from "../resources/interfaces";
 import { createPrivateZoneResources } from "../resources/privateZoneResources";
 import { createVmResources } from "../resources/vmResources";
 import { createVpcResources } from "../resources/vpcResources";
@@ -70,7 +68,7 @@ export class MultiCloudBackendStack extends TerraformStack {
     // Private DNS zones (Route53 / Cloud DNS) associated with VPCs
     // Create and register private zones for AWS/GCP/Azure networks
     // Must be created after databases to reference actual endpoints for CNAME records
-    if (hostZones) {
+    if (hostZones && databaseResourcesOutput) {
       createPrivateZoneResources(
         this,
         awsProvider,
@@ -79,9 +77,9 @@ export class MultiCloudBackendStack extends TerraformStack {
         vpcResources.awsVpcResources,
         vpcResources.googleVpcResources,
         vpcResources.azureVnetResources,
-        databaseResourcesOutput?.awsDbResources,
-        databaseResourcesOutput?.googleCloudSqlInstances,
-        databaseResourcesOutput?.azureDatabaseResources
+        databaseResourcesOutput.awsDbResources,
+        databaseResourcesOutput.googleCloudSqlInstances,
+        databaseResourcesOutput.azureDatabaseResources
       );
     }
   }

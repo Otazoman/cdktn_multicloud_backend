@@ -28,27 +28,9 @@ import {
   AwsDbResources,
   AwsVpcResources,
   AzureVnetResources,
+  DatabaseResourcesOutput,
   GoogleVpcResources,
 } from "./interfaces";
-
-export interface DatabaseResourcesOutput {
-  googleCloudSqlConnectionNames: {
-    [instanceName: string]: string;
-  };
-  googleCloudSqlInstances?: Array<{
-    name: string;
-    privateIpAddress: string;
-    connectionName: string;
-    aRecordName: string; // DNS A record name for google.inner zone
-  }>;
-  awsDbResources?: AwsDbResources;
-  azureDatabaseResources?: Array<{
-    server: any;
-    database: any;
-    privateDnsZone?: any;
-    fqdn: string;
-  }>;
-}
 
 /**
  * Helper function to create database secret ARN outputs with safe conditional access

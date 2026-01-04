@@ -139,3 +139,29 @@ export interface AwsDbResources {
     port: number;
   }>;
 }
+// Additional properties can be added as needed
+export interface DatabaseResourcesOutput {
+  googleCloudSqlConnectionNames: {
+    [instanceName: string]: string;
+  };
+  googleCloudSqlInstances?: Array<{
+    name: string;
+    privateIpAddress: string;
+    connectionName: string;
+    aRecordName: string; // DNS A record name for google.inner zone
+  }>;
+  awsDbResources?: AwsDbResources;
+  azureDatabaseResources?: Array<{
+    server: any;
+    database: any;
+    privateDnsZone?: any;
+    fqdn: string;
+  }>;
+}
+
+// Common Private Zone resources interface
+export interface PrivateZoneResources {
+  aws?: any;
+  google?: any;
+  azure?: any;
+}

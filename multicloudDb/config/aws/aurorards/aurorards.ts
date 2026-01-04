@@ -86,7 +86,7 @@ export const rdsConfigs = [
   },
   // PostgreSQL (parameter file path)
   {
-    build: true,
+    build: false,
     identifier: "rds-postgres-instance",
     instanceClass: "db.t3.medium",
     engine: "postgres",
@@ -135,7 +135,7 @@ export const rdsConfigs = [
 export const auroraConfigs = [
   // Aurora MySQL (RDS-managed password with advanced features)
   {
-    build: true,
+    build: false,
     clusterIdentifier: "aurora-mysql-cluster",
     engine: "aurora-mysql",
     engineVersion: "8.0.mysql_aurora.3.10.2",
@@ -183,7 +183,7 @@ export const auroraConfigs = [
   },
   // Aurora PostgreSQL (Self-managed password)
   {
-    build: true,
+    build: false,
     clusterIdentifier: "aurora-postgres-cluster",
     engine: "aurora-postgresql",
     engineVersion: "17.4",
