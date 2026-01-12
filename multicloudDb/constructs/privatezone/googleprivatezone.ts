@@ -16,6 +16,7 @@ export function getGoogleDnsInboundIps(
     project: string;
     networkName: string;
     region?: string;
+    dependsOn?: any[];
   }
 ): DataGoogleComputeAddresses {
   const filter = `purpose="DNS_RESOLVER"`;
@@ -27,6 +28,7 @@ export function getGoogleDnsInboundIps(
       project: params.project,
       filter: filter,
       region: params.region,
+      dependsOn: params.dependsOn,
     }
   );
 

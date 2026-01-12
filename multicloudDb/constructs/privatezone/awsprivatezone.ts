@@ -4,206 +4,161 @@ import { Route53ResolverEndpoint } from "@cdktf/provider-aws/lib/route53-resolve
 import { Route53ResolverRule } from "@cdktf/provider-aws/lib/route53-resolver-rule";
 import { Route53ResolverRuleAssociation } from "@cdktf/provider-aws/lib/route53-resolver-rule-association";
 import { Route53Zone } from "@cdktf/provider-aws/lib/route53-zone";
-import { TerraformIterator, Token } from "cdktf";
 import { Construct } from "constructs";
 
-export interface AwsPrivateZoneParams {
-  vpcIds: string[]; // VPC IDs to associate the private hosted zones with
-  createMysqlZone?: boolean;
-  createPostgresZone?: boolean;
-  // Optional: For conditional forwarding to Azure DNS
-  azureDnsResolverIps?: string[]; // Azure DNS Private Resolver inbound endpoint IPs
-  // Optional: For conditional forwarding to Google DNS
-  googleDnsForwardingEnabled?: boolean; // Enable Google DNS forwarding support
-  googleDnsIps?: string[]; // Google DNS IPs for forwarding google.inner domains
-  resolverSubnetIds?: string[]; // Subnet IDs for Route53 Resolver endpoints (used for both INBOUND and OUTBOUND)
-  resolverSecurityGroupIds?: string[]; // Security group IDs for Route53 Resolver endpoints
+// Forwarding rule definition
+export interface ForwardingRule {
+  domain: string;
+  targetIps: Array<{ ip: string; port: number }> | any; // Supports dynamic blocks
+  ruleType: "azure" | "google" | "generic";
 }
 
-export function createAwsPrivateHostedZones(
+/**
+ * Creates AWS Private Hosted Zones
+ */
+export function createAwsPrivateZones(
   scope: Construct,
   provider: AwsProvider,
-  params: AwsPrivateZoneParams,
-  config: {
-    enableConditionalForwarding: boolean;
-    forwardingDomains: string[];
-    tags: { [key: string]: string };
-    outboundEndpointName?: string; // Name for the OUTBOUND endpoint
-    resolverRuleNamePrefix?: string;
-    privateZoneComments?: { [domain: string]: string };
+  vpcIds: string[],
+  zones: Array<{
+    domain: string;
+    comment: string;
+  }>,
+  tags: { [key: string]: string }
+): { [domain: string]: Route53Zone } {
+  const createdZones: { [domain: string]: Route53Zone } = {};
 
-    // New: Optional name for the INBOUND endpoint
-    inboundEndpointName?: string;
+  zones.forEach((zoneConfig) => {
+    const domainSafeName = zoneConfig.domain.replace(/\./g, "-");
+    const zone = new Route53Zone(scope, `private-zone-${domainSafeName}`, {
+      provider: provider,
+      name: zoneConfig.domain,
+      comment: zoneConfig.comment,
+      vpc: vpcIds.map((vpcId) => ({ vpcId })),
+      tags: {
+        ...tags,
+        Domain: zoneConfig.domain,
+      },
+    });
+    createdZones[zoneConfig.domain] = zone;
+  });
+
+  return createdZones;
+}
+
+/**
+ * Creates AWS Route53 Resolver Inbound Endpoint
+ */
+export function createAwsInboundEndpoint(
+  scope: Construct,
+  provider: AwsProvider,
+  config: {
+    endpointName: string;
+    resolverSubnetIds: string[];
+    resolverSecurityGroupIds: string[];
+    tags: { [key: string]: string };
+  }
+): Route53ResolverEndpoint {
+  return new Route53ResolverEndpoint(scope, "aws-dns-inbound-resolver", {
+    provider: provider,
+    name: config.endpointName,
+    direction: "INBOUND",
+    securityGroupIds: config.resolverSecurityGroupIds,
+    ipAddress: config.resolverSubnetIds.slice(0, 2).map((subnetId) => ({
+      subnetId: subnetId,
+    })),
+    tags: {
+      ...config.tags,
+      Name: config.endpointName,
+    },
+  });
+}
+
+/**
+ * Creates AWS Route53 Resolver Outbound Endpoint with Forwarding Rules
+ */
+export function createAwsOutboundEndpointWithRules(
+  scope: Construct,
+  provider: AwsProvider,
+  config: {
+    vpcIds: string[];
+    forwardingRules: ForwardingRule[];
+    resolverSubnetIds: string[];
+    resolverSecurityGroupIds: string[];
+    endpointName: string;
+    ruleNamePrefix?: string;
+    tags: { [key: string]: string };
   }
 ) {
-  const zones: { [name: string]: Route53Zone } = {};
+  // Create Outbound Endpoint
+  const outboundEndpoint = new Route53ResolverEndpoint(
+    scope,
+    "multicloud-dns-outbound-resolver",
+    {
+      provider: provider,
+      name: config.endpointName,
+      direction: "OUTBOUND",
+      securityGroupIds: config.resolverSecurityGroupIds,
+      ipAddress: config.resolverSubnetIds.slice(0, 2).map((subnetId) => ({
+        subnetId: subnetId,
+      })),
+      tags: {
+        ...config.tags,
+        Name: config.endpointName,
+      },
+    }
+  );
 
-  // --- 1. Conditional Forwarding / Outbound Resolver Logic ---
-  // Create single Outbound Endpoint if either Azure or Google DNS forwarding is enabled
-  const hasAzureForwarding =
-    params.azureDnsResolverIps && params.azureDnsResolverIps.length > 0;
-  const hasGoogleForwarding =
-    params.googleDnsIps && params.googleDnsIps.length > 0;
+  const ruleNamePrefix = config.ruleNamePrefix || "forward";
+  const createdRules: Route53ResolverRule[] = [];
 
-  if (
-    config.enableConditionalForwarding &&
-    (hasAzureForwarding || hasGoogleForwarding) &&
-    params.resolverSubnetIds &&
-    params.resolverSubnetIds.length > 0 &&
-    params.resolverSecurityGroupIds &&
-    params.resolverSecurityGroupIds.length > 0
-  ) {
-    const endpointName =
-      config.outboundEndpointName || "multicloud-dns-forwarder";
+  // Create forwarding rules
+  config.forwardingRules.forEach((rule, idx) => {
+    const domainSafeName = rule.domain.replace(/\./g, "-");
 
-    // Create single Route53 Resolver Outbound Endpoint for forwarding to multiple clouds
-    const outboundEndpoint = new Route53ResolverEndpoint(
+    const resolverRule = new Route53ResolverRule(
       scope,
-      "multicloud-dns-outbound-resolver",
+      `${rule.ruleType}-forwarding-rule-${idx}`,
       {
         provider: provider,
-        name: endpointName,
-        direction: "OUTBOUND",
-        securityGroupIds: params.resolverSecurityGroupIds,
-        // Use up to the first two subnets for high availability
-        ipAddress: params.resolverSubnetIds.slice(0, 2).map((subnetId) => ({
-          subnetId: subnetId,
-        })),
+        name: `${ruleNamePrefix}-${domainSafeName}`,
+        domainName: rule.domain,
+        ruleType: "FORWARD",
+        resolverEndpointId: outboundEndpoint.id,
+        targetIp: rule.targetIps,
         tags: {
           ...config.tags,
-          Name: endpointName,
+          Name: `${ruleNamePrefix}-${domainSafeName}`,
+          Target: rule.ruleType,
         },
       }
     );
 
-    // Create forwarding rules for each domain with appropriate target IPs
-    const ruleNamePrefix = config.resolverRuleNamePrefix || "forward";
-    config.forwardingDomains.forEach((domain, idx) => {
-      const domainSafeName = domain.replace(/\./g, "-");
-      let targetIps: any = [];
-      let ruleType = "forwarding";
+    createdRules.push(resolverRule);
 
-      // Determine target IPs based on domain
-      if (domain === "google.inner" && hasGoogleForwarding) {
-        // Forward google.inner to Google DNS IPs
-        ruleType = "google";
-
-        const googleIpsList = Token.asList(params.googleDnsIps![0]);
-        const iterator = TerraformIterator.fromList(googleIpsList);
-
-        targetIps = iterator.dynamic({
-          ip: Token.asString(iterator.getString("address")),
-          port: 53,
-        });
-      } else if (
-        (domain.includes("azure") || domain === "azure.inner") &&
-        hasAzureForwarding
-      ) {
-        // Forward azure.inner and Azure privatelink domains to Azure DNS
-        ruleType = "azure";
-        targetIps = params.azureDnsResolverIps!.map((ip) => ({
-          ip: ip,
-          port: 53,
-        }));
-      }
-
-      // Only create rule if we have target IPs
-      if (targetIps) {
-        const rule = new Route53ResolverRule(
-          scope,
-          `${ruleType}-forwarding-rule-${idx}`,
-          {
-            provider: provider,
-            name: `${ruleNamePrefix}-${domainSafeName}`,
-            domainName: domain,
-            ruleType: "FORWARD",
-            resolverEndpointId: outboundEndpoint.id,
-            targetIp: targetIps,
-            tags: {
-              ...config.tags,
-              Name: `${ruleNamePrefix}-${domainSafeName}`,
-              Target: ruleType,
-            },
-          }
-        );
-
-        // Associate the rule with each VPC
-        params.vpcIds.forEach((vpcId, vpcIdx) => {
-          new Route53ResolverRuleAssociation(
-            scope,
-            `rule-assoc-${domain.replace(/\./g, "-")}-vpc-${vpcIdx}`,
-            {
-              provider: provider,
-              resolverRuleId: rule.id,
-              vpcId: vpcId,
-            }
-          );
-        });
-      }
+    // Associate the rule with each VPC
+    config.vpcIds.forEach((vpcId, vpcIdx) => {
+      new Route53ResolverRuleAssociation(
+        scope,
+        `rule-assoc-${domainSafeName}-vpc-${vpcIdx}`,
+        {
+          provider: provider,
+          resolverRuleId: resolverRule.id,
+          vpcId: vpcId,
+        }
+      );
     });
-  } else {
-    // Fallback: Create local private hosted zones (original behavior)
-    config.forwardingDomains.forEach((domain) => {
-      const domainSafeName = domain.replace(/\./g, "-");
-      const comment =
-        config.privateZoneComments?.[domain] ||
-        `Private hosted zone for ${domain}`;
-
-      const zone = new Route53Zone(scope, `private-zone-${domainSafeName}`, {
-        provider: provider,
-        name: domain,
-        comment: comment,
-        vpc: params.vpcIds.map((vpcId) => ({ vpcId })),
-        tags: {
-          ...config.tags,
-          Domain: domain,
-        },
-      });
-      zones[domain] = zone;
-    });
-  }
-
-  // --- 2. Inbound Endpoint Logic (New Addition) ---
-  // Creates an Inbound Endpoint to allow external networks (e.g., On-Premises, Azure)
-  // to resolve AWS Private Hosted Zones.
-  let inboundEndpoint: Route53ResolverEndpoint | undefined;
-
-  // Inbound endpoint should always be created if subnet IDs and security group IDs are available
-  if (
-    params.resolverSubnetIds &&
-    params.resolverSubnetIds.length > 0 &&
-    params.resolverSecurityGroupIds &&
-    params.resolverSecurityGroupIds.length > 0
-  ) {
-    const inboundName =
-      config.inboundEndpointName || "aws-dns-inbound-resolver";
-
-    inboundEndpoint = new Route53ResolverEndpoint(
-      scope,
-      "aws-dns-inbound-resolver",
-      {
-        provider: provider,
-        name: inboundName,
-        direction: "INBOUND",
-        securityGroupIds: params.resolverSecurityGroupIds,
-        // Use up to the first two subnets for high availability
-        ipAddress: params.resolverSubnetIds.slice(0, 2).map((subnetId) => ({
-          subnetId: subnetId,
-        })),
-        tags: {
-          ...config.tags,
-          Name: inboundName,
-        },
-      }
-    );
-  }
+  });
 
   return {
-    zones,
-    inboundEndpoint,
+    outboundEndpoint,
+    rules: createdRules,
   };
 }
 
+/**
+ * Creates CNAME records in a Route53 zone
+ */
 export function createAwsCnameRecords(
   scope: Construct,
   provider: AwsProvider,
@@ -228,19 +183,15 @@ export function createAwsCnameRecords(
 }
 
 /**
- * Creates CNAME records for RDS endpoints to provide short, easy-to-remember names
+ * Creates CNAME records for RDS endpoints in an existing zone
  */
 export function createAwsRdsCnameRecords(
   scope: Construct,
   provider: AwsProvider,
-  vpcIds: string[],
-  zoneName: string,
-  zoneComment: string,
-  zoneTags: { [key: string]: string },
+  existingZone: Route53Zone,
   rdsCnameRecords: Array<{
     shortName: string;
     rdsEndpoint: string;
-    zoneName?: string;
   }>
 ) {
   const records: Route53Record[] = [];
@@ -249,20 +200,11 @@ export function createAwsRdsCnameRecords(
     return records;
   }
 
-  // Create a private hosted zone for internal DNS names
-  const internalZone = new Route53Zone(scope, "rds-internal-zone", {
-    provider: provider,
-    name: zoneName,
-    comment: zoneComment,
-    vpc: vpcIds.map((vpcId) => ({ vpcId })),
-    tags: zoneTags,
-  });
-
-  // Create CNAME records for each RDS endpoint
+  // Create CNAME records for each RDS endpoint using the existing zone
   rdsCnameRecords.forEach((record, index) => {
     const cnameRecord = new Route53Record(scope, `rds-cname-${index}`, {
       provider: provider,
-      zoneId: internalZone.zoneId,
+      zoneId: existingZone.zoneId,
       name: record.shortName,
       type: "CNAME",
       ttl: 300,
