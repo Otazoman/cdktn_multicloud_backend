@@ -1,0 +1,99 @@
+# プロジェクト概要
+
+## 技術スタック
+- cdktf
+- TypeScript
+- AWS, Azure, Google Cloud
+- VPN接続 (Site-to-Site VPN)
+
+## プロジェクト構造
+/app
+  /__tests__                # スナップショットテスト
+  /config                   # リソースの設定ファイル
+    /aws                     # AWS関連の設定ファイル
+    /azure                   # Azure関連の設定ファイル
+    /commonsettings.ts       # 共通設定ファイル
+    /google                  # Google Cloud関連の設定ファイル
+  /constructs                # CDKTFのconstruct(個別リソースの定義)
+    /privatezones            # プライベートゾーン(DNS)関連のconstruct
+    /relationaldatabases     # リレーショナルデータベース関連のconstruct
+    /vmresources             # 仮想マシン関連のconstruct
+    /vpnresources            # VPN関連のconstruct
+    /vpcnetwork              # VPC/VNet関連のconstruct
+  /stacks                    # CDKTFのスタック(リソースの集合体)
+  /providers                 # クラウドプロバイダー設定
+  /resources                 # AWSとAzureとGoogleのリソースの構築定義
+  /pubkey                    # Azure VM用のSSH公開鍵
+  /scripts                   # VM初期化スクリプト(AWSユーザデータ、Azureカスタムスクリプト拡張、Googleスタートアップスクリプト)
+  /stacks                    # CDKTFスタック定義
+  app.ts                     # エントリーポイント
+
+
+# コーディングガイドライン
+## 基本的な規則
+### 共通
+  - TypeScriptで記述する
+  - 変数、関数、クラス名はキャメルケースとする
+  - 定数名はスネークケースとし、全て大文字とする
+  - コメントはJSDoc形式で記述する
+  - importはアルファベット順に並べる
+  - requireではなくimport文を使用する
+  - 不要なコードやコメントアウトは残さない
+  - ESLintとPrettierを使用してコードの整形と静的解析を行う
+  - 可能な限り型を明示的に定義する
+  - 変数や関数の命名は意味のある名前を付ける
+  - 冗長なコードは避け、関数やクラスで共通化する
+  - エラーハンドリングを適切に行う
+  - コメントは英語で記述する
+  - if文やループのネストは深くしない
+  - マジックナンバーは避け、定数として定義する
+
+### app/configについて
+  - 設定ファイルはtsファイルで定義する。
+  - 外部ライブラリのimportは極力避ける
+  - commonsettings.ts全体の制御にかかるパラメータのみを定義する
+  - aws, azure, google各フォルダ内の設定ファイルには各クラウドリソースのパラメータを定義する
+  - 各設定ファイル内でリソースの有効と無効を切り替えるパラメータを設ける
+  - 仮想マシンや、Database、CNAMEやAレコードについては複数設定可能な様に定義する
+  - 設定ファイルではtagやラベルを設定できるようにする
+
+### app/constructsについて
+  - 各クラウドプロバイダーごとにフォルダを分ける
+  - 各リソースごとにconstructを分ける
+  - constructの命名はPascalCaseとする
+  - constructの引数はinterfaceで定義する(ts内で完結させる)
+  - construct内でリソースの有効と無効を切り替えるロジックは実装しない(resources側で制御する)
+  - construct内で設定ファイルをimportしない(resources側で設定を渡す)
+  - construct内で他のconstructをimportしない(resources側で組み合わせる)
+  - construct内でスタックをimportしない(resources側で組み合わせる)
+  - construct内でプロバイダーをimportしない(resources側で渡す)
+  - construct内で状態管理や副作用を持たせない(resources側で制御する)
+  - construct内でリソースの依存関係を定義しない(resources側で制御する)
+  - construct内で不要なループや条件分岐を使用しない(基本はresources側で制御する)
+
+### app/resourcesについて
+  - 各リソースごとにファイルを分ける
+  - resources内でconstructをimportして使用する
+  - resources内で設定ファイルをimportして使用する
+  - resources内でプロバイダーをimportして使用する
+  - resources内でスタックをimportしない(stacks側で組み合わせる)
+  - resources内でリソースの有効と無効を切り替えるロジックを実装する
+  - resources内でconstructsの組み合わせを行う
+  - interfaceについてはinterfaces.tsにまとめて定義する
+
+### app/stacksについて
+  - 各resourcesファイルをimportして使用する
+  - stacks内でconstructをimportしない(resources側で組み合わせる)
+  - stacks内で設定ファイルをimportしない(resources側で渡す)
+  - stacks内でプロバイダーをimportしない(resources側で渡す)
+  - if文を使用する場合はcommonsettings.tsのパラメータで制御するロジックのみを使用する
+    - resources全体の有効/無効切り替えレベルの制御にとどめる
+  - 基本的にはresourcesへの橋渡し役に徹する
+
+# その他
+- npm buildはしないでください。
+- cdktfコマンドについてはユーザ側で実行します
+- コードはいきなり修正せずに、まずは相談してください
+- 思考は英語、ユーザへの回答は日本語で行ってください
+- 変更履歴は必ず残してください
+- 必ず修正箇所がどこに該当するのかを明示してください

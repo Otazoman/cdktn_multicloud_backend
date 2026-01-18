@@ -163,55 +163,21 @@ export function createAwsCnameRecords(
   scope: Construct,
   provider: AwsProvider,
   zone: Route53Zone,
-  records: { name: string; cname: string; ttl?: number }[]
-) {
-  return records.map(
-    (r, idx) =>
-      new Route53Record(
-        scope,
-        `zone-record-${idx}-${r.name.replace(/\./g, "-")}`,
-        {
-          provider: provider,
-          zoneId: zone.zoneId,
-          name: r.name,
-          type: "CNAME",
-          ttl: r.ttl || 300,
-          records: [r.cname],
-        }
-      )
-  );
-}
-
-/**
- * Creates CNAME records for RDS endpoints in an existing zone
- */
-export function createAwsRdsCnameRecords(
-  scope: Construct,
-  provider: AwsProvider,
-  existingZone: Route53Zone,
-  rdsCnameRecords: Array<{
-    shortName: string;
-    rdsEndpoint: string;
+  records: Array<{
+    name: string;
+    target: string;
+    ttl?: number;
   }>
-) {
-  const records: Route53Record[] = [];
-
-  if (!rdsCnameRecords || rdsCnameRecords.length === 0) {
-    return records;
-  }
-
-  // Create CNAME records for each RDS endpoint using the existing zone
-  rdsCnameRecords.forEach((record, index) => {
-    const cnameRecord = new Route53Record(scope, `rds-cname-${index}`, {
+): Route53Record[] {
+  return records.map((record) => {
+    const domainSafeName = record.name.replace(/\./g, "-");
+    return new Route53Record(scope, `cname-${domainSafeName}`, {
       provider: provider,
-      zoneId: existingZone.zoneId,
-      name: record.shortName,
+      zoneId: zone.zoneId,
+      name: record.name,
       type: "CNAME",
-      ttl: 300,
-      records: [record.rdsEndpoint],
+      ttl: record.ttl ?? 300,
+      records: [record.target],
     });
-    records.push(cnameRecord);
   });
-
-  return records;
 }

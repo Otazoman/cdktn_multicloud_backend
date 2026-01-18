@@ -4,6 +4,11 @@ import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
 import { Construct } from "constructs";
 import { awsVpcResourcesparams } from "../config/aws/awssettings";
 import { azureVnetResourcesparams } from "../config/azure/azuresettings";
+import {
+  awsToAzure,
+  awsToGoogle,
+  googleToAzure,
+} from "../config/commonsettings";
 import { googleVpcResourcesparams } from "../config/google/googlesettings";
 import { createAwsVpcResources } from "../constructs/vpcnetwork/awsvpc";
 import { createAzureVnetResources } from "../constructs/vpcnetwork/azurevnet";
@@ -18,7 +23,7 @@ export const createVpcResources = (
 ): VpcResources => {
   const resources: VpcResources = {};
 
-  if (awsVpcResourcesparams.isEnabled) {
+  if (awsToAzure || awsToGoogle) {
     resources.awsVpcResources = createAwsVpcResources(
       scope,
       awsProvider,
@@ -26,7 +31,7 @@ export const createVpcResources = (
     );
   }
 
-  if (googleVpcResourcesparams.isEnabled) {
+  if (awsToGoogle || googleToAzure) {
     resources.googleVpcResources = createGoogleVpcResources(
       scope,
       googleProvider,
@@ -34,7 +39,7 @@ export const createVpcResources = (
     );
   }
 
-  if (azureVnetResourcesparams.isEnabled) {
+  if (awsToAzure || googleToAzure) {
     resources.azureVnetResources = createAzureVnetResources(
       scope,
       azureProvider,

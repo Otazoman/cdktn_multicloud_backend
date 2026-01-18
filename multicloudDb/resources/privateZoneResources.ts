@@ -13,10 +13,10 @@ import {
 } from "../config/commonsettings";
 import { googlePrivateZoneParams } from "../config/google/privatezone";
 import {
+  createAwsCnameRecords,
   createAwsInboundEndpoint,
   createAwsOutboundEndpointWithRules,
   createAwsPrivateZones,
-  createAwsRdsCnameRecords,
   ForwardingRule,
 } from "../constructs/privatezone/awsprivatezone";
 import {
@@ -63,7 +63,7 @@ export const createPrivateZoneResources = (
     database: any;
     privateDnsZone?: any;
     fqdn: string;
-  }>
+  }>,
 ): PrivateZoneResources => {
   const output: PrivateZoneResources = {};
 
@@ -95,7 +95,7 @@ export const createPrivateZoneResources = (
         inboundEndpointName: azurePrivateZoneParams.inboundEndpointName,
         outboundEndpointName: azurePrivateZoneParams.outboundEndpointName,
         tags: azurePrivateZoneParams.tags,
-      }
+      },
     );
 
     // Extract the inbound endpoint IP for use by AWS and GCP
@@ -108,7 +108,7 @@ export const createPrivateZoneResources = (
 
   // Step 2: Create Google Cloud DNS Inbound Policy first (needed for AWS forwarding)
   let googleInboundPolicy: any = undefined;
-  if (googleProvider && googleVpcResources && awsToGoogle) {
+  if (googleProvider && googleVpcResources && (awsToGoogle || googleToAzure)) {
     const networkSelfLink =
       (googleVpcResources.vpc as any).selfLink ||
       (googleVpcResources.vpc as any).id ||
@@ -124,7 +124,7 @@ export const createPrivateZoneResources = (
         networkSelfLink: networkSelfLink,
         policyName: googlePrivateZoneParams.inboundServerPolicyName,
         labels: googlePrivateZoneParams.labels,
-      }
+      },
     );
     googleInboundPolicy = googleInboundPolicyResult.policy;
 
@@ -143,7 +143,7 @@ export const createPrivateZoneResources = (
     googleInboundIps = dnsIpsDataSource.addresses;
 
     console.log(
-      "Dynamically retrieving Google DNS inbound IPs from DNS Resolver addresses"
+      "Dynamically retrieving Google DNS inbound IPs from DNS Resolver addresses",
     );
   }
 
@@ -170,7 +170,7 @@ export const createPrivateZoneResources = (
             comment: awsPrivateZoneParams.rdsInternalZone.comment,
           },
         ],
-        awsPrivateZoneParams.rdsInternalZone.tags
+        awsPrivateZoneParams.rdsInternalZone.tags,
       );
 
       awsInnerZone =
@@ -205,7 +205,7 @@ export const createPrivateZoneResources = (
 
       console.log(
         `Found ${subnetIds.length} subnets for Route53 Resolver:`,
-        subnetIds
+        subnetIds,
       );
 
       // Get Route53 Resolver security group ID
@@ -217,7 +217,7 @@ export const createPrivateZoneResources = (
       if (awsVpcResources.securityGroupsByName) {
         console.log(
           "Available security groups in securityGroupsByName:",
-          Object.keys(awsVpcResources.securityGroupsByName)
+          Object.keys(awsVpcResources.securityGroupsByName),
         );
 
         const resolverSecurityGroup =
@@ -227,17 +227,17 @@ export const createPrivateZoneResources = (
           securityGroupIds = [resolverSecurityGroup.id];
           console.log(
             `Found security group ${resolverSgName}:`,
-            resolverSecurityGroup.id
+            resolverSecurityGroup.id,
           );
         } else {
           console.error(
             `Security group ${resolverSgName} not found in securityGroupsByName. Available:`,
-            Object.keys(awsVpcResources.securityGroupsByName)
+            Object.keys(awsVpcResources.securityGroupsByName),
           );
         }
       } else {
         console.error(
-          "securityGroupsByName is not available in awsVpcResources"
+          "securityGroupsByName is not available in awsVpcResources",
         );
       }
 
@@ -257,7 +257,7 @@ export const createPrivateZoneResources = (
 
         // Filter domains for Google
         const googleDomains = awsPrivateZoneParams.forwardingDomains.filter(
-          (domain) => domain === "google.inner"
+          (domain) => domain === "google.inner",
         );
 
         googleDomains.forEach((domain) => {
@@ -269,7 +269,7 @@ export const createPrivateZoneResources = (
         });
 
         console.log(
-          `AWS-Google DNS forwarding enabled for ${googleDomains.length} domains`
+          `AWS-Google DNS forwarding enabled for ${googleDomains.length} domains`,
         );
       }
 
@@ -282,7 +282,7 @@ export const createPrivateZoneResources = (
 
         // Filter domains for Azure
         const azureDomains = awsPrivateZoneParams.forwardingDomains.filter(
-          (domain) => domain.includes("azure") || domain === "azure.inner"
+          (domain) => domain.includes("azure") || domain === "azure.inner",
         );
 
         azureDomains.forEach((domain) => {
@@ -294,7 +294,7 @@ export const createPrivateZoneResources = (
         });
 
         console.log(
-          `AWS-Azure DNS forwarding enabled for ${azureDomains.length} domains`
+          `AWS-Azure DNS forwarding enabled for ${azureDomains.length} domains`,
         );
       }
 
@@ -316,7 +316,7 @@ export const createPrivateZoneResources = (
         const ip2 = `\${tolist(${inboundEndpoint.fqn}.ip_address)[1].ip}`;
         awsInboundEndpointIps = [ip1, ip2];
         console.log(
-          `AWS Route53 Resolver Inbound Endpoint IPs configured for cross-cloud DNS resolution`
+          `AWS Route53 Resolver Inbound Endpoint IPs configured for cross-cloud DNS resolution`,
         );
       }
 
@@ -344,7 +344,7 @@ export const createPrivateZoneResources = (
                 Purpose: "AWS-Google-DNS-Forwarding",
               }),
             },
-          }
+          },
         );
 
         awsOutput.outboundEndpoint = outboundResult.outboundEndpoint;
@@ -358,7 +358,7 @@ export const createPrivateZoneResources = (
       awsPrivateZoneParams.rdsCnameRecords?.length &&
       awsDbResources
     ) {
-      const resolvedRecords = (
+      const cnameRecords = (
         awsPrivateZoneParams.rdsCnameRecords as Array<{
           shortName: string;
           dbIdentifier: string;
@@ -373,14 +373,14 @@ export const createPrivateZoneResources = (
             endpoint = record.rdsEndpoint;
           } else if (record.type === "aurora") {
             const cluster = awsDbResources.auroraClusters?.find(
-              (c) => c.clusterIdentifier === record.dbIdentifier
+              (c) => c.clusterIdentifier === record.dbIdentifier,
             );
             if (cluster) {
               endpoint = cluster.endpoint;
             }
           } else {
             const instance = awsDbResources.rdsInstances?.find(
-              (i) => i.identifier === record.dbIdentifier
+              (i) => i.identifier === record.dbIdentifier,
             );
             if (instance) {
               endpoint = instance.endpoint;
@@ -389,24 +389,21 @@ export const createPrivateZoneResources = (
 
           if (endpoint) {
             return {
-              shortName: `${record.shortName}.${awsPrivateZoneParams.rdsInternalZone.zoneName}`,
-              rdsEndpoint: endpoint,
+              name: `${record.shortName}.${awsPrivateZoneParams.rdsInternalZone.zoneName}`,
+              target: endpoint,
             };
           }
           return null;
         })
-        .filter(
-          (r): r is { shortName: string; rdsEndpoint: string } => r !== null
-        );
+        .filter((r): r is { name: string; target: string } => r !== null);
 
-      if (resolvedRecords.length > 0) {
-        const rdsCnameRecords = createAwsRdsCnameRecords(
+      if (cnameRecords.length > 0) {
+        awsOutput.rdsCnameRecords = createAwsCnameRecords(
           scope,
           awsProvider,
           awsInnerZone,
-          resolvedRecords
+          cnameRecords,
         );
-        awsOutput.rdsCnameRecords = rdsCnameRecords;
       }
     }
 
@@ -431,8 +428,8 @@ export const createPrivateZoneResources = (
       enableForwarding = true;
       filteredForwardingDomains.push(
         ...googlePrivateZoneParams.forwardingDomains.filter(
-          (domain) => domain.includes("azure") || domain === "azure.inner"
-        )
+          (domain) => domain.includes("azure") || domain === "azure.inner",
+        ),
       );
     }
 
@@ -446,8 +443,8 @@ export const createPrivateZoneResources = (
       }
       filteredForwardingDomains.push(
         ...googlePrivateZoneParams.forwardingDomains.filter(
-          (domain) => domain === "aws.inner"
-        )
+          (domain) => domain === "aws.inner",
+        ),
       );
     }
 
@@ -488,7 +485,7 @@ export const createPrivateZoneResources = (
           privateZoneNamePrefix: googlePrivateZoneParams.privateZoneNamePrefix,
           privateZoneDescription:
             googlePrivateZoneParams.privateZoneDescription,
-        }
+        },
       ),
       inboundPolicy: googleInboundPolicy,
     };
@@ -512,14 +509,14 @@ export const createPrivateZoneResources = (
             };
           }),
           labels: googlePrivateZoneParams.labels,
-        }
+        },
       );
 
       output.google.cloudSqlInternalZone = cloudSqlResult.internalZone;
       output.google.cloudSqlARecords = cloudSqlResult.records;
 
       console.log(
-        `Created google.inner zone with ${googleCloudSqlInstances.length} A records for Cloud SQL instances`
+        `Created google.inner zone with ${googleCloudSqlInstances.length} A records for Cloud SQL instances`,
       );
     }
   }
@@ -538,7 +535,7 @@ export const createPrivateZoneResources = (
       logMessages.push(`Google DNS IPs: ${googleInboundIps.join(", ")}`);
     }
     console.log(
-      `Creating Azure DNS Forwarding Ruleset with ${logMessages.join(" and ")}`
+      `Creating Azure DNS Forwarding Ruleset with ${logMessages.join(" and ")}`,
     );
 
     // Prepare forwarding rules with actual target IPs
@@ -578,7 +575,7 @@ export const createPrivateZoneResources = (
         tags: azurePrivateZoneParams.tags,
       });
       console.log(
-        `Azure DNS Forwarding Ruleset created with ${forwardingRulesWithIps.length} rules`
+        `Azure DNS Forwarding Ruleset created with ${forwardingRulesWithIps.length} rules`,
       );
     }
 
@@ -606,7 +603,7 @@ export const createPrivateZoneResources = (
         azureProvider,
         azurePrivateZoneParams.resourceGroup,
         azureVnetResources.vnet as any,
-        azurePrivateZoneParams.azureInnerDomain.zoneName
+        azurePrivateZoneParams.azureInnerDomain.zoneName,
       );
 
       const cnameRecordsToCreate =
@@ -619,7 +616,7 @@ export const createPrivateZoneResources = (
 
       if (cnameRecordsToCreate.length > 0) {
         console.log(
-          `Creating ${cnameRecordsToCreate.length} CNAME records in azure.inner zone`
+          `Creating ${cnameRecordsToCreate.length} CNAME records in azure.inner zone`,
         );
 
         const cnameRecords = createAzureInnerCnameRecords(
@@ -627,7 +624,7 @@ export const createPrivateZoneResources = (
           azureProvider,
           azurePrivateZoneParams.resourceGroup,
           azureInnerZone.privateDnsZone,
-          cnameRecordsToCreate
+          cnameRecordsToCreate,
         );
 
         if (!output.azure) {
@@ -639,8 +636,8 @@ export const createPrivateZoneResources = (
         console.log(
           `Created azure.inner zone with CNAME records:`,
           cnameRecordsToCreate.map(
-            (r) => `${r.name}.azure.inner -> ${r.target}`
-          )
+            (r) => `${r.name}.azure.inner -> ${r.target}`,
+          ),
         );
       }
     }
