@@ -24,7 +24,7 @@ export function createAwsPrivateZones(
     domain: string;
     comment: string;
   }>,
-  tags: { [key: string]: string }
+  tags: { [key: string]: string },
 ): { [domain: string]: Route53Zone } {
   const createdZones: { [domain: string]: Route53Zone } = {};
 
@@ -57,7 +57,7 @@ export function createAwsInboundEndpoint(
     resolverSubnetIds: string[];
     resolverSecurityGroupIds: string[];
     tags: { [key: string]: string };
-  }
+  },
 ): Route53ResolverEndpoint {
   return new Route53ResolverEndpoint(scope, "aws-dns-inbound-resolver", {
     provider: provider,
@@ -88,7 +88,7 @@ export function createAwsOutboundEndpointWithRules(
     endpointName: string;
     ruleNamePrefix?: string;
     tags: { [key: string]: string };
-  }
+  },
 ) {
   // Create Outbound Endpoint
   const outboundEndpoint = new Route53ResolverEndpoint(
@@ -106,7 +106,7 @@ export function createAwsOutboundEndpointWithRules(
         ...config.tags,
         Name: config.endpointName,
       },
-    }
+    },
   );
 
   const ruleNamePrefix = config.ruleNamePrefix || "forward";
@@ -131,7 +131,7 @@ export function createAwsOutboundEndpointWithRules(
           Name: `${ruleNamePrefix}-${domainSafeName}`,
           Target: rule.ruleType,
         },
-      }
+      },
     );
 
     createdRules.push(resolverRule);
@@ -145,7 +145,7 @@ export function createAwsOutboundEndpointWithRules(
           provider: provider,
           resolverRuleId: resolverRule.id,
           vpcId: vpcId,
-        }
+        },
       );
     });
   });
@@ -167,7 +167,7 @@ export function createAwsCnameRecords(
     name: string;
     target: string;
     ttl?: number;
-  }>
+  }>,
 ): Route53Record[] {
   return records.map((record) => {
     const domainSafeName = record.name.replace(/\./g, "-");

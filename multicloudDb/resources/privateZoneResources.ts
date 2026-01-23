@@ -543,26 +543,34 @@ export const createPrivateZoneResources = (
       azurePrivateZoneParams.forwardingRules
         ?.filter((rule) => rule.enabled)
         .map((rule: any) => {
-          const targetIps: string[] = [];
+          let targetDnsServers: any = undefined;
 
           if (rule.target === "aws" && awsInboundEndpointIps.length > 0) {
-            targetIps.push(...awsInboundEndpointIps);
-          } else if (rule.target === "google" && googleInboundIps.length > 0) {
-            targetIps.push(...googleInboundIps);
+            targetDnsServers = awsInboundEndpointIps.map((ip) => ({
+              ip_address: ip,
+              port: 53,
+            }));
+          } else if (rule.target === "google" && googleInboundIps) {
+            const googleIpsList = Token.asList(googleInboundIps);
+            const iterator = TerraformIterator.fromList(googleIpsList);
+            targetDnsServers = iterator.dynamic({
+              ip_address: Token.asString(iterator.getString("address")),
+              port: 53,
+            });
           }
 
           return {
             name: rule.name,
             domainName: rule.domainName,
             enabled: rule.enabled,
-            targetIps: targetIps,
+            targetDnsServers: targetDnsServers,
           };
         }) || [];
 
     // Only create forwarding ruleset if we have rules with target IPs
     let forwardingRuleset = undefined;
     if (
-      forwardingRulesWithIps.some((rule) => rule.targetIps.length > 0) &&
+      forwardingRulesWithIps.some((rule) => rule.targetDnsServers) &&
       azurePrivateZoneParams.forwardingRulesetName
     ) {
       forwardingRuleset = createAzureForwardingRuleset(scope, azProvider, {

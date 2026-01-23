@@ -50,7 +50,7 @@ export function createAzurePrivateResolver(
   scope: Construct,
   provider: AzurermProvider,
   virtualNetwork: VirtualNetwork,
-  params: AzurePrivateResolverParams
+  params: AzurePrivateResolverParams,
 ) {
   // --- 1. Create dedicated subnets for DNS Private Resolver (Inbound and Outbound) ---
   const dnsResolverInboundSubnet = new Subnet(
@@ -72,7 +72,7 @@ export function createAzurePrivateResolver(
           },
         },
       ],
-    }
+    },
   );
 
   const dnsResolverOutboundSubnet = new Subnet(
@@ -94,7 +94,7 @@ export function createAzurePrivateResolver(
           },
         },
       ],
-    }
+    },
   );
 
   // --- 2. Create DNS Private Resolver ---
@@ -124,7 +124,7 @@ export function createAzurePrivateResolver(
         ...params.tags,
         purpose: "receive-dns-queries-from-aws-gcp",
       },
-    }
+    },
   );
 
   const output: any = {
@@ -154,7 +154,7 @@ export function createAzurePrivateResolver(
         ...params.tags,
         purpose: "send-dns-queries-to-external-networks",
       },
-    }
+    },
   );
   output.outboundEndpoint = outboundEndpoint;
 
@@ -177,10 +177,10 @@ export function createAzureForwardingRuleset(
       name: string;
       domainName: string;
       enabled: boolean;
-      targetIps: string[];
+      targetDnsServers: any;
     }>;
     tags: { [key: string]: string };
-  }
+  },
 ) {
   // Create DNS Forwarding Ruleset
   const forwardingRuleset = new PrivateDnsResolverDnsForwardingRuleset(
@@ -192,13 +192,13 @@ export function createAzureForwardingRuleset(
       resourceGroupName: params.resourceGroupName,
       location: params.location,
       privateDnsResolverOutboundEndpointIds: params.outboundEndpoints.map(
-        (endpoint) => endpoint.id
+        (endpoint) => endpoint.id,
       ),
       tags: {
         ...params.tags,
         purpose: "forward-dns-to-aws-gcp",
       },
-    }
+    },
   );
 
   // Create Virtual Network Link
@@ -210,12 +210,12 @@ export function createAzureForwardingRuleset(
       name: `${params.forwardingRulesetName}-vnet-link`,
       dnsForwardingRulesetId: forwardingRuleset.id,
       virtualNetworkId: params.virtualNetworkId,
-    }
+    },
   );
 
   // Create forwarding rules
   const rules = params.forwardingRules
-    .filter((rule) => rule.targetIps.length > 0) // Only create rules with target IPs
+    .filter((rule) => rule.targetDnsServers) // Only create rules with target servers
     .map((rule, index) => {
       return new PrivateDnsResolverForwardingRule(
         scope,
@@ -226,11 +226,8 @@ export function createAzureForwardingRuleset(
           dnsForwardingRulesetId: forwardingRuleset.id,
           domainName: rule.domainName,
           enabled: rule.enabled,
-          targetDnsServers: rule.targetIps.map((ip) => ({
-            ipAddress: ip,
-            port: 53,
-          })),
-        }
+          targetDnsServers: rule.targetDnsServers,
+        },
       );
     });
 
@@ -249,7 +246,7 @@ export function createSharedPrivateDnsZones(
   provider: AzurermProvider,
   resourceGroupName: string,
   virtualNetwork: VirtualNetwork,
-  databaseTypes: Set<AzureDatabaseType>
+  databaseTypes: Set<AzureDatabaseType>,
 ): Map<AzureDatabaseType, { privateDnsZone: any; vnetLink: any }> {
   const dnsZones = new Map<
     AzureDatabaseType,
@@ -273,7 +270,7 @@ export function createSharedPrivateDnsZones(
         provider: provider,
         name: dnsZoneName,
         resourceGroupName: resourceGroupName,
-      }
+      },
     );
 
     // Link the Private DNS Zone to the Virtual Network
@@ -288,7 +285,7 @@ export function createSharedPrivateDnsZones(
         virtualNetworkId: virtualNetwork.id,
         registrationEnabled: false,
         dependsOn: [privateDnsZone, virtualNetwork],
-      }
+      },
     );
 
     dnsZones.set(dbType, { privateDnsZone, vnetLink });
@@ -305,7 +302,7 @@ export function createAzureInnerPrivateDnsZone(
   provider: AzurermProvider,
   resourceGroupName: string,
   virtualNetwork: VirtualNetwork,
-  zoneName: string = "azure.inner"
+  zoneName: string = "azure.inner",
 ): { privateDnsZone: any; vnetLink: any } {
   const privateDnsZone = new PrivateDnsZone(scope, "azure-inner-dns-zone", {
     provider: provider,
@@ -325,7 +322,7 @@ export function createAzureInnerPrivateDnsZone(
       virtualNetworkId: virtualNetwork.id,
       registrationEnabled: false,
       dependsOn: [privateDnsZone, virtualNetwork],
-    }
+    },
   );
 
   return { privateDnsZone, vnetLink };
@@ -342,7 +339,7 @@ export function createAzureInnerCnameRecords(
   cnameRecords: Array<{
     name: string; // e.g., "mysql-prod"
     target: string; // e.g., "azure-mysql-server-2025-1108.privatelink.mysql.database.azure.com"
-  }>
+  }>,
 ): any[] {
   return cnameRecords.map((record, index) => {
     return new PrivateDnsCnameRecord(
@@ -356,7 +353,7 @@ export function createAzureInnerCnameRecords(
         record: record.target,
         ttl: 300,
         dependsOn: [privateDnsZone],
-      }
+      },
     );
   });
 }
