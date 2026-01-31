@@ -522,78 +522,92 @@ export const createPrivateZoneResources = (
   }
 
   // Step 5: Complete Azure DNS Forwarding Ruleset with collected IPs
-  if (
-    azureResolverTemp &&
-    (awsInboundEndpointIps.length > 0 || googleToAzure)
-  ) {
-    const azProvider = azureProvider as AzurermProvider;
-    const logMessages: string[] = [];
-    if (awsInboundEndpointIps.length > 0) {
-      logMessages.push(`AWS IPs: ${awsInboundEndpointIps.join(", ")}`);
-    }
-    if (googleInboundIps.length > 0) {
-      logMessages.push(`Google DNS IPs: ${googleInboundIps.join(", ")}`);
-    }
-    console.log(
-      `Creating Azure DNS Forwarding Ruleset with ${logMessages.join(" and ")}`,
-    );
+  if (azureResolverTemp) {
+    // Determine which rules should be created based on flags and available IPs
+    const shouldCreateAwsRule = awsToAzure && awsInboundEndpointIps.length > 0;
+    const shouldCreateGoogleRule = googleToAzure && googleInboundIps;
 
-    // Prepare forwarding rules with actual target IPs
-    const forwardingRulesWithIps =
-      azurePrivateZoneParams.forwardingRules
-        ?.filter((rule) => rule.enabled)
-        .map((rule: any) => {
-          let targetDnsServers: any = undefined;
+    // Only proceed if at least one rule should be created
+    if (shouldCreateAwsRule || shouldCreateGoogleRule) {
+      const azProvider = azureProvider as AzurermProvider;
+      const logMessages: string[] = [];
 
-          if (rule.target === "aws" && awsInboundEndpointIps.length > 0) {
-            targetDnsServers = awsInboundEndpointIps.map((ip) => ({
-              ip_address: ip,
-              port: 53,
-            }));
-          } else if (rule.target === "google" && googleInboundIps) {
-            const googleIpsList = Token.asList(googleInboundIps);
-            const iterator = TerraformIterator.fromList(googleIpsList);
-            targetDnsServers = iterator.dynamic({
-              ip_address: Token.asString(iterator.getString("address")),
-              port: 53,
-            });
-          }
+      if (shouldCreateAwsRule) {
+        logMessages.push(`AWS IPs: ${awsInboundEndpointIps.join(", ")}`);
+      }
+      if (shouldCreateGoogleRule && googleInboundIps.length > 0) {
+        logMessages.push(`Google DNS IPs: ${googleInboundIps.join(", ")}`);
+      }
 
-          return {
-            name: rule.name,
-            domainName: rule.domainName,
-            enabled: rule.enabled,
-            targetDnsServers: targetDnsServers,
-          };
-        }) || [];
-
-    // Only create forwarding ruleset if we have rules with target IPs
-    let forwardingRuleset = undefined;
-    if (
-      forwardingRulesWithIps.some((rule) => rule.targetDnsServers) &&
-      azurePrivateZoneParams.forwardingRulesetName
-    ) {
-      forwardingRuleset = createAzureForwardingRuleset(scope, azProvider, {
-        resourceGroupName: azurePrivateZoneParams.resourceGroup,
-        location: azurePrivateZoneParams.location,
-        outboundEndpoints: [azureResolverTemp.outboundEndpoint],
-        virtualNetworkId: azureResolverTemp.virtualNetworkId,
-        forwardingRulesetName: azurePrivateZoneParams.forwardingRulesetName,
-        forwardingRules: forwardingRulesWithIps,
-        tags: azurePrivateZoneParams.tags,
-      });
       console.log(
-        `Azure DNS Forwarding Ruleset created with ${forwardingRulesWithIps.length} rules`,
+        `Creating Azure DNS Forwarding Ruleset with ${logMessages.join(
+          " and ",
+        )}`,
       );
-    }
 
-    output.azure = {
-      ...azureResolverTemp,
-      awsInboundEndpointIps: awsInboundEndpointIps,
-      forwardingRuleset: forwardingRuleset,
-    };
-  } else if (azureResolverTemp) {
-    output.azure = azureResolverTemp;
+      // Filter and map forwarding rules based on flags
+      const forwardingRulesWithIps =
+        azurePrivateZoneParams.forwardingRules
+          ?.filter((rule) => {
+            // Filter based on flags before mapping
+            if (rule.target === "aws") return shouldCreateAwsRule;
+            if (rule.target === "google") return shouldCreateGoogleRule;
+            return false;
+          })
+          .map((rule: any) => {
+            let targetDnsServers: any = undefined;
+
+            if (rule.target === "aws" && shouldCreateAwsRule) {
+              targetDnsServers = awsInboundEndpointIps.map((ip) => ({
+                ipAddress: ip,
+                port: 53,
+              }));
+            } else if (rule.target === "google" && shouldCreateGoogleRule) {
+              const googleIpsList = Token.asList(googleInboundIps);
+              const iterator = TerraformIterator.fromList(googleIpsList);
+              targetDnsServers = iterator.dynamic({
+                ip_address: Token.asString(iterator.getString("address")),
+                port: 53,
+              });
+            }
+
+            return {
+              name: rule.name,
+              domainName: rule.domainName,
+              enabled: rule.enabled,
+              targetDnsServers: targetDnsServers,
+            };
+          }) || [];
+
+      // Create forwarding ruleset if we have valid rules
+      let forwardingRuleset = undefined;
+      if (
+        forwardingRulesWithIps.length > 0 &&
+        azurePrivateZoneParams.forwardingRulesetName
+      ) {
+        forwardingRuleset = createAzureForwardingRuleset(scope, azProvider, {
+          resourceGroupName: azurePrivateZoneParams.resourceGroup,
+          location: azurePrivateZoneParams.location,
+          outboundEndpoints: [azureResolverTemp.outboundEndpoint],
+          virtualNetworkId: azureResolverTemp.virtualNetworkId,
+          forwardingRulesetName: azurePrivateZoneParams.forwardingRulesetName,
+          forwardingRules: forwardingRulesWithIps,
+          tags: azurePrivateZoneParams.tags,
+        });
+        console.log(
+          `Azure DNS Forwarding Ruleset created with ${forwardingRulesWithIps.length} rules`,
+        );
+      }
+
+      output.azure = {
+        ...azureResolverTemp,
+        awsInboundEndpointIps: awsInboundEndpointIps,
+        forwardingRuleset: forwardingRuleset,
+      };
+    } else {
+      // No forwarding rules needed, just set Azure resolver
+      output.azure = azureResolverTemp;
+    }
   }
 
   // Step 6: Create azure.inner Private DNS Zone and CNAME records
