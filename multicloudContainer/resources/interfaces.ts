@@ -11,11 +11,14 @@ import { PublicIp } from "@cdktf/provider-azurerm/lib/public-ip";
 import { Subnet as AzureSubnet } from "@cdktf/provider-azurerm/lib/subnet";
 import { SubnetNetworkSecurityGroupAssociation } from "@cdktf/provider-azurerm/lib/subnet-network-security-group-association";
 import { VirtualNetwork } from "@cdktf/provider-azurerm/lib/virtual-network";
+import { ComputeAddress } from "@cdktf/provider-google/lib/compute-address";
 import { ComputeBackendService } from "@cdktf/provider-google/lib/compute-backend-service";
 import { ComputeFirewall } from "@cdktf/provider-google/lib/compute-firewall";
+import { ComputeForwardingRule } from "@cdktf/provider-google/lib/compute-forwarding-rule";
 import { ComputeGlobalAddress } from "@cdktf/provider-google/lib/compute-global-address";
 import { ComputeGlobalForwardingRule } from "@cdktf/provider-google/lib/compute-global-forwarding-rule";
 import { ComputeNetwork as GoogleVpc } from "@cdktf/provider-google/lib/compute-network";
+import { ComputeRegionUrlMap } from "@cdktf/provider-google/lib/compute-region-url-map";
 import { ComputeSubnetwork } from "@cdktf/provider-google/lib/compute-subnetwork";
 import { ComputeUrlMap } from "@cdktf/provider-google/lib/compute-url-map";
 import { Token } from "cdktf";
@@ -183,17 +186,29 @@ export interface AwsAlbResources {
 }
 
 // Google Cloud Load Balancing output resources
-export interface GoogleLbResources {
+export interface GoogleGlobalLbResources {
   forwardingRule: ComputeGlobalForwardingRule;
-  backendServices: Record<string, ComputeBackendService>; // Key is the logical name from config
+  backendServices: Record<string, ComputeBackendService>;
   urlMap: ComputeUrlMap;
   staticIp?: ComputeGlobalAddress;
+}
+
+export interface GoogleRegionalLbResources {
+  forwardingRule: ComputeForwardingRule;
+  backendServices: Record<string, ComputeBackendService>;
+  urlMap: ComputeRegionUrlMap;
+  staticIp?: ComputeAddress;
+}
+
+export interface GoogleLbResourcesOutput {
+  global?: GoogleGlobalLbResources[];
+  regional?: GoogleRegionalLbResources[];
 }
 
 // Combined Load Balancer resources for the orchestration layer
 export interface LbResourcesOutput {
   awsAlbs?: AwsAlbResources[];
-  googleLbs?: GoogleLbResources[];
+  googleLbs?: GoogleLbResourcesOutput[];
 }
 
 // Azure Application Gateway output resources

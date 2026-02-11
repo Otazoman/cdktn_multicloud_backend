@@ -19,7 +19,7 @@ import {
   AwsVpcResources,
   AzureAppGwResources,
   AzureVnetResources,
-  GoogleLbResources,
+  GoogleLbResourcesOutput,
   GoogleVpcResources,
 } from "./interfaces";
 
@@ -33,11 +33,11 @@ export const createLbResources = (
   azureVnetResources?: AzureVnetResources,
 ): {
   awsAlbs?: AwsAlbResources[];
-  googleLbs?: GoogleLbResources[];
+  googleLbs?: GoogleLbResourcesOutput[];
   azureAppGws?: AzureAppGwResources[];
 } => {
   let awsAlbs: AwsAlbResources[] | undefined;
-  let googleLbs: GoogleLbResources[] | undefined;
+  let googleLbs: GoogleLbResourcesOutput[] | undefined;
 
   // --- AWS Load Balancer (ALB) ---
   if ((awsToAzure || awsToGoogle) && awsVpcResources && albConfigs) {
@@ -84,25 +84,38 @@ export const createLbResources = (
 
   // --- Google Cloud Load Balancer (XLB) ---
   if ((awsToGoogle || googleToAzure) && googleVpcResources && gcpLbConfigs) {
-    googleLbs = gcpLbConfigs
+    const globalLbs: any[] = [];
+    const regionalLbs: any[] = [];
+
+    gcpLbConfigs
       .filter((config) => config.build)
-      .map((config) => {
-        const gcpLbResources = createGoogleLbResources(
+      .forEach((config) => {
+        const lb = createGoogleLbResources(
           scope,
           googleProvider,
           config as any,
-        );
-
-        gcpLbResources.forwardingRule.node.addDependency(
           googleVpcResources.vpc,
         );
 
-        Object.values(gcpLbResources.backendServices).forEach((be) => {
+        // dependency
+        lb.forwardingRule.node.addDependency(googleVpcResources.vpc);
+
+        Object.values(lb.backendServices).forEach((be) => {
           be.node.addDependency(googleVpcResources.vpc);
         });
-
-        return gcpLbResources;
+        if ("region" in config && config.region) {
+          regionalLbs.push(lb);
+        } else {
+          globalLbs.push(lb);
+        }
       });
+
+    googleLbs = [
+      {
+        global: globalLbs,
+        regional: regionalLbs,
+      },
+    ];
   }
 
   // --- Azure Application Gateway ---
