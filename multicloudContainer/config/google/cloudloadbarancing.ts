@@ -7,6 +7,8 @@ export const gcpLbConfigs = [
     reserveStaticIp: true,
     protocol: "HTTP",
     port: 80,
+    networkTier: "PREMIUM",
+    loadBalancingScheme: "EXTERNAL_MANAGED",
 
     backends: [
       {
@@ -76,6 +78,8 @@ export const gcpLbConfigs = [
     reserveStaticIp: true,
     protocol: "HTTP",
     port: 80,
+    networkTier: "PREMIUM",
+    loadBalancingScheme: "EXTERNAL_MANAGED",
 
     backends: [
       {

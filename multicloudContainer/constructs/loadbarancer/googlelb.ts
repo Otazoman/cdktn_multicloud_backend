@@ -58,6 +58,8 @@ export interface GcpLbConfig {
   protocol: "HTTP" | "HTTPS";
   port: number;
   sslCertificateNames?: string[];
+  networkTier?: string;
+  loadBalancingScheme?: string;
 }
 
 /* -------------------- Factory -------------------- */
@@ -163,6 +165,7 @@ function createGlobalLb(
         target: proxy.id,
         portRange: config.port.toString(),
         ipAddress: staticIp?.address,
+        loadBalancingScheme: config.loadBalancingScheme,
       },
     );
   } else {
@@ -181,6 +184,7 @@ function createGlobalLb(
         target: proxy.id,
         portRange: config.port.toString(),
         ipAddress: staticIp?.address,
+        loadBalancingScheme: config.loadBalancingScheme,
       },
     );
   }
@@ -281,8 +285,8 @@ function createRegionalLb(
       portRange: config.port.toString(),
       ipAddress: staticIp?.address,
       region: config.region,
-      networkTier: "PREMIUM",
-      loadBalancingScheme: "EXTERNAL_MANAGED",
+      networkTier: config.networkTier,
+      loadBalancingScheme: config.loadBalancingScheme,
       network: vpc.id,
       subnetwork: proxySubnet?.id,
     });
@@ -305,9 +309,10 @@ function createRegionalLb(
       portRange: config.port.toString(),
       ipAddress: staticIp?.address,
       region: config.region,
-      networkTier: "PREMIUM",
-      loadBalancingScheme: "EXTERNAL_MANAGED",
-      network: vpc.name,
+      networkTier: config.networkTier,
+      loadBalancingScheme: config.loadBalancingScheme,
+      network: vpc.id,
+      subnetwork: proxySubnet?.id,
     });
   }
 
