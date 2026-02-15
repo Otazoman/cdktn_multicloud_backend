@@ -90,15 +90,32 @@ export const createLbResources = (
     gcpLbConfigs
       .filter((config) => config.build)
       .forEach((config) => {
+        let targetProxySubnet: any = undefined;
+        if (
+          config.loadBalancerType === "REGIONAL" &&
+          config.region &&
+          googleVpcResources.proxySubnets
+        ) {
+          targetProxySubnet = googleVpcResources.proxySubnets.find(
+            (ps) => ps.region === config.region,
+          );
+        }
+
         const lb = createGoogleLbResources(
           scope,
           googleProvider,
           config as any,
           googleVpcResources.vpc,
+          targetProxySubnet,
         );
 
         // dependency
         lb.forwardingRule.node.addDependency(googleVpcResources.vpc);
+        if (googleVpcResources.proxySubnets) {
+          googleVpcResources.proxySubnets.forEach((ps) => {
+            lb.forwardingRule.node.addDependency(ps);
+          });
+        }
 
         Object.values(lb.backendServices).forEach((be) => {
           be.node.addDependency(googleVpcResources.vpc);

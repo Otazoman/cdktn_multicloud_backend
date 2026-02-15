@@ -13,6 +13,12 @@ interface SubnetConfig {
   region: string;
 }
 
+interface ProxySubnetConfig {
+  name: string;
+  cidr: string;
+  region: string;
+}
+
 interface FirewallRuleConfig {
   name: string;
   sourceRanges: string[];
@@ -28,6 +34,7 @@ interface GoogleResourcesParams {
   vpcName: string;
   vpcLabels?: { [key: string]: string };
   subnets: SubnetConfig[];
+  proxySubnets?: ProxySubnetConfig[];
   firewallLabels?: { [key: string]: string };
   firewallIngressRules: FirewallRuleConfig[];
   firewallEgressRules: FirewallRuleConfig[];
@@ -43,7 +50,7 @@ interface GoogleResourcesParams {
 export function createGoogleVpcResources(
   scope: Construct,
   provider: GoogleProvider,
-  params: GoogleResourcesParams
+  params: GoogleResourcesParams,
 ) {
   // vpc
   const vpc = new GoogleVpc(scope, "googleVpc", {
@@ -63,7 +70,7 @@ export function createGoogleVpcResources(
         name: `${params.vpcName}-${subnet.name}`,
         ipCidrRange: subnet.cidr,
         region: subnet.region,
-      }
+      },
     );
     return subnetwork;
   });
@@ -82,10 +89,10 @@ export function createGoogleVpcResources(
           allow: [rule.permission],
           sourceRanges: rule.sourceRanges,
           priority: rule.priority,
-        }
+        },
       );
       return ingressRule;
-    }
+    },
   );
 
   // egress rule
@@ -103,10 +110,10 @@ export function createGoogleVpcResources(
           sourceRanges: rule.sourceRanges,
           destinationRanges: rule.destinationRanges,
           priority: rule.priority,
-        }
+        },
       );
       return egressRule;
-    }
+    },
   );
 
   // Cloud NAT
@@ -140,9 +147,27 @@ export function createGoogleVpcResources(
     });
   }
 
+  // Proxy Subnets
+  const proxySubnets = params.proxySubnets?.map((subnet: ProxySubnetConfig) => {
+    return new ComputeSubnetwork(
+      scope,
+      `${params.vpcName}-${subnet.name}-proxy`,
+      {
+        provider: provider,
+        network: vpc.name,
+        name: `${params.vpcName}-${subnet.name}`,
+        ipCidrRange: subnet.cidr,
+        region: subnet.region,
+        purpose: "REGIONAL_MANAGED_PROXY",
+        role: "ACTIVE",
+      },
+    );
+  });
+
   return {
     vpc,
     subnets,
+    proxySubnets,
     ingressrules,
     egressrules,
     router,

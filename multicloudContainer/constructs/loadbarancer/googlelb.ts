@@ -10,7 +10,6 @@ import { ComputeRegionHealthCheck } from "@cdktf/provider-google/lib/compute-reg
 import { ComputeRegionTargetHttpProxy } from "@cdktf/provider-google/lib/compute-region-target-http-proxy";
 import { ComputeRegionTargetHttpsProxy } from "@cdktf/provider-google/lib/compute-region-target-https-proxy";
 import { ComputeRegionUrlMap } from "@cdktf/provider-google/lib/compute-region-url-map";
-import { ComputeSubnetwork } from "@cdktf/provider-google/lib/compute-subnetwork";
 import { ComputeTargetHttpProxy } from "@cdktf/provider-google/lib/compute-target-http-proxy";
 import { ComputeTargetHttpsProxy } from "@cdktf/provider-google/lib/compute-target-https-proxy";
 import { ComputeUrlMap } from "@cdktf/provider-google/lib/compute-url-map";
@@ -59,8 +58,6 @@ export interface GcpLbConfig {
   protocol: "HTTP" | "HTTPS";
   port: number;
   sslCertificateNames?: string[];
-  subnetworkName?: string;
-  proxyCidr?: string;
 }
 
 /* -------------------- Factory -------------------- */
@@ -70,12 +67,13 @@ export function createGoogleLbResources(
   provider: GoogleProvider,
   config: GcpLbConfig,
   vpc: GoogleVpc,
+  proxySubnet?: any,
 ) {
   if (config.loadBalancerType === "GLOBAL") {
     return createGlobalLb(scope, provider, config);
   }
 
-  return createRegionalLb(scope, provider, config, vpc);
+  return createRegionalLb(scope, provider, config, vpc, proxySubnet);
 }
 
 /* =====================================================
@@ -204,6 +202,7 @@ function createRegionalLb(
   provider: GoogleProvider,
   config: GcpLbConfig,
   vpc: GoogleVpc,
+  proxySubnet?: any,
 ) {
   if (!config.region) {
     throw new Error("Regional LB requires region");
@@ -218,24 +217,6 @@ function createRegionalLb(
         region: config.region,
       })
     : undefined;
-
-  /* --  Proxy Subnet -- */
-  const proxySubnetId = `proxy-subnet-${config.region}`;
-  let proxySubnet = scope.node.tryFindChild(proxySubnetId) as
-    | ComputeSubnetwork
-    | undefined;
-
-  if (!proxySubnet) {
-    proxySubnet = new ComputeSubnetwork(scope, proxySubnetId, {
-      provider,
-      name: `${config.name}-proxy-subnet`,
-      network: vpc.name,
-      ipCidrRange: config.proxyCidr,
-      region: config.region,
-      purpose: "REGIONAL_MANAGED_PROXY",
-      role: "ACTIVE",
-    });
-  }
 
   /* ---------- Backend ---------- */
 
@@ -302,7 +283,8 @@ function createRegionalLb(
       region: config.region,
       networkTier: "PREMIUM",
       loadBalancingScheme: "EXTERNAL_MANAGED",
-      network: vpc.name,
+      network: vpc.id,
+      subnetwork: proxySubnet?.id,
     });
   } else {
     const proxy = new ComputeRegionTargetHttpProxy(

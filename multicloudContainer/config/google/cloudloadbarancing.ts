@@ -73,7 +73,6 @@ export const gcpLbConfigs = [
     loadBalancerType: "REGIONAL",
     region: "asia-northeast1",
     subnetworkName: "vpc-asia-northeast1",
-    proxyCidr: "10.150.0.0/23",
     reserveStaticIp: true,
     protocol: "HTTP",
     port: 80,

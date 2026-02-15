@@ -12,6 +12,13 @@ export const googleVpcResourcesparams = {
   },
 
   subnets: subnets,
+  proxySubnets: [
+    {
+      name: "proxy-subnet",
+      cidr: "10.1.30.0/24",
+      region: "asia-northeast1",
+    },
+  ],
 
   firewallIngressRules: firewallIngressRules,
   firewallEgressRules: firewallEgressRules,
