@@ -1,10 +1,10 @@
-import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
-import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
-import { ComputeGlobalAddress } from "@cdktf/provider-google/lib/compute-global-address";
-import { ComputeNetworkPeeringRoutesConfig } from "@cdktf/provider-google/lib/compute-network-peering-routes-config";
-import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
-import { ServiceNetworkingConnection } from "@cdktf/provider-google/lib/service-networking-connection";
-import { TerraformOutput } from "cdktf";
+import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
+import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
+import { ComputeGlobalAddress } from "@cdktn/provider-google/lib/compute-global-address";
+import { ComputeNetworkPeeringRoutesConfig } from "@cdktn/provider-google/lib/compute-network-peering-routes-config";
+import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
+import { ServiceNetworkingConnection } from "@cdktn/provider-google/lib/service-networking-connection";
+import { TerraformOutput } from "cdktn";
 import { Construct } from "constructs";
 import { auroraConfigs, rdsConfigs } from "../config/aws/aurorards/aurorards";
 import { azureDatabaseConfig } from "../config/azure/azuredatabase/databases";
@@ -14,7 +14,7 @@ import {
   googleToAzure,
 } from "../config/commonsettings";
 import { cloudSqlConfig } from "../config/google/cloudsql/cloudsql";
-import { createSharedPrivateDnsZones } from "../constructs/privatezone/azureprivatezone";
+import { createSharedPrivateDnsZones } from "../constructs/dns/privatezone/azureprivatezone";
 import {
   AwsRelationalDatabaseConfig,
   createAwsRelationalDatabases,
@@ -41,12 +41,12 @@ const createSecretArnOutput = (
   scope: Construct,
   config: AwsRelationalDatabaseConfig,
   dbOutput: any,
-  index: number
+  index: number,
 ): void => {
   // Skip output creation if suppressSecretOutput flag is set (for migration scenarios)
   if (config.suppressSecretOutput) {
     console.log(
-      `Skipping secret ARN output for ${config.identifier}: suppressSecretOutput enabled for migration`
+      `Skipping secret ARN output for ${config.identifier}: suppressSecretOutput enabled for migration`,
     );
     return;
   }
@@ -54,7 +54,7 @@ const createSecretArnOutput = (
   // Only create outputs if manageMasterUserPassword is true
   if (!config.manageMasterUserPassword) {
     console.log(
-      `Skipping secret ARN output for ${config.identifier}: manageMasterUserPassword is false`
+      `Skipping secret ARN output for ${config.identifier}: manageMasterUserPassword is false`,
     );
     return;
   }
@@ -72,11 +72,11 @@ const createSecretArnOutput = (
           {
             value: secretProperty,
             description: `Master user secret for Aurora cluster: ${config.identifier}`,
-          }
+          },
         );
       } else {
         console.log(
-          `Aurora cluster ${config.identifier}: masterUserSecret not available yet (transition in progress)`
+          `Aurora cluster ${config.identifier}: masterUserSecret not available yet (transition in progress)`,
         );
       }
     } else if (dbOutput.dbInstance) {
@@ -89,14 +89,14 @@ const createSecretArnOutput = (
         });
       } else {
         console.log(
-          `RDS instance ${config.identifier}: masterUserSecret not available yet (transition in progress)`
+          `RDS instance ${config.identifier}: masterUserSecret not available yet (transition in progress)`,
         );
       }
     }
   } catch (error) {
     console.warn(
       `Warning: Could not create secret ARN output for ${config.identifier}:`,
-      error
+      error,
     );
   }
 };
@@ -144,7 +144,7 @@ export const createDatabaseResources = (
   azurermProvider?: AzurermProvider,
   awsVpcResources?: AwsVpcResources,
   googleVpcResources?: GoogleVpcResources,
-  azureVnetResources?: AzureVnetResources
+  azureVnetResources?: AzureVnetResources,
 ): DatabaseResourcesOutput | undefined => {
   const googleCloudSqlConnectionNames: {
     [instanceName: string]: string;
@@ -179,11 +179,11 @@ export const createDatabaseResources = (
       awsProvider,
       {
         databaseConfigs: combinedAwsDatabaseConfigs.filter(
-          (config) => config.build
+          (config) => config.build,
         ),
         subnets: awsVpcResources.subnetsByName,
         securityGroups: awsVpcResources.securityGroupMapping,
-      }
+      },
     );
 
     // Collect DB resources for CNAME records
@@ -252,7 +252,7 @@ export const createDatabaseResources = (
         address: cloudSqlConfig.googleManagedServicesVpcAddress,
         prefixLength: cloudSqlConfig.prefixLength,
         network: googleVpcResources.vpc.id,
-      }
+      },
     );
 
     const serviceNetworkingConnection = new ServiceNetworkingConnection(
@@ -269,7 +269,7 @@ export const createDatabaseResources = (
           googleVpcResources.vpc,
           ...googleVpcResources.subnets,
         ],
-      }
+      },
     );
 
     // Enable custom route export for VPC peering
@@ -284,7 +284,7 @@ export const createDatabaseResources = (
         exportCustomRoutes: true,
         importCustomRoutes: true,
         dependsOn: [serviceNetworkingConnection],
-      }
+      },
     );
 
     // Create CloudSQL instances in a loop and handle build flags
@@ -302,7 +302,7 @@ export const createDatabaseResources = (
           config,
           googleVpcResources.vpc,
           serviceNetworkingConnection,
-          instanceConfig.name // Use instance name to prevent duplicate construct IDs
+          instanceConfig.name, // Use instance name to prevent duplicate construct IDs
         );
       });
 
@@ -313,7 +313,7 @@ export const createDatabaseResources = (
 
       // Get the corresponding instance configuration to access aRecordName
       const instanceConfig = cloudSqlConfig.instances.filter(
-        (config) => config.build
+        (config) => config.build,
       )[index];
 
       // Collect Cloud SQL instance data with private IP and aRecordName for DNS A records
@@ -335,7 +335,7 @@ export const createDatabaseResources = (
       !("id" in azureVnetResources.vnet)
     ) {
       console.warn(
-        "Azure VNet is not properly initialized for database creation"
+        "Azure VNet is not properly initialized for database creation",
       );
       return {
         googleCloudSqlConnectionNames: googleCloudSqlConnectionNames,
@@ -346,7 +346,7 @@ export const createDatabaseResources = (
     const databaseTypes = new Set<"mysql" | "postgresql">(
       azureDatabaseConfig.databases
         .filter((config) => config.build)
-        .map((config) => config.type)
+        .map((config) => config.type),
     );
 
     // Create shared Private DNS Zones for all database types before database creation
@@ -355,7 +355,7 @@ export const createDatabaseResources = (
       azurermProvider,
       azureDatabaseConfig.resourceGroupName,
       azureVnetResources.vnet as any,
-      databaseTypes
+      databaseTypes,
     );
 
     // Create Azure Databases using the new construct function
@@ -364,7 +364,7 @@ export const createDatabaseResources = (
       resourceGroupName: azureDatabaseConfig.resourceGroupName,
       location: azureDatabaseConfig.location,
       databaseConfigs: azureDatabaseConfig.databases.filter(
-        (config) => config.build
+        (config) => config.build,
       ),
       virtualNetwork: azureVnetResources.vnet as any, // Type assertion needed due to interface union
       subnets: azureVnetResources.subnets as any, // Pass all subnets as a map

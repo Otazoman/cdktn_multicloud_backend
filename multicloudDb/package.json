@@ -20,10 +20,10 @@
     "node": ">=18.0"
   },
   "dependencies": {
-    "@cdktf/provider-aws": "^21.22.1",
-    "@cdktf/provider-azurerm": "^14.23.1",
-    "@cdktf/provider-google": "^16.12.1",
-    "@cdktf/provider-null": "^11.0.1",
+    "@cdktn/provider-aws": "^21.22.1",
+    "@cdktn/provider-azurerm": "^14.23.1",
+    "@cdktn/provider-google": "^16.12.1",
+    "@cdktn/provider-null": "^11.0.1",
     "cdktf": "^0.21.0",
     "cdktf-cli": "^0.21.0",
     "constructs": "^10.4.2",

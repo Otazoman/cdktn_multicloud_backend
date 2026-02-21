@@ -12,6 +12,11 @@ export const azureAppGwConfigs = [
       tier: "Standard_v2",
       capacity: 1,
     },
+    // DNS configuration
+    dnsConfig: {
+      subdomain: "azuretest.tohonokai.com",
+      fqdn: "api.azuretest.tohonokai.com", // Optional: specific FQDN for this App Gateway
+    },
     listeners: [
       {
         name: "http-basic",

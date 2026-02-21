@@ -1,5 +1,5 @@
-import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
-import { VpnConnectionRoute } from "@cdktf/provider-aws/lib/vpn-connection-route";
+import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
+import { VpnConnectionRoute } from "@cdktn/provider-aws/lib/vpn-connection-route";
 import { Construct } from "constructs";
 
 interface RouteConfig {

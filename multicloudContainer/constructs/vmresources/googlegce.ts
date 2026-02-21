@@ -1,7 +1,7 @@
-import { ComputeInstance } from "@cdktf/provider-google/lib/compute-instance";
-import { ComputeNetwork as GoogleVpc } from "@cdktf/provider-google/lib/compute-network";
-import { ComputeSubnetwork } from "@cdktf/provider-google/lib/compute-subnetwork";
-import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
+import { ComputeInstance } from "@cdktn/provider-google/lib/compute-instance";
+import { ComputeNetwork as GoogleVpc } from "@cdktn/provider-google/lib/compute-network";
+import { ComputeSubnetwork } from "@cdktn/provider-google/lib/compute-subnetwork";
+import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
 import { Construct } from "constructs";
 import * as fs from "fs";
 import * as path from "path";

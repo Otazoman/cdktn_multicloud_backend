@@ -1,8 +1,8 @@
-import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
-import { PublicIp } from "@cdktf/provider-azurerm/lib/public-ip";
-import { RouteServer } from "@cdktf/provider-azurerm/lib/route-server";
-import { RouteServerBgpConnection } from "@cdktf/provider-azurerm/lib/route-server-bgp-connection";
-import { Subnet } from "@cdktf/provider-azurerm/lib/subnet";
+import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
+import { PublicIp } from "@cdktn/provider-azurerm/lib/public-ip";
+import { RouteServer } from "@cdktn/provider-azurerm/lib/route-server";
+import { RouteServerBgpConnection } from "@cdktn/provider-azurerm/lib/route-server-bgp-connection";
+import { Subnet } from "@cdktn/provider-azurerm/lib/subnet";
 import { Construct } from "constructs";
 
 interface AzureRouteServerParams {

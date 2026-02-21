@@ -1,9 +1,9 @@
-import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
-import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
-import { ComputeGlobalAddress } from "@cdktf/provider-google/lib/compute-global-address";
-import { ComputeNetworkPeeringRoutesConfig } from "@cdktf/provider-google/lib/compute-network-peering-routes-config";
-import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
-import { ServiceNetworkingConnection } from "@cdktf/provider-google/lib/service-networking-connection";
+import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
+import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
+import { ComputeGlobalAddress } from "@cdktn/provider-google/lib/compute-global-address";
+import { ComputeNetworkPeeringRoutesConfig } from "@cdktn/provider-google/lib/compute-network-peering-routes-config";
+import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
+import { ServiceNetworkingConnection } from "@cdktn/provider-google/lib/service-networking-connection";
 import { TerraformOutput } from "cdktf";
 import { Construct } from "constructs";
 import { auroraConfigs, rdsConfigs } from "../config/aws/aurorards/aurorards";

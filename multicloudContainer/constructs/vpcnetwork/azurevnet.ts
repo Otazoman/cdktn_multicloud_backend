@@ -1,14 +1,14 @@
-import { BastionHost } from "@cdktf/provider-azurerm/lib/bastion-host";
-import { NatGateway } from "@cdktf/provider-azurerm/lib/nat-gateway";
-import { NatGatewayPublicIpAssociation } from "@cdktf/provider-azurerm/lib/nat-gateway-public-ip-association";
-import { NetworkSecurityGroup } from "@cdktf/provider-azurerm/lib/network-security-group";
-import { NetworkSecurityRule } from "@cdktf/provider-azurerm/lib/network-security-rule";
-import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
-import { PublicIp } from "@cdktf/provider-azurerm/lib/public-ip";
-import { Subnet } from "@cdktf/provider-azurerm/lib/subnet";
-import { SubnetNatGatewayAssociation } from "@cdktf/provider-azurerm/lib/subnet-nat-gateway-association";
-import { SubnetNetworkSecurityGroupAssociation } from "@cdktf/provider-azurerm/lib/subnet-network-security-group-association";
-import { VirtualNetwork } from "@cdktf/provider-azurerm/lib/virtual-network";
+import { BastionHost } from "@cdktn/provider-azurerm/lib/bastion-host";
+import { NatGateway } from "@cdktn/provider-azurerm/lib/nat-gateway";
+import { NatGatewayPublicIpAssociation } from "@cdktn/provider-azurerm/lib/nat-gateway-public-ip-association";
+import { NetworkSecurityGroup } from "@cdktn/provider-azurerm/lib/network-security-group";
+import { NetworkSecurityRule } from "@cdktn/provider-azurerm/lib/network-security-rule";
+import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
+import { PublicIp } from "@cdktn/provider-azurerm/lib/public-ip";
+import { Subnet } from "@cdktn/provider-azurerm/lib/subnet";
+import { SubnetNatGatewayAssociation } from "@cdktn/provider-azurerm/lib/subnet-nat-gateway-association";
+import { SubnetNetworkSecurityGroupAssociation } from "@cdktn/provider-azurerm/lib/subnet-network-security-group-association";
+import { VirtualNetwork } from "@cdktn/provider-azurerm/lib/virtual-network";
 import { Construct } from "constructs";
 
 // --- Interface Definitions ---

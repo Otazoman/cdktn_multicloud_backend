@@ -1,9 +1,9 @@
-import { MysqlFlexibleDatabase } from "@cdktf/provider-azurerm/lib/mysql-flexible-database";
-import { MysqlFlexibleServer } from "@cdktf/provider-azurerm/lib/mysql-flexible-server";
-import { PostgresqlFlexibleServer } from "@cdktf/provider-azurerm/lib/postgresql-flexible-server";
-import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
-import { Subnet } from "@cdktf/provider-azurerm/lib/subnet";
-import { VirtualNetwork } from "@cdktf/provider-azurerm/lib/virtual-network";
+import { MysqlFlexibleDatabase } from "@cdktn/provider-azurerm/lib/mysql-flexible-database";
+import { MysqlFlexibleServer } from "@cdktn/provider-azurerm/lib/mysql-flexible-server";
+import { PostgresqlFlexibleServer } from "@cdktn/provider-azurerm/lib/postgresql-flexible-server";
+import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
+import { Subnet } from "@cdktn/provider-azurerm/lib/subnet";
+import { VirtualNetwork } from "@cdktn/provider-azurerm/lib/virtual-network";
 import { Construct } from "constructs";
 
 export type AzureDatabaseType = "mysql" | "postgresql";

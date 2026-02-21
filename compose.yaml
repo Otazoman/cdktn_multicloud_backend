@@ -1,5 +1,5 @@
 services:
-  cdktf-backend:
+  cdktn-backend:
     build:
       context: .
       args:

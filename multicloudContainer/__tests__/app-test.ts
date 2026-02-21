@@ -1,10 +1,10 @@
 // Copyright (c) HashiCorp, Inc
 // SPDX-License-Identifier: MPL-2.0
-import { App, Testing } from "cdktf";
-import "cdktf/lib/testing/adapters/jest";
+import { App, Testing } from "cdktn";
+import "cdktn/lib/testing/adapters/jest";
 import { MultiCloudBackendStack } from "../stacks/MultiCloudBackendStack";
 
-describe("MultiCloudVpnStack", () => {
+describe("MultiCloudBackendStack", () => {
   let app: App;
   let stack: MultiCloudBackendStack;
 

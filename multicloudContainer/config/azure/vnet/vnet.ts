@@ -7,7 +7,7 @@ export const azureVnetResourcesparams = {
   resourceGroupName: RESOURCE_GROUP,
   location: LOCATION,
   vnetName: VNET_NAME,
-  isEnabled: false,
+  isEnabled: true,
   vnetAddressSpace: "10.2.0.0/16",
   vnetTags: {
     Project: "MultiCloud",

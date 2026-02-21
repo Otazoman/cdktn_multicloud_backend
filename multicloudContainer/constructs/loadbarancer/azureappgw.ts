@@ -1,7 +1,7 @@
-import { ApplicationGateway } from "@cdktf/provider-azurerm/lib/application-gateway";
-import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
-import { PublicIp } from "@cdktf/provider-azurerm/lib/public-ip";
-import { WebApplicationFirewallPolicy } from "@cdktf/provider-azurerm/lib/web-application-firewall-policy";
+import { ApplicationGateway } from "@cdktn/provider-azurerm/lib/application-gateway";
+import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
+import { PublicIp } from "@cdktn/provider-azurerm/lib/public-ip";
+import { WebApplicationFirewallPolicy } from "@cdktn/provider-azurerm/lib/web-application-firewall-policy";
 import { Construct } from "constructs";
 import * as fs from "fs";
 

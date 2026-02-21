@@ -1,7 +1,7 @@
-import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
-import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
-import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
-import { Token } from "cdktf";
+import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
+import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
+import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
+import { Token } from "cdktn";
 import { Construct } from "constructs";
 import { albConfigs } from "../config/aws/awssettings";
 import { azureAppGwConfigs } from "../config/azure/applicationgateway";
@@ -11,16 +11,20 @@ import {
   googleToAzure,
 } from "../config/commonsettings";
 import { gcpLbConfigs } from "../config/google/googlesettings";
+import { createAwsCertificateWithDnsValidation } from "../constructs/certificates/awsacm";
+import { createGoogleManagedCertificate } from "../constructs/certificates/googlemanegedssl";
 import { createAwsAlbResources } from "../constructs/loadbarancer/awsalb";
 import { createAzureAppGwResources } from "../constructs/loadbarancer/azureappgw";
 import { createGoogleLbResources } from "../constructs/loadbarancer/googlelb";
 import {
-  AwsAlbResources,
+  AwsAlbResourcesWithDns,
   AwsVpcResources,
-  AzureAppGwResources,
+  AzureAppGwResourcesWithDns,
   AzureVnetResources,
-  GoogleLbResourcesOutput,
+  GoogleLbResourcesWithDns,
   GoogleVpcResources,
+  LbResourcesOutputWithDns,
+  LoadBalancerDnsInfo,
 } from "./interfaces";
 
 export const createLbResources = (
@@ -31,13 +35,10 @@ export const createLbResources = (
   awsVpcResources?: AwsVpcResources,
   googleVpcResources?: GoogleVpcResources,
   azureVnetResources?: AzureVnetResources,
-): {
-  awsAlbs?: AwsAlbResources[];
-  googleLbs?: GoogleLbResourcesOutput[];
-  azureAppGws?: AzureAppGwResources[];
-} => {
-  let awsAlbs: AwsAlbResources[] | undefined;
-  let googleLbs: GoogleLbResourcesOutput[] | undefined;
+): LbResourcesOutputWithDns => {
+  let awsAlbs: AwsAlbResourcesWithDns[] | undefined;
+  let googleLbs: GoogleLbResourcesWithDns[] | undefined;
+  let azureAppGws: AzureAppGwResourcesWithDns[] | undefined;
 
   // --- AWS Load Balancer (ALB) ---
   if ((awsToAzure || awsToGoogle) && awsVpcResources && albConfigs) {
@@ -60,11 +61,36 @@ export const createLbResources = (
     awsAlbs = albConfigs
       .filter((config) => config.build)
       .map((config) => {
+        let certificateArn: string | undefined;
+
+        // Create ACM certificate if enabled
+        if (config.certificateConfig && config.certificateConfig.enabled) {
+          const certResult = createAwsCertificateWithDnsValidation(
+            scope,
+            awsProvider,
+            {
+              name: `${config.name}-cert`,
+              domainName: config.certificateConfig.domains[0],
+              zoneName: config.certificateConfig.validationZone,
+              subjectAlternativeNames:
+                config.certificateConfig.domains.slice(1),
+            },
+          );
+
+          certificateArn = certResult.certificateArn;
+        }
+
+        // Create ALB with certificate
         const albResources = createAwsAlbResources(
           scope,
           awsProvider,
           {
             ...config,
+            listenerConfig: {
+              ...config.listenerConfig,
+              certificateArn:
+                certificateArn || (config.listenerConfig as any).certificateArn,
+            },
             securityGroupIds: config.securityGroupNames.map((name) =>
               getAwsSecurityGroupId(name),
             ),
@@ -78,7 +104,18 @@ export const createLbResources = (
           tg.node.addDependency(awsVpcResources);
         });
 
-        return albResources;
+        // Prepare DNS info
+        const dnsInfo: LoadBalancerDnsInfo = {
+          subdomain: config.dnsConfig?.subdomain || "",
+          fqdn: config.dnsConfig?.fqdn,
+          dnsName: albResources.alb.dnsName,
+        };
+
+        return {
+          ...albResources,
+          dnsInfo,
+          certificateArn,
+        };
       });
   }
 
@@ -90,6 +127,27 @@ export const createLbResources = (
     gcpLbConfigs
       .filter((config) => config.build)
       .forEach((config) => {
+        // Handle managed SSL certificates for HTTPS load balancers
+        let sslCertificateNames: string[] = [];
+
+        if (
+          config.managedSsl &&
+          config.managedSsl.domains &&
+          config.managedSsl.domains.length > 0
+        ) {
+          const certRes = createGoogleManagedCertificate(
+            scope,
+            googleProvider,
+            {
+              name: `${config.name}-cert`,
+              domains: config.managedSsl.domains,
+              project: config.project,
+            },
+          );
+
+          sslCertificateNames.push(certRes.certificateName);
+        }
+
         let targetProxySubnet: any = undefined;
         if (
           config.loadBalancerType === "REGIONAL" &&
@@ -104,7 +162,10 @@ export const createLbResources = (
         const lb = createGoogleLbResources(
           scope,
           googleProvider,
-          config as any,
+          {
+            ...config,
+            sslCertificateNames: sslCertificateNames,
+          } as any,
           googleVpcResources.vpc,
           targetProxySubnet,
         );
@@ -120,6 +181,16 @@ export const createLbResources = (
         Object.values(lb.backendServices).forEach((be) => {
           be.node.addDependency(googleVpcResources.vpc);
         });
+
+        // Add DNS info to the LB resource
+        if (config.dnsConfig) {
+          const dnsInfo: LoadBalancerDnsInfo = {
+            subdomain: config.dnsConfig.subdomain,
+            fqdn: config.dnsConfig.fqdn,
+          };
+          (lb as any).dnsInfo = dnsInfo;
+        }
+
         if ("region" in config && config.region) {
           regionalLbs.push(lb);
         } else {
@@ -136,7 +207,6 @@ export const createLbResources = (
   }
 
   // --- Azure Application Gateway ---
-  let azureAppGws: any[] = [];
   if (azureVnetResources && azureAppGwConfigs) {
     azureAppGws = azureAppGwConfigs
       .filter((config) => config.build)
@@ -153,10 +223,20 @@ export const createLbResources = (
         } as any);
 
         resources.appGw.node.addDependency(azureVnetResources.subnets);
-        return resources;
+
+        // Prepare DNS info
+        const dnsInfo: LoadBalancerDnsInfo = {
+          subdomain: config.dnsConfig?.subdomain || "",
+          fqdn: config.dnsConfig?.fqdn,
+        };
+
+        return {
+          ...resources,
+          dnsInfo,
+        };
       });
   }
 
-  // Return the created resources so other functions can use them (e.g., for ECS/GKE service registration)
+  // Return the created resources with DNS information
   return { awsAlbs, googleLbs, azureAppGws };
 };

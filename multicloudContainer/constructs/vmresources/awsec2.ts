@@ -1,5 +1,5 @@
-import { Instance } from "@cdktf/provider-aws/lib/instance";
-import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
+import { Instance } from "@cdktn/provider-aws/lib/instance";
+import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
 import { Construct } from "constructs";
 import * as fs from "fs";
 import { Base64 } from "js-base64";

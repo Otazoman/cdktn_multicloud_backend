@@ -1,9 +1,9 @@
-import { ComputeNetwork as GoogleVpc } from "@cdktf/provider-google/lib/compute-network";
-import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
-import { ServiceNetworkingConnection } from "@cdktf/provider-google/lib/service-networking-connection";
-import { SqlDatabase } from "@cdktf/provider-google/lib/sql-database";
-import { SqlDatabaseInstance } from "@cdktf/provider-google/lib/sql-database-instance";
-import { SqlUser } from "@cdktf/provider-google/lib/sql-user";
+import { ComputeNetwork as GoogleVpc } from "@cdktn/provider-google/lib/compute-network";
+import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
+import { ServiceNetworkingConnection } from "@cdktn/provider-google/lib/service-networking-connection";
+import { SqlDatabase } from "@cdktn/provider-google/lib/sql-database";
+import { SqlDatabaseInstance } from "@cdktn/provider-google/lib/sql-database-instance";
+import { SqlUser } from "@cdktn/provider-google/lib/sql-user";
 import { Construct } from "constructs";
 import * as path from "path";
 

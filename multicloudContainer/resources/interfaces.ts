@@ -1,26 +1,26 @@
-import { Ec2InstanceConnectEndpoint } from "@cdktf/provider-aws/lib/ec2-instance-connect-endpoint";
-import { Lb } from "@cdktf/provider-aws/lib/lb";
-import { LbListener } from "@cdktf/provider-aws/lib/lb-listener";
-import { LbTargetGroup } from "@cdktf/provider-aws/lib/lb-target-group";
-import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
-import { Vpc as AwsVpc } from "@cdktf/provider-aws/lib/vpc";
-import { ApplicationGateway } from "@cdktf/provider-azurerm/lib/application-gateway";
-import { NetworkSecurityGroup } from "@cdktf/provider-azurerm/lib/network-security-group";
-import { NetworkSecurityRule } from "@cdktf/provider-azurerm/lib/network-security-rule";
-import { PublicIp } from "@cdktf/provider-azurerm/lib/public-ip";
-import { Subnet as AzureSubnet } from "@cdktf/provider-azurerm/lib/subnet";
-import { SubnetNetworkSecurityGroupAssociation } from "@cdktf/provider-azurerm/lib/subnet-network-security-group-association";
-import { VirtualNetwork } from "@cdktf/provider-azurerm/lib/virtual-network";
-import { ComputeAddress } from "@cdktf/provider-google/lib/compute-address";
-import { ComputeBackendService } from "@cdktf/provider-google/lib/compute-backend-service";
-import { ComputeFirewall } from "@cdktf/provider-google/lib/compute-firewall";
-import { ComputeForwardingRule } from "@cdktf/provider-google/lib/compute-forwarding-rule";
-import { ComputeGlobalAddress } from "@cdktf/provider-google/lib/compute-global-address";
-import { ComputeGlobalForwardingRule } from "@cdktf/provider-google/lib/compute-global-forwarding-rule";
-import { ComputeNetwork as GoogleVpc } from "@cdktf/provider-google/lib/compute-network";
-import { ComputeRegionUrlMap } from "@cdktf/provider-google/lib/compute-region-url-map";
-import { ComputeSubnetwork } from "@cdktf/provider-google/lib/compute-subnetwork";
-import { ComputeUrlMap } from "@cdktf/provider-google/lib/compute-url-map";
+import { Ec2InstanceConnectEndpoint } from "@cdktn/provider-aws/lib/ec2-instance-connect-endpoint";
+import { Lb } from "@cdktn/provider-aws/lib/lb";
+import { LbListener } from "@cdktn/provider-aws/lib/lb-listener";
+import { LbTargetGroup } from "@cdktn/provider-aws/lib/lb-target-group";
+import { SecurityGroup } from "@cdktn/provider-aws/lib/security-group";
+import { Vpc as AwsVpc } from "@cdktn/provider-aws/lib/vpc";
+import { ApplicationGateway } from "@cdktn/provider-azurerm/lib/application-gateway";
+import { NetworkSecurityGroup } from "@cdktn/provider-azurerm/lib/network-security-group";
+import { NetworkSecurityRule } from "@cdktn/provider-azurerm/lib/network-security-rule";
+import { PublicIp } from "@cdktn/provider-azurerm/lib/public-ip";
+import { Subnet as AzureSubnet } from "@cdktn/provider-azurerm/lib/subnet";
+import { SubnetNetworkSecurityGroupAssociation } from "@cdktn/provider-azurerm/lib/subnet-network-security-group-association";
+import { VirtualNetwork } from "@cdktn/provider-azurerm/lib/virtual-network";
+import { ComputeAddress } from "@cdktn/provider-google/lib/compute-address";
+import { ComputeBackendService } from "@cdktn/provider-google/lib/compute-backend-service";
+import { ComputeFirewall } from "@cdktn/provider-google/lib/compute-firewall";
+import { ComputeForwardingRule } from "@cdktn/provider-google/lib/compute-forwarding-rule";
+import { ComputeGlobalAddress } from "@cdktn/provider-google/lib/compute-global-address";
+import { ComputeGlobalForwardingRule } from "@cdktn/provider-google/lib/compute-global-forwarding-rule";
+import { ComputeNetwork as GoogleVpc } from "@cdktn/provider-google/lib/compute-network";
+import { ComputeRegionUrlMap } from "@cdktn/provider-google/lib/compute-region-url-map";
+import { ComputeSubnetwork } from "@cdktn/provider-google/lib/compute-subnetwork";
+import { ComputeUrlMap } from "@cdktn/provider-google/lib/compute-url-map";
 import { Token } from "cdktf";
 
 // AWS VPC resources interface
@@ -192,6 +192,7 @@ export interface GoogleGlobalLbResources {
   backendServices: Record<string, ComputeBackendService>;
   urlMap: ComputeUrlMap;
   staticIp?: ComputeGlobalAddress;
+  dnsInfo?: LoadBalancerDnsInfo; // DNS information for this LB
 }
 
 export interface GoogleRegionalLbResources {
@@ -199,6 +200,7 @@ export interface GoogleRegionalLbResources {
   backendServices: Record<string, ComputeBackendService>;
   urlMap: ComputeRegionUrlMap;
   staticIp?: ComputeAddress;
+  dnsInfo?: LoadBalancerDnsInfo; // DNS information for this LB
 }
 
 export interface GoogleLbResourcesOutput {
@@ -216,4 +218,69 @@ export interface LbResourcesOutput {
 export interface AzureAppGwResources {
   appGw: ApplicationGateway;
   publicIp: PublicIp;
+}
+
+// ========================================
+// DNS and Certificate Configuration
+// ========================================
+
+// DNS configuration for load balancers
+export interface DnsConfig {
+  subdomain: string; // e.g., "awstest.tohonokai.com"
+  fqdn?: string; // Optional specific FQDN for this LB, e.g., "api.awstest.tohonokai.com"
+}
+
+// AWS Certificate configuration
+export interface AwsCertificateConfig {
+  enabled: boolean;
+  domains: string[]; // e.g., ["*.awstest.tohonokai.com", "awstest.tohonokai.com"]
+  validationZone: string; // Zone name for DNS validation
+}
+
+// Google Managed SSL configuration
+export interface GoogleManagedSslConfig {
+  enabled: boolean;
+  domains: string[]; // e.g., ["*.googletest.tohonokai.com", "googletest.tohonokai.com"]
+  sslCertificateNames?: string[]; // Optional: existing certificate names to include
+}
+
+// DNS information output from load balancer creation
+export interface LoadBalancerDnsInfo {
+  subdomain: string;
+  fqdn?: string;
+  ipAddress?: string; // For Google and Azure
+  dnsName?: string; // For AWS ALB
+  zoneId?: string; // Public zone ID if created
+  nsRecords?: string[]; // NS records for delegation
+}
+
+// Extended AWS ALB resources with DNS info
+export interface AwsAlbResourcesWithDns extends AwsAlbResources {
+  dnsInfo: LoadBalancerDnsInfo;
+  certificateArn?: string; // ARN of the created certificate
+}
+
+// Extended Google LB resources with DNS info
+export interface GoogleLbResourcesWithDns {
+  global?: GoogleGlobalLbResources[];
+  regional?: GoogleRegionalLbResources[];
+}
+
+// Extended Azure App Gateway resources with DNS info
+export interface AzureAppGwResourcesWithDns extends AzureAppGwResources {
+  dnsInfo: LoadBalancerDnsInfo;
+}
+
+// Load balancer resources with DNS information
+export interface LbResourcesOutputWithDns {
+  awsAlbs?: AwsAlbResourcesWithDns[];
+  googleLbs?: GoogleLbResourcesWithDns[];
+  azureAppGws?: AzureAppGwResourcesWithDns[];
+}
+
+// Public DNS Zone resources
+export interface PublicDnsZoneResources {
+  awsZones?: Record<string, any>; // Route53 zones
+  googleZones?: Record<string, any>; // Cloud DNS zones
+  azureZones?: Record<string, any>; // Azure DNS zones
 }

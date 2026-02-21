@@ -1,9 +1,9 @@
-import { ComputeAddress } from "@cdktf/provider-google/lib/compute-address";
-import { ComputeForwardingRule } from "@cdktf/provider-google/lib/compute-forwarding-rule";
-import { ComputeHaVpnGateway } from "@cdktf/provider-google/lib/compute-ha-vpn-gateway";
-import { ComputeRouter } from "@cdktf/provider-google/lib/compute-router";
-import { ComputeVpnGateway } from "@cdktf/provider-google/lib/compute-vpn-gateway";
-import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
+import { ComputeAddress } from "@cdktn/provider-google/lib/compute-address";
+import { ComputeForwardingRule } from "@cdktn/provider-google/lib/compute-forwarding-rule";
+import { ComputeHaVpnGateway } from "@cdktn/provider-google/lib/compute-ha-vpn-gateway";
+import { ComputeRouter } from "@cdktn/provider-google/lib/compute-router";
+import { ComputeVpnGateway } from "@cdktn/provider-google/lib/compute-vpn-gateway";
+import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
 import { Construct } from "constructs";
 
 interface GoogleVpnParams {

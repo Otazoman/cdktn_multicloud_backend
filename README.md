@@ -35,10 +35,10 @@ docker compose exec cdktf-backend bash
 
 ```
 cdktf init --template=typescript --local
-npm install @cdktf/provider-aws@latest
-npm install @cdktf/provider-google@latest
-npm install @cdktf/provider-azurerm@latest
-npm install @cdktf/provider-tls@latest
+npm install @cdktn/provider-aws@latest
+npm install @cdktn/provider-google@latest
+npm install @cdktn/provider-azurerm@latest
+npm install @cdktn/provider-tls@latest
 ```
 
 ## When you want to run a minute that has already been created

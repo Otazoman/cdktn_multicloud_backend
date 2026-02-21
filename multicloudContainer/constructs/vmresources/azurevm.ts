@@ -1,6 +1,6 @@
-import { LinuxVirtualMachine } from "@cdktf/provider-azurerm/lib/linux-virtual-machine";
-import { NetworkInterface } from "@cdktf/provider-azurerm/lib/network-interface";
-import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
+import { LinuxVirtualMachine } from "@cdktn/provider-azurerm/lib/linux-virtual-machine";
+import { NetworkInterface } from "@cdktn/provider-azurerm/lib/network-interface";
+import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
 import { Construct } from "constructs";
 import * as fs from "fs";
 

@@ -1,7 +1,7 @@
-import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
-import { VpnGateway } from "@cdktf/provider-aws/lib/vpn-gateway";
-import { VpnGatewayRoutePropagation } from "@cdktf/provider-aws/lib/vpn-gateway-route-propagation";
-import { NullProvider } from "@cdktf/provider-null/lib/provider";
+import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
+import { VpnGateway } from "@cdktn/provider-aws/lib/vpn-gateway";
+import { VpnGatewayRoutePropagation } from "@cdktn/provider-aws/lib/vpn-gateway-route-propagation";
+import { NullProvider } from "@cdktn/provider-null/lib/provider";
 import { Construct } from "constructs";
 
 interface VpnGatewayParams {

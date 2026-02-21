@@ -1,9 +1,9 @@
-import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
-import { Route53Record } from "@cdktf/provider-aws/lib/route53-record";
-import { Route53ResolverEndpoint } from "@cdktf/provider-aws/lib/route53-resolver-endpoint";
-import { Route53ResolverRule } from "@cdktf/provider-aws/lib/route53-resolver-rule";
-import { Route53ResolverRuleAssociation } from "@cdktf/provider-aws/lib/route53-resolver-rule-association";
-import { Route53Zone } from "@cdktf/provider-aws/lib/route53-zone";
+import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
+import { Route53Record } from "@cdktn/provider-aws/lib/route53-record";
+import { Route53ResolverEndpoint } from "@cdktn/provider-aws/lib/route53-resolver-endpoint";
+import { Route53ResolverRule } from "@cdktn/provider-aws/lib/route53-resolver-rule";
+import { Route53ResolverRuleAssociation } from "@cdktn/provider-aws/lib/route53-resolver-rule-association";
+import { Route53Zone } from "@cdktn/provider-aws/lib/route53-zone";
 import { Construct } from "constructs";
 
 // Forwarding rule definition

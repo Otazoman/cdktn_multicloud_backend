@@ -1,8 +1,8 @@
-import { DataGoogleComputeAddresses } from "@cdktf/provider-google/lib/data-google-compute-addresses";
-import { DnsManagedZone } from "@cdktf/provider-google/lib/dns-managed-zone";
-import { DnsPolicy } from "@cdktf/provider-google/lib/dns-policy";
-import { DnsRecordSet } from "@cdktf/provider-google/lib/dns-record-set";
-import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
+import { DataGoogleComputeAddresses } from "@cdktn/provider-google/lib/data-google-compute-addresses";
+import { DnsManagedZone } from "@cdktn/provider-google/lib/dns-managed-zone";
+import { DnsPolicy } from "@cdktn/provider-google/lib/dns-policy";
+import { DnsRecordSet } from "@cdktn/provider-google/lib/dns-record-set";
+import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
 import { Construct } from "constructs";
 
 /**

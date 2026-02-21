@@ -1,14 +1,14 @@
-import { Ec2InstanceConnectEndpoint } from "@cdktf/provider-aws/lib/ec2-instance-connect-endpoint";
-import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
-import { Vpc as AwsVpc } from "@cdktf/provider-aws/lib/vpc";
-import { NetworkSecurityGroup } from "@cdktf/provider-azurerm/lib/network-security-group";
-import { NetworkSecurityRule } from "@cdktf/provider-azurerm/lib/network-security-rule";
-import { Subnet as AzureSubnet } from "@cdktf/provider-azurerm/lib/subnet";
-import { SubnetNetworkSecurityGroupAssociation } from "@cdktf/provider-azurerm/lib/subnet-network-security-group-association";
-import { VirtualNetwork } from "@cdktf/provider-azurerm/lib/virtual-network";
-import { ComputeFirewall } from "@cdktf/provider-google/lib/compute-firewall";
-import { ComputeNetwork as GoogleVpc } from "@cdktf/provider-google/lib/compute-network";
-import { ComputeSubnetwork } from "@cdktf/provider-google/lib/compute-subnetwork";
+import { Ec2InstanceConnectEndpoint } from "@cdktn/provider-aws/lib/ec2-instance-connect-endpoint";
+import { SecurityGroup } from "@cdktn/provider-aws/lib/security-group";
+import { Vpc as AwsVpc } from "@cdktn/provider-aws/lib/vpc";
+import { NetworkSecurityGroup } from "@cdktn/provider-azurerm/lib/network-security-group";
+import { NetworkSecurityRule } from "@cdktn/provider-azurerm/lib/network-security-rule";
+import { Subnet as AzureSubnet } from "@cdktn/provider-azurerm/lib/subnet";
+import { SubnetNetworkSecurityGroupAssociation } from "@cdktn/provider-azurerm/lib/subnet-network-security-group-association";
+import { VirtualNetwork } from "@cdktn/provider-azurerm/lib/virtual-network";
+import { ComputeFirewall } from "@cdktn/provider-google/lib/compute-firewall";
+import { ComputeNetwork as GoogleVpc } from "@cdktn/provider-google/lib/compute-network";
+import { ComputeSubnetwork } from "@cdktn/provider-google/lib/compute-subnetwork";
 import { Token } from "cdktf";
 
 // AWS VPC resources interface

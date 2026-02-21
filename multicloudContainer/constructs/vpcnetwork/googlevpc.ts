@@ -1,10 +1,10 @@
-import { ComputeAddress } from "@cdktf/provider-google/lib/compute-address";
-import { ComputeFirewall } from "@cdktf/provider-google/lib/compute-firewall";
-import { ComputeNetwork as GoogleVpc } from "@cdktf/provider-google/lib/compute-network";
-import { ComputeRouter } from "@cdktf/provider-google/lib/compute-router";
-import { ComputeRouterNat } from "@cdktf/provider-google/lib/compute-router-nat";
-import { ComputeSubnetwork } from "@cdktf/provider-google/lib/compute-subnetwork";
-import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
+import { ComputeAddress } from "@cdktn/provider-google/lib/compute-address";
+import { ComputeFirewall } from "@cdktn/provider-google/lib/compute-firewall";
+import { ComputeNetwork as GoogleVpc } from "@cdktn/provider-google/lib/compute-network";
+import { ComputeRouter } from "@cdktn/provider-google/lib/compute-router";
+import { ComputeRouterNat } from "@cdktn/provider-google/lib/compute-router-nat";
+import { ComputeSubnetwork } from "@cdktn/provider-google/lib/compute-subnetwork";
+import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
 import { Construct } from "constructs";
 
 interface SubnetConfig {

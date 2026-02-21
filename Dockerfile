@@ -11,21 +11,29 @@ RUN apt-get update && apt-get install -y \
     unzip \
     wget \
     gnupg \
+    jq \
     software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
 # Install CDK for Terraform globally
-RUN npm install --global cdktf-cli@latest
+RUN npm install --global cdktn-cli@latest
 
-# Install terraform
+# Install tenv
 ARG TERRAFORM_VERSION
-RUN wget https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip && \
-    unzip ./terraform_${TERRAFORM_VERSION}_linux_amd64.zip -d /usr/local/bin/ && \
-    rm ./terraform_${TERRAFORM_VERSION}_linux_amd64.zip && \
-    chmod +x /usr/local/bin/terraform
+ARG OPENTOFU_VERSION
+
+RUN LATEST_VERSION=$(curl --silent https://api.github.com/repos/tofuutils/tenv/releases/latest | jq -r .tag_name) && \
+    curl -O -L "https://github.com/tofuutils/tenv/releases/latest/download/tenv_${LATEST_VERSION}_amd64.deb" && \
+    dpkg -i "tenv_${LATEST_VERSION}_amd64.deb" || apt -f install -y
+
+RUN tenv tf install ${TERRAFORM_VERSION} && \
+    tenv tofu install ${OPENTOFU_VERSION}
+
+RUN ln -s /usr/local/bin/tenv /usr/local/bin/terraform && \
+    ln -s /usr/local/bin/tenv /usr/local/bin/tofu
 
 # Verify Terraform installation
-RUN terraform --version
+RUN cdktn --version && terraform --version && tofu --version
 
 # Set command
 CMD ["/bin/bash"]
