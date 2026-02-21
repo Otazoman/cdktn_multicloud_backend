@@ -20,11 +20,11 @@
     "node": ">=18.0"
   },
   "dependencies": {
-    "@cdktf/provider-aws": "^21.8.0",
-    "@cdktf/provider-azurerm": "^14.9.0",
-    "@cdktf/provider-google": "^16.10.0",
-    "@cdktf/provider-null": "^11.0.0",
-    "@cdktf/provider-tls": "^11.0.0",
+    "@cdktn/provider-aws": "^21.8.0",
+    "@cdktn/provider-azurerm": "^14.9.0",
+    "@cdktn/provider-google": "^16.10.0",
+    "@cdktn/provider-null": "^11.0.0",
+    "@cdktn/provider-tls": "^11.0.0",
     "cdktf": "^0.21.0",
     "cdktf-cli": "^0.21.0",
     "constructs": "^10.4.2"

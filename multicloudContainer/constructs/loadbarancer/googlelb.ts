@@ -1,19 +1,19 @@
-import { ComputeAddress } from "@cdktf/provider-google/lib/compute-address";
-import { ComputeBackendService } from "@cdktf/provider-google/lib/compute-backend-service";
-import { ComputeForwardingRule } from "@cdktf/provider-google/lib/compute-forwarding-rule";
-import { ComputeGlobalAddress } from "@cdktf/provider-google/lib/compute-global-address";
-import { ComputeGlobalForwardingRule } from "@cdktf/provider-google/lib/compute-global-forwarding-rule";
-import { ComputeHealthCheck } from "@cdktf/provider-google/lib/compute-health-check";
-import { ComputeNetwork as GoogleVpc } from "@cdktf/provider-google/lib/compute-network";
-import { ComputeRegionBackendService } from "@cdktf/provider-google/lib/compute-region-backend-service";
-import { ComputeRegionHealthCheck } from "@cdktf/provider-google/lib/compute-region-health-check";
-import { ComputeRegionTargetHttpProxy } from "@cdktf/provider-google/lib/compute-region-target-http-proxy";
-import { ComputeRegionTargetHttpsProxy } from "@cdktf/provider-google/lib/compute-region-target-https-proxy";
-import { ComputeRegionUrlMap } from "@cdktf/provider-google/lib/compute-region-url-map";
-import { ComputeTargetHttpProxy } from "@cdktf/provider-google/lib/compute-target-http-proxy";
-import { ComputeTargetHttpsProxy } from "@cdktf/provider-google/lib/compute-target-https-proxy";
-import { ComputeUrlMap } from "@cdktf/provider-google/lib/compute-url-map";
-import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
+import { ComputeAddress } from "@cdktn/provider-google/lib/compute-address";
+import { ComputeBackendService } from "@cdktn/provider-google/lib/compute-backend-service";
+import { ComputeForwardingRule } from "@cdktn/provider-google/lib/compute-forwarding-rule";
+import { ComputeGlobalAddress } from "@cdktn/provider-google/lib/compute-global-address";
+import { ComputeGlobalForwardingRule } from "@cdktn/provider-google/lib/compute-global-forwarding-rule";
+import { ComputeHealthCheck } from "@cdktn/provider-google/lib/compute-health-check";
+import { ComputeNetwork as GoogleVpc } from "@cdktn/provider-google/lib/compute-network";
+import { ComputeRegionBackendService } from "@cdktn/provider-google/lib/compute-region-backend-service";
+import { ComputeRegionHealthCheck } from "@cdktn/provider-google/lib/compute-region-health-check";
+import { ComputeRegionTargetHttpProxy } from "@cdktn/provider-google/lib/compute-region-target-http-proxy";
+import { ComputeRegionTargetHttpsProxy } from "@cdktn/provider-google/lib/compute-region-target-https-proxy";
+import { ComputeRegionUrlMap } from "@cdktn/provider-google/lib/compute-region-url-map";
+import { ComputeTargetHttpProxy } from "@cdktn/provider-google/lib/compute-target-http-proxy";
+import { ComputeTargetHttpsProxy } from "@cdktn/provider-google/lib/compute-target-https-proxy";
+import { ComputeUrlMap } from "@cdktn/provider-google/lib/compute-url-map";
+import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
 import { Construct } from "constructs";
 
 /* -------------------- Interfaces -------------------- */

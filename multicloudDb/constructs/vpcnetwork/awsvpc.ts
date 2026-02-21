@@ -1,18 +1,18 @@
-import { DefaultRouteTable } from "@cdktf/provider-aws/lib/default-route-table"; // ★ DefaultRouteTable をインポート ★
-import { Ec2InstanceConnectEndpoint } from "@cdktf/provider-aws/lib/ec2-instance-connect-endpoint";
-import { Eip } from "@cdktf/provider-aws/lib/eip";
-import { InternetGateway } from "@cdktf/provider-aws/lib/internet-gateway";
-import { NatGateway } from "@cdktf/provider-aws/lib/nat-gateway";
-import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
-import { Route } from "@cdktf/provider-aws/lib/route";
-import { RouteTable } from "@cdktf/provider-aws/lib/route-table";
-import { RouteTableAssociation } from "@cdktf/provider-aws/lib/route-table-association";
-import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
-import { SecurityGroupRule } from "@cdktf/provider-aws/lib/security-group-rule";
-import { Subnet } from "@cdktf/provider-aws/lib/subnet";
-import { Vpc as AwsVpc } from "@cdktf/provider-aws/lib/vpc";
-import { NullProvider } from "@cdktf/provider-null/lib/provider";
-import { Resource } from "@cdktf/provider-null/lib/resource";
+import { DefaultRouteTable } from "@cdktn/provider-aws/lib/default-route-table"; // ★ DefaultRouteTable をインポート ★
+import { Ec2InstanceConnectEndpoint } from "@cdktn/provider-aws/lib/ec2-instance-connect-endpoint";
+import { Eip } from "@cdktn/provider-aws/lib/eip";
+import { InternetGateway } from "@cdktn/provider-aws/lib/internet-gateway";
+import { NatGateway } from "@cdktn/provider-aws/lib/nat-gateway";
+import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
+import { Route } from "@cdktn/provider-aws/lib/route";
+import { RouteTable } from "@cdktn/provider-aws/lib/route-table";
+import { RouteTableAssociation } from "@cdktn/provider-aws/lib/route-table-association";
+import { SecurityGroup } from "@cdktn/provider-aws/lib/security-group";
+import { SecurityGroupRule } from "@cdktn/provider-aws/lib/security-group-rule";
+import { Subnet } from "@cdktn/provider-aws/lib/subnet";
+import { Vpc as AwsVpc } from "@cdktn/provider-aws/lib/vpc";
+import { NullProvider } from "@cdktn/provider-null/lib/provider";
+import { Resource } from "@cdktn/provider-null/lib/resource";
 import { Construct } from "constructs";
 
 interface SubnetConfig {

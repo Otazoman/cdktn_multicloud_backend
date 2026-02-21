@@ -1,6 +1,6 @@
-import { LocalNetworkGateway } from "@cdktf/provider-azurerm/lib/local-network-gateway";
-import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
-import { VirtualNetworkGatewayConnection } from "@cdktf/provider-azurerm/lib/virtual-network-gateway-connection";
+import { LocalNetworkGateway } from "@cdktn/provider-azurerm/lib/local-network-gateway";
+import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
+import { VirtualNetworkGatewayConnection } from "@cdktn/provider-azurerm/lib/virtual-network-gateway-connection";
 import { Construct } from "constructs";
 
 interface AzureGatewayResources {

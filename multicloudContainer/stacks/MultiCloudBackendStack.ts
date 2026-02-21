@@ -1,17 +1,22 @@
-import { TerraformStack } from "cdktf";
+import { TerraformStack } from "cdktn";
 import { Construct } from "constructs";
 import {
   hostZones,
   useDbs,
+  useDns,
   useLbs,
   useVms,
   useVpn,
 } from "../config/commonsettings";
 import { createProviders } from "../providers/providers";
 import { createDatabaseResources } from "../resources/databaseResources";
-import { DatabaseResourcesOutput } from "../resources/interfaces";
+import {
+  DatabaseResourcesOutput,
+  LbResourcesOutputWithDns,
+} from "../resources/interfaces";
 import { createLbResources } from "../resources/loadBarancerResources";
 import { createPrivateZoneResources } from "../resources/privateZoneResources";
+import { createPublicDnsZonesAndRecords } from "../resources/publicDnsResources";
 import { createVmResources } from "../resources/vmResources";
 import { createVpcResources } from "../resources/vpcResources";
 import { createVpnResources } from "../resources/vpnResources";
@@ -58,9 +63,10 @@ export class MultiCloudBackendStack extends TerraformStack {
       );
     }
 
-    // VM
+    // Load Balancer with SSL/TLS certificates and DNS information
+    let lbResourcesOutput: LbResourcesOutputWithDns | undefined;
     if (useLbs) {
-      createLbResources(
+      lbResourcesOutput = createLbResources(
         this,
         awsProvider,
         googleProvider,
@@ -69,6 +75,19 @@ export class MultiCloudBackendStack extends TerraformStack {
         vpcResources.googleVpcResources,
         vpcResources.azureVnetResources,
       );
+
+      // Public DNS A records for load balancers (if enabled)
+      // Note: Public DNS zones must be created manually in advance
+      // Set useDns=true to automatically create A records in existing zones
+      if (useDns && lbResourcesOutput) {
+        createPublicDnsZonesAndRecords(
+          this,
+          awsProvider,
+          googleProvider,
+          azureProvider,
+          lbResourcesOutput,
+        );
+      }
     }
 
     // Database

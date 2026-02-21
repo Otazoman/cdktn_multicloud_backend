@@ -1,6 +1,6 @@
-import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
-import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
-import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
+import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
+import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
+import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
 import { Token } from "cdktf";
 import { Construct } from "constructs";
 import { ec2Configs } from "../config/awssettings";

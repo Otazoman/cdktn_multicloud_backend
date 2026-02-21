@@ -1,10 +1,10 @@
-import { DataAzurermPublicIp } from "@cdktf/provider-azurerm/lib/data-azurerm-public-ip";
-import { LogAnalyticsWorkspace } from "@cdktf/provider-azurerm/lib/log-analytics-workspace";
-import { MonitorDiagnosticSetting } from "@cdktf/provider-azurerm/lib/monitor-diagnostic-setting";
-import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
-import { PublicIp } from "@cdktf/provider-azurerm/lib/public-ip";
-import { Subnet } from "@cdktf/provider-azurerm/lib/subnet";
-import { VirtualNetworkGateway } from "@cdktf/provider-azurerm/lib/virtual-network-gateway";
+import { DataAzurermPublicIp } from "@cdktn/provider-azurerm/lib/data-azurerm-public-ip";
+import { LogAnalyticsWorkspace } from "@cdktn/provider-azurerm/lib/log-analytics-workspace";
+import { MonitorDiagnosticSetting } from "@cdktn/provider-azurerm/lib/monitor-diagnostic-setting";
+import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
+import { PublicIp } from "@cdktn/provider-azurerm/lib/public-ip";
+import { Subnet } from "@cdktn/provider-azurerm/lib/subnet";
+import { VirtualNetworkGateway } from "@cdktn/provider-azurerm/lib/virtual-network-gateway";
 import { Construct } from "constructs";
 
 interface VpnGatewayParams {

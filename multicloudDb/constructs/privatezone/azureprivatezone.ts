@@ -1,15 +1,15 @@
-import { PrivateDnsCnameRecord } from "@cdktf/provider-azurerm/lib/private-dns-cname-record";
-import { PrivateDnsResolver } from "@cdktf/provider-azurerm/lib/private-dns-resolver";
-import { PrivateDnsResolverDnsForwardingRuleset } from "@cdktf/provider-azurerm/lib/private-dns-resolver-dns-forwarding-ruleset";
-import { PrivateDnsResolverForwardingRule } from "@cdktf/provider-azurerm/lib/private-dns-resolver-forwarding-rule";
-import { PrivateDnsResolverInboundEndpoint } from "@cdktf/provider-azurerm/lib/private-dns-resolver-inbound-endpoint";
-import { PrivateDnsResolverOutboundEndpoint } from "@cdktf/provider-azurerm/lib/private-dns-resolver-outbound-endpoint";
-import { PrivateDnsResolverVirtualNetworkLink } from "@cdktf/provider-azurerm/lib/private-dns-resolver-virtual-network-link";
-import { PrivateDnsZone } from "@cdktf/provider-azurerm/lib/private-dns-zone";
-import { PrivateDnsZoneVirtualNetworkLink } from "@cdktf/provider-azurerm/lib/private-dns-zone-virtual-network-link";
-import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
-import { Subnet } from "@cdktf/provider-azurerm/lib/subnet";
-import { VirtualNetwork } from "@cdktf/provider-azurerm/lib/virtual-network";
+import { PrivateDnsCnameRecord } from "@cdktn/provider-azurerm/lib/private-dns-cname-record";
+import { PrivateDnsResolver } from "@cdktn/provider-azurerm/lib/private-dns-resolver";
+import { PrivateDnsResolverDnsForwardingRuleset } from "@cdktn/provider-azurerm/lib/private-dns-resolver-dns-forwarding-ruleset";
+import { PrivateDnsResolverForwardingRule } from "@cdktn/provider-azurerm/lib/private-dns-resolver-forwarding-rule";
+import { PrivateDnsResolverInboundEndpoint } from "@cdktn/provider-azurerm/lib/private-dns-resolver-inbound-endpoint";
+import { PrivateDnsResolverOutboundEndpoint } from "@cdktn/provider-azurerm/lib/private-dns-resolver-outbound-endpoint";
+import { PrivateDnsResolverVirtualNetworkLink } from "@cdktn/provider-azurerm/lib/private-dns-resolver-virtual-network-link";
+import { PrivateDnsZone } from "@cdktn/provider-azurerm/lib/private-dns-zone";
+import { PrivateDnsZoneVirtualNetworkLink } from "@cdktn/provider-azurerm/lib/private-dns-zone-virtual-network-link";
+import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
+import { Subnet } from "@cdktn/provider-azurerm/lib/subnet";
+import { VirtualNetwork } from "@cdktn/provider-azurerm/lib/virtual-network";
 import { Construct } from "constructs";
 
 export type AzureDatabaseType = "mysql" | "postgresql";

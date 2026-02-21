@@ -1,8 +1,8 @@
-import { Lb } from "@cdktf/provider-aws/lib/lb";
-import { LbListener } from "@cdktf/provider-aws/lib/lb-listener";
-import { LbListenerRule } from "@cdktf/provider-aws/lib/lb-listener-rule";
-import { LbTargetGroup } from "@cdktf/provider-aws/lib/lb-target-group";
-import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
+import { Lb } from "@cdktn/provider-aws/lib/lb";
+import { LbListener } from "@cdktn/provider-aws/lib/lb-listener";
+import { LbListenerRule } from "@cdktn/provider-aws/lib/lb-listener-rule";
+import { LbTargetGroup } from "@cdktn/provider-aws/lib/lb-target-group";
+import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
 import { Construct } from "constructs";
 
 /**
@@ -71,6 +71,7 @@ export interface AlbConfig {
   securityGroupIds: string[]; // Resolved IDs are passed here
   subnetIds: string[]; // Resolved IDs are passed here
   listenerConfig: AlbListenerConfig;
+  additionalListeners?: AlbListenerConfig[]; // Optional additional listeners (e.g., HTTP redirect)
   targetGroups: AlbTargetGroupConfig[];
   listenerRules: AlbRuleConfig[];
   tags?: { [key: string]: string };
@@ -134,7 +135,7 @@ export function createAwsAlbResources(
     });
   });
 
-  // 3. Create Listener
+  // 3. Create primary Listener
   const listener = new LbListener(scope, `listener-${config.name}`, {
     provider,
     loadBalancerArn: alb.arn,
@@ -146,6 +147,29 @@ export function createAwsAlbResources(
       buildAction(config.listenerConfig.defaultAction, targetGroups),
     ],
   });
+
+  // 3b. Create additional Listeners (e.g., HTTP redirect listener)
+  const additionalListeners: LbListener[] = [];
+  if (config.additionalListeners) {
+    config.additionalListeners.forEach((listenerConfig, index) => {
+      const additionalListener = new LbListener(
+        scope,
+        `listener-${config.name}-additional-${index}`,
+        {
+          provider,
+          loadBalancerArn: alb.arn,
+          port: listenerConfig.port,
+          protocol: listenerConfig.protocol,
+          sslPolicy: listenerConfig.sslPolicy,
+          certificateArn: listenerConfig.certificateArn,
+          defaultAction: [
+            buildAction(listenerConfig.defaultAction, targetGroups),
+          ],
+        },
+      );
+      additionalListeners.push(additionalListener);
+    });
+  }
 
   // 4. Create Listener Rules
   config.listenerRules.forEach((rule) => {

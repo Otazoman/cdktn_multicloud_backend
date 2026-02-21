@@ -1,7 +1,7 @@
-import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
-import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
-import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
-import { TlsProvider } from "@cdktf/provider-tls/lib/provider";
+import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
+import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
+import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
+import { TlsProvider } from "@cdktn/provider-tls/lib/provider";
 import { Construct } from "constructs";
 
 export const createProviders = (scope: Construct) => {

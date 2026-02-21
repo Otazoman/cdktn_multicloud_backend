@@ -1,7 +1,7 @@
-import { CloudwatchLogGroup } from "@cdktf/provider-aws/lib/cloudwatch-log-group";
-import { CustomerGateway } from "@cdktf/provider-aws/lib/customer-gateway";
-import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
-import { VpnConnection } from "@cdktf/provider-aws/lib/vpn-connection";
+import { CloudwatchLogGroup } from "@cdktn/provider-aws/lib/cloudwatch-log-group";
+import { CustomerGateway } from "@cdktn/provider-aws/lib/customer-gateway";
+import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
+import { VpnConnection } from "@cdktn/provider-aws/lib/vpn-connection";
 import { Construct } from "constructs";
 
 interface CustomerGatewayParams {

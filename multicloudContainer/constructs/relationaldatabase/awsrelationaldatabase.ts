@@ -1,17 +1,17 @@
-import { DataAwsSecretsmanagerSecretVersion } from "@cdktf/provider-aws/lib/data-aws-secretsmanager-secret-version";
+import { DataAwsSecretsmanagerSecretVersion } from "@cdktn/provider-aws/lib/data-aws-secretsmanager-secret-version";
 import {
   DbInstance,
   DbInstanceConfig,
-} from "@cdktf/provider-aws/lib/db-instance";
-import { DbOptionGroup } from "@cdktf/provider-aws/lib/db-option-group";
-import { DbParameterGroup } from "@cdktf/provider-aws/lib/db-parameter-group";
-import { DbSubnetGroup } from "@cdktf/provider-aws/lib/db-subnet-group";
-import { IamRole } from "@cdktf/provider-aws/lib/iam-role";
-import { IamRolePolicyAttachment } from "@cdktf/provider-aws/lib/iam-role-policy-attachment";
-import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
-import { RdsCluster } from "@cdktf/provider-aws/lib/rds-cluster";
-import { RdsClusterInstance } from "@cdktf/provider-aws/lib/rds-cluster-instance";
-import { RdsClusterParameterGroup } from "@cdktf/provider-aws/lib/rds-cluster-parameter-group";
+} from "@cdktn/provider-aws/lib/db-instance";
+import { DbOptionGroup } from "@cdktn/provider-aws/lib/db-option-group";
+import { DbParameterGroup } from "@cdktn/provider-aws/lib/db-parameter-group";
+import { DbSubnetGroup } from "@cdktn/provider-aws/lib/db-subnet-group";
+import { IamRole } from "@cdktn/provider-aws/lib/iam-role";
+import { IamRolePolicyAttachment } from "@cdktn/provider-aws/lib/iam-role-policy-attachment";
+import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
+import { RdsCluster } from "@cdktn/provider-aws/lib/rds-cluster";
+import { RdsClusterInstance } from "@cdktn/provider-aws/lib/rds-cluster-instance";
+import { RdsClusterParameterGroup } from "@cdktn/provider-aws/lib/rds-cluster-parameter-group";
 import { Construct } from "constructs";
 import * as path from "path";
 

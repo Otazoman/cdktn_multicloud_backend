@@ -1,7 +1,7 @@
-import { LinuxVirtualMachine } from "@cdktf/provider-azurerm/lib/linux-virtual-machine";
-import { NetworkInterface } from "@cdktf/provider-azurerm/lib/network-interface";
-import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
-import { PrivateKey } from "@cdktf/provider-tls/lib/private-key";
+import { LinuxVirtualMachine } from "@cdktn/provider-azurerm/lib/linux-virtual-machine";
+import { NetworkInterface } from "@cdktn/provider-azurerm/lib/network-interface";
+import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
+import { PrivateKey } from "@cdktn/provider-tls/lib/private-key";
 import { Construct } from "constructs";
 
 interface AzureVmConfig {

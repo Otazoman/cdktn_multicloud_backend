@@ -1,10 +1,10 @@
-import { ComputeExternalVpnGateway } from "@cdktf/provider-google/lib/compute-external-vpn-gateway";
-import { ComputeForwardingRule } from "@cdktf/provider-google/lib/compute-forwarding-rule";
-import { ComputeRoute } from "@cdktf/provider-google/lib/compute-route";
-import { ComputeRouterInterface } from "@cdktf/provider-google/lib/compute-router-interface";
-import { ComputeRouterPeer } from "@cdktf/provider-google/lib/compute-router-peer";
-import { ComputeVpnTunnel } from "@cdktf/provider-google/lib/compute-vpn-tunnel";
-import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
+import { ComputeExternalVpnGateway } from "@cdktn/provider-google/lib/compute-external-vpn-gateway";
+import { ComputeForwardingRule } from "@cdktn/provider-google/lib/compute-forwarding-rule";
+import { ComputeRoute } from "@cdktn/provider-google/lib/compute-route";
+import { ComputeRouterInterface } from "@cdktn/provider-google/lib/compute-router-interface";
+import { ComputeRouterPeer } from "@cdktn/provider-google/lib/compute-router-peer";
+import { ComputeVpnTunnel } from "@cdktn/provider-google/lib/compute-vpn-tunnel";
+import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
 import { Construct } from "constructs";
 
 interface ExternalVpnGatewayParams {

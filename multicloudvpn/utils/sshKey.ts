@@ -1,5 +1,5 @@
-import { PrivateKey } from "@cdktf/provider-tls/lib/private-key";
-import { TlsProvider } from "@cdktf/provider-tls/lib/provider";
+import { PrivateKey } from "@cdktn/provider-tls/lib/private-key";
+import { TlsProvider } from "@cdktn/provider-tls/lib/provider";
 import { Construct } from "constructs";
 
 export const createSshKey = (scope: Construct, tlsProvider: TlsProvider) => {

@@ -1,8 +1,8 @@
-import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
-import { Route53Zone } from "@cdktf/provider-aws/lib/route53-zone";
-import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
-import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
-import { TerraformIterator, Token } from "cdktf";
+import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
+import { Route53Zone } from "@cdktn/provider-aws/lib/route53-zone";
+import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
+import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
+import { TerraformIterator, Token } from "cdktn";
 import { Construct } from "constructs";
 import { awsPrivateZoneParams } from "../config/aws/privatezone";
 import { azurePrivateZoneParams } from "../config/azure/privatezone";
@@ -18,19 +18,19 @@ import {
   createAwsOutboundEndpointWithRules,
   createAwsPrivateZones,
   ForwardingRule,
-} from "../constructs/privatezone/awsprivatezone";
+} from "../constructs/dns/privatezone/awsprivatezone";
 import {
   createAzureForwardingRuleset,
   createAzureInnerCnameRecords,
   createAzureInnerPrivateDnsZone,
   createAzurePrivateResolver,
-} from "../constructs/privatezone/azureprivatezone";
+} from "../constructs/dns/privatezone/azureprivatezone";
 import {
   createGoogleCloudDnsInboundPolicy,
   createGoogleCloudSqlARecords,
   createGooglePrivateDnsZones,
   getGoogleDnsInboundIps,
-} from "../constructs/privatezone/googleprivatezone";
+} from "../constructs/dns/privatezone/googleprivatezone";
 import {
   AwsDbResources,
   AwsVpcResources,

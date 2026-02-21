@@ -1,7 +1,7 @@
-import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
-import { Route53Zone } from "@cdktf/provider-aws/lib/route53-zone";
-import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
-import { GoogleProvider } from "@cdktf/provider-google/lib/provider";
+import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
+import { Route53Zone } from "@cdktn/provider-aws/lib/route53-zone";
+import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
+import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
 import { TerraformIterator, Token } from "cdktf";
 import { Construct } from "constructs";
 import { awsPrivateZoneParams } from "../config/aws/privatezone";

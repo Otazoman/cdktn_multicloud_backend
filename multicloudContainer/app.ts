@@ -1,4 +1,4 @@
-import { App } from "cdktf";
+import { App } from "cdktn";
 import { MultiCloudBackendStack } from "./stacks/MultiCloudBackendStack";
 
 const app = new App();

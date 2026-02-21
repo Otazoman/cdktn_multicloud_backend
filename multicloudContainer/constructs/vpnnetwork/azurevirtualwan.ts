@@ -1,9 +1,9 @@
-import { AzurermProvider } from "@cdktf/provider-azurerm/lib/provider";
-import { VirtualHub } from "@cdktf/provider-azurerm/lib/virtual-hub";
-import { VirtualWan } from "@cdktf/provider-azurerm/lib/virtual-wan";
-import { VpnGateway } from "@cdktf/provider-azurerm/lib/vpn-gateway";
-import { VpnGatewayConnection } from "@cdktf/provider-azurerm/lib/vpn-gateway-connection";
-import { VpnSite } from "@cdktf/provider-azurerm/lib/vpn-site";
+import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
+import { VirtualHub } from "@cdktn/provider-azurerm/lib/virtual-hub";
+import { VirtualWan } from "@cdktn/provider-azurerm/lib/virtual-wan";
+import { VpnGateway } from "@cdktn/provider-azurerm/lib/vpn-gateway";
+import { VpnGatewayConnection } from "@cdktn/provider-azurerm/lib/vpn-gateway-connection";
+import { VpnSite } from "@cdktn/provider-azurerm/lib/vpn-site";
 import { Construct } from "constructs";
 
 export interface AzureVirtualWanProps {

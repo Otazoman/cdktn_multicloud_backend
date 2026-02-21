@@ -15,7 +15,9 @@
     /commonsettings.ts       # 共通設定ファイル
     /google                  # Google Cloud関連の設定ファイル
   /constructs                # CDKTFのconstruct(個別リソースの定義)
-    /privatezones            # プライベートゾーン(DNS)関連のconstruct
+    /dns
+      /publiczone            # パブリックゾーン(DNS)関連のconstruct
+      /privatezones          # プライベートゾーン(DNS)関連のconstruct
     /relationaldatabases     # リレーショナルデータベース関連のconstruct
     /vmresources             # 仮想マシン関連のconstruct
     /vpnresources            # VPN関連のconstruct
