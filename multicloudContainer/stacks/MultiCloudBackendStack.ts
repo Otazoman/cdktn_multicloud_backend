@@ -13,10 +13,14 @@ import { createDatabaseResources } from "../resources/databaseResources";
 import {
   DatabaseResourcesOutput,
   LbResourcesOutputWithDns,
+  CreatedPublicZones,
 } from "../resources/interfaces";
 import { createLbResources } from "../resources/loadBarancerResources";
 import { createPrivateZoneResources } from "../resources/privateZoneResources";
-import { createPublicDnsZonesAndRecords } from "../resources/publicDnsResources";
+import {
+  createPublicDnsZones,
+  createPublicDnsRecords,
+} from "../resources/publicDnsResources";
 import { createVmResources } from "../resources/vmResources";
 import { createVpcResources } from "../resources/vpcResources";
 import { createVpnResources } from "../resources/vpnResources";
@@ -64,6 +68,19 @@ export class MultiCloudBackendStack extends TerraformStack {
     }
 
     // Load Balancer with SSL/TLS certificates and DNS information
+    // DNS Zones Phase (Create zones first)
+    let dnsZones: CreatedPublicZones | undefined;
+    if (useDns) {
+      // Subdomain extraction is handled internally by createPublicDnsZones
+      dnsZones = createPublicDnsZones(
+        this,
+        awsProvider,
+        googleProvider,
+        azureProvider,
+      );
+    }
+
+    // Load Balancer Phase (Pass dnsZones to enable Certificate Validation without Data sources)
     let lbResourcesOutput: LbResourcesOutputWithDns | undefined;
     if (useLbs) {
       lbResourcesOutput = createLbResources(
@@ -74,17 +91,17 @@ export class MultiCloudBackendStack extends TerraformStack {
         vpcResources.awsVpcResources,
         vpcResources.googleVpcResources,
         vpcResources.azureVnetResources,
+        dnsZones, // Pass created zones here!
       );
 
-      // Public DNS A records for load balancers (if enabled)
-      // Note: Public DNS zones must be created manually in advance
-      // Set useDns=true to automatically create A records in existing zones
-      if (useDns && lbResourcesOutput) {
-        createPublicDnsZonesAndRecords(
+      // DNS Records Phase (Register A records now that LB IPs are available)
+      if (useDns && lbResourcesOutput && dnsZones) {
+        createPublicDnsRecords(
           this,
           awsProvider,
           googleProvider,
           azureProvider,
+          dnsZones,
           lbResourcesOutput,
         );
       }

@@ -5,7 +5,7 @@ export const azureAppGwConfigs = [
     name: "standard-appgw",
     location: LOCATION,
     resourceGroupName: RESOURCE_GROUP,
-    build: true,
+    build: false,
     useAutoscale: false,
     sku: {
       name: "Standard_v2",
@@ -41,12 +41,11 @@ export const azureAppGwConfigs = [
     sslCertificates: [
       {
         name: "my-ssl-cert",
-        data: "./sslcert/azureappgw_certificate.pfx",
+        data: "./sslcerts/pfx/azureappgw_certificate.pfx",
         password: "Password123!",
       },
     ],
   },
-
   {
     name: "main-waf-appgw",
     location: LOCATION,
@@ -119,6 +118,43 @@ export const azureAppGwConfigs = [
     tags: {
       Environment: "Production",
       SecurityLevel: "High",
+    },
+  },
+  {
+    name: "plain-http-appgw",
+    location: LOCATION,
+    resourceGroupName: RESOURCE_GROUP,
+    build: true,
+    useAutoscale: false,
+    sku: {
+      name: "Standard_v2",
+      tier: "Standard_v2",
+      capacity: 1,
+    },
+    // No specific dnsConfig provided (Access via Public IP or Default Azure DNS)
+    listeners: [
+      {
+        name: "http-only-listener",
+        port: 80,
+        protocol: "Http",
+        defaultBackendName: "http-backend-pool",
+      },
+    ],
+    enableHttp2: false,
+    subnetName: "web-appgw-subnet",
+    backends: [
+      {
+        name: "http-backend-pool",
+        port: 80,
+        protocol: "Http",
+        requestTimeout: 30,
+      },
+    ],
+    // Empty array as no SSL certificates are needed for Port 80
+    sslCertificates: [],
+    tags: {
+      Environment: "Test",
+      Protocol: "HTTP-Only",
     },
   },
 ];
