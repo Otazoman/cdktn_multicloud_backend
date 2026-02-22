@@ -1,216 +1,177 @@
-import { DataAwsRoute53Zone } from "@cdktn/provider-aws/lib/data-aws-route53-zone";
-import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
+import { Route53Zone } from "@cdktn/provider-aws/lib/route53-zone";
 import { Route53Record } from "@cdktn/provider-aws/lib/route53-record";
-import { DataAzurermDnsZone } from "@cdktn/provider-azurerm/lib/data-azurerm-dns-zone";
+import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
+import { DnsZone } from "@cdktn/provider-azurerm/lib/dns-zone";
 import { DnsARecord } from "@cdktn/provider-azurerm/lib/dns-a-record";
 import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
-import { DataGoogleDnsManagedZone } from "@cdktn/provider-google/lib/data-google-dns-managed-zone";
+import { DnsManagedZone } from "@cdktn/provider-google/lib/dns-managed-zone";
 import { DnsRecordSet } from "@cdktn/provider-google/lib/dns-record-set";
 import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
 import { Construct } from "constructs";
+import { TerraformOutput } from "cdktn";
+import { albConfigs } from "../config/aws/awssettings";
 import { azureAppGwConfigs } from "../config/azure/applicationgateway";
 import { gcpLbConfigs } from "../config/google/googlesettings";
-import {
-  AwsAlbResourcesWithDns,
-  AzureAppGwResourcesWithDns,
-  LbResourcesOutputWithDns,
-  PublicDnsZoneResources,
-} from "./interfaces";
+import { LbResourcesOutputWithDns, CreatedPublicZones } from "./interfaces";
 
 /**
- * Creates A records in existing public DNS zones for load balancers
- * Note: Public DNS zones must be created manually in advance
- * This function only references existing zones and creates A records
+ * Step 1: Create Public DNS Zones
+ * Automatically extracts subdomains from LB config files
  */
-export function createPublicDnsZonesAndRecords(
+export function createPublicDnsZones(
   scope: Construct,
   awsProvider: AwsProvider,
   googleProvider?: GoogleProvider,
   azureProvider?: AzurermProvider,
-  lbResources?: LbResourcesOutputWithDns,
-): PublicDnsZoneResources {
-  const result: PublicDnsZoneResources = {};
+  tags: { [key: string]: string } = {},
+): CreatedPublicZones {
+  const awsZones: Record<string, Route53Zone> = {};
+  const googleZones: Record<string, DnsManagedZone> = {};
+  const azureZones: Record<string, DnsZone> = {};
 
-  if (!lbResources) {
-    return result;
-  }
+  // Extract unique subdomains from config files
+  const unique = (arr: (string | undefined)[]) =>
+    Array.from(new Set(arr.filter(Boolean))) as string[];
 
-  // --- AWS Route53 A Records ---
-  if (lbResources.awsAlbs && lbResources.awsAlbs.length > 0) {
-    // Group ALBs by subdomain
-    const albsBySubdomain = new Map<string, AwsAlbResourcesWithDns[]>();
-    lbResources.awsAlbs.forEach((alb) => {
-      const subdomain = alb.dnsInfo.subdomain;
-      if (!albsBySubdomain.has(subdomain)) {
-        albsBySubdomain.set(subdomain, []);
-      }
-      albsBySubdomain.get(subdomain)!.push(alb);
+  const awsSubdomains = unique(
+    albConfigs?.filter((c) => c.build).map((c) => c.dnsConfig?.subdomain),
+  );
+  const googleSubdomains = unique(
+    gcpLbConfigs?.filter((c) => c.build).map((c) => c.dnsConfig?.subdomain),
+  );
+  const azureSubdomains = unique(
+    azureAppGwConfigs
+      ?.filter((c) => c.build)
+      .map((c) => c.dnsConfig?.subdomain),
+  );
+
+  // AWS
+  awsSubdomains.forEach((subdomain) => {
+    const zoneSafeName = subdomain.replace(/\./g, "-");
+    awsZones[subdomain] = new Route53Zone(scope, `p-zone-aws-${zoneSafeName}`, {
+      provider: awsProvider,
+      name: subdomain,
+      tags: { ...tags, Name: subdomain },
     });
+    new TerraformOutput(scope, `aws-ns-${zoneSafeName}`, {
+      value: awsZones[subdomain].nameServers,
+    });
+  });
 
-    // Reference existing zones and create A records
-    albsBySubdomain.forEach((albs, subdomain) => {
-      // Reference existing public zone
-      const existingZone = new DataAwsRoute53Zone(
+  // Google
+  if (googleProvider && googleSubdomains.length > 0) {
+    googleSubdomains.forEach((subdomain) => {
+      const zoneSafeName = subdomain.replace(/\./g, "-");
+      googleZones[subdomain] = new DnsManagedZone(
         scope,
-        `data-zone-${subdomain.replace(/\./g, "-")}`,
+        `p-zone-gcp-${zoneSafeName}`,
         {
-          provider: awsProvider,
-          name: subdomain,
+          provider: googleProvider,
+          project: gcpLbConfigs[0].project,
+          name: `zone-${zoneSafeName}`,
+          dnsName: subdomain.endsWith(".") ? subdomain : `${subdomain}.`,
+          visibility: "public",
         },
       );
-
-      // Create A records for each ALB
-      albs.forEach((alb, index) => {
-        const recordName = alb.dnsInfo.fqdn || subdomain;
-
-        // AWS ALB A record (pointing to ALB DNS name)
-        new Route53Record(
-          scope,
-          `a-record-${subdomain.replace(/\./g, "-")}-${index}`,
-          {
-            provider: awsProvider,
-            zoneId: existingZone.zoneId,
-            name: recordName,
-            type: "A",
-            alias: {
-              name: alb.alb.dnsName,
-              zoneId: alb.alb.zoneId,
-              evaluateTargetHealth: true,
-            },
-          },
-        );
+      new TerraformOutput(scope, `gcp-ns-${zoneSafeName}`, {
+        value: googleZones[subdomain].nameServers,
       });
     });
   }
 
-  // --- Google Cloud DNS A Records ---
-  if (
-    googleProvider &&
-    lbResources.googleLbs &&
-    lbResources.googleLbs.length > 0 &&
-    gcpLbConfigs.length > 0
-  ) {
-    const googleProject = gcpLbConfigs[0].project;
-
-    // Collect all subdomains from Google LBs
-    const subdomains = new Set<string>();
-    lbResources.googleLbs.forEach((lbGroup) => {
-      if (lbGroup.global) {
-        lbGroup.global.forEach((lb) => {
-          if (lb.dnsInfo) subdomains.add(lb.dnsInfo.subdomain);
-        });
-      }
-      if (lbGroup.regional) {
-        lbGroup.regional.forEach((lb) => {
-          if (lb.dnsInfo) subdomains.add(lb.dnsInfo.subdomain);
-        });
-      }
-    });
-
-    // Reference existing zones and create A records
-    if (subdomains.size > 0) {
-      const existingZones: Record<string, DataGoogleDnsManagedZone> = {};
-
-      subdomains.forEach((subdomain) => {
-        const zoneName = subdomain.replace(/\./g, "-");
-        existingZones[subdomain] = new DataGoogleDnsManagedZone(
-          scope,
-          `data-google-zone-${zoneName}`,
-          {
-            provider: googleProvider,
-            name: zoneName,
-            project: googleProject,
-          },
-        );
-      });
-
-      // Create A records for each LB
-      let recordIndex = 0;
-      lbResources.googleLbs.forEach((lbGroup) => {
-        const processLb = (lb: any) => {
-          if (!lb.dnsInfo) return;
-
-          const zone = existingZones[lb.dnsInfo.subdomain];
-          if (!zone) return;
-
-          const recordName = lb.dnsInfo.fqdn || lb.dnsInfo.subdomain;
-          const ipAddress = lb.staticIp?.address || lb.forwardingRule.ipAddress;
-
-          if (ipAddress) {
-            new DnsRecordSet(scope, `google-a-record-${recordIndex++}`, {
-              provider: googleProvider,
-              project: googleProject,
-              name: recordName.endsWith(".") ? recordName : `${recordName}.`,
-              type: "A",
-              ttl: 300,
-              managedZone: zone.name,
-              rrdatas: [ipAddress],
-            });
-          }
-        };
-
-        if (lbGroup.global) {
-          lbGroup.global.forEach(processLb);
-        }
-        if (lbGroup.regional) {
-          lbGroup.regional.forEach(processLb);
-        }
-      });
-    }
-  }
-
-  // --- Azure DNS A Records ---
-  if (
-    azureProvider &&
-    lbResources.azureAppGws &&
-    lbResources.azureAppGws.length > 0 &&
-    azureAppGwConfigs.length > 0
-  ) {
-    const azureResourceGroup = azureAppGwConfigs[0].resourceGroupName;
-
-    // Group App Gateways by subdomain
-    const appGwsBySubdomain = new Map<string, AzureAppGwResourcesWithDns[]>();
-    lbResources.azureAppGws.forEach((appGw) => {
-      const subdomain = appGw.dnsInfo.subdomain;
-      if (!appGwsBySubdomain.has(subdomain)) {
-        appGwsBySubdomain.set(subdomain, []);
-      }
-      appGwsBySubdomain.get(subdomain)!.push(appGw);
-    });
-
-    // Reference existing zones and create A records
-    appGwsBySubdomain.forEach((appGws, subdomain) => {
-      // Reference existing public zone
-      const existingZone = new DataAzurermDnsZone(
+  // Azure
+  if (azureProvider && azureSubdomains.length > 0) {
+    azureSubdomains.forEach((subdomain) => {
+      const zoneSafeName = subdomain.replace(/\./g, "-");
+      azureZones[subdomain] = new DnsZone(
         scope,
-        `data-azure-zone-${subdomain.replace(/\./g, "-")}`,
+        `p-zone-azure-${zoneSafeName}`,
         {
           provider: azureProvider,
           name: subdomain,
-          resourceGroupName: azureResourceGroup,
+          resourceGroupName: azureAppGwConfigs[0].resourceGroupName,
         },
       );
-
-      // Create A records for each App Gateway
-      appGws.forEach((appGw, index) => {
-        const recordName = appGw.dnsInfo.fqdn || subdomain;
-        const ipAddress = appGw.publicIp.ipAddress;
-
-        new DnsARecord(
-          scope,
-          `azure-a-record-${subdomain.replace(/\./g, "-")}-${index}`,
-          {
-            provider: azureProvider,
-            name: recordName,
-            resourceGroupName: azureResourceGroup,
-            zoneName: existingZone.name,
-            ttl: 300,
-            records: [ipAddress],
-          },
-        );
+      new TerraformOutput(scope, `azure-ns-${zoneSafeName}`, {
+        value: azureZones[subdomain].nameServers,
       });
     });
   }
 
-  return result;
+  return { awsZones, googleZones, azureZones };
+}
+
+/**
+ * Step 2: Create A Records
+ */
+export function createPublicDnsRecords(
+  scope: Construct,
+  awsProvider: AwsProvider,
+  googleProvider: GoogleProvider | undefined,
+  azureProvider: AzurermProvider | undefined,
+  zones: CreatedPublicZones,
+  lbResources: LbResourcesOutputWithDns,
+) {
+  // AWS Records
+  lbResources.awsAlbs?.forEach((alb, index) => {
+    const zone = zones.awsZones[alb.dnsInfo.subdomain];
+    if (zone) {
+      new Route53Record(scope, `aws-a-rec-${index}`, {
+        provider: awsProvider,
+        zoneId: zone.zoneId,
+        name: alb.dnsInfo.fqdn || alb.dnsInfo.subdomain,
+        type: "A",
+        alias: {
+          name: alb.alb.dnsName,
+          zoneId: alb.alb.zoneId,
+          evaluateTargetHealth: true,
+        },
+      });
+    }
+  });
+
+  // Google Records
+  if (googleProvider) {
+    lbResources.googleLbs?.forEach((lbGroup) => {
+      [...(lbGroup.global || []), ...(lbGroup.regional || [])].forEach(
+        (lb, index) => {
+          if (!lb.dnsInfo) return;
+          const zone = zones.googleZones[lb.dnsInfo.subdomain];
+          const ipAddress = lb.staticIp?.address || lb.forwardingRule.ipAddress;
+          if (zone && ipAddress) {
+            new DnsRecordSet(scope, `gcp-a-rec-${index}`, {
+              provider: googleProvider,
+              project: zone.project,
+              managedZone: zone.name,
+              name: lb.dnsInfo.fqdn
+                ? lb.dnsInfo.fqdn.endsWith(".")
+                  ? lb.dnsInfo.fqdn
+                  : `${lb.dnsInfo.fqdn}.`
+                : zone.dnsName,
+              type: "A",
+              ttl: 300,
+              rrdatas: [ipAddress],
+            });
+          }
+        },
+      );
+    });
+  }
+
+  // Azure Records
+  if (azureProvider) {
+    lbResources.azureAppGws?.forEach((appGw, index) => {
+      const zone = zones.azureZones[appGw.dnsInfo.subdomain];
+      if (zone) {
+        new DnsARecord(scope, `azure-a-rec-${index}`, {
+          provider: azureProvider,
+          name: appGw.dnsInfo.fqdn || appGw.dnsInfo.subdomain,
+          resourceGroupName: zone.resourceGroupName,
+          zoneName: zone.name,
+          ttl: 300,
+          records: [appGw.publicIp.ipAddress],
+        });
+      }
+    });
+  }
 }

@@ -141,7 +141,10 @@ export function createAwsAlbResources(
     loadBalancerArn: alb.arn,
     port: config.listenerConfig.port,
     protocol: config.listenerConfig.protocol,
-    sslPolicy: config.listenerConfig.sslPolicy,
+    sslPolicy:
+      config.listenerConfig.protocol === "HTTPS"
+        ? config.listenerConfig.sslPolicy || "ELBSecurityPolicy-2016-08"
+        : undefined,
     certificateArn: config.listenerConfig.certificateArn,
     defaultAction: [
       buildAction(config.listenerConfig.defaultAction, targetGroups),

@@ -2,9 +2,11 @@ import { Ec2InstanceConnectEndpoint } from "@cdktn/provider-aws/lib/ec2-instance
 import { Lb } from "@cdktn/provider-aws/lib/lb";
 import { LbListener } from "@cdktn/provider-aws/lib/lb-listener";
 import { LbTargetGroup } from "@cdktn/provider-aws/lib/lb-target-group";
+import { Route53Zone } from "@cdktn/provider-aws/lib/route53-zone";
 import { SecurityGroup } from "@cdktn/provider-aws/lib/security-group";
 import { Vpc as AwsVpc } from "@cdktn/provider-aws/lib/vpc";
 import { ApplicationGateway } from "@cdktn/provider-azurerm/lib/application-gateway";
+import { DnsZone } from "@cdktn/provider-azurerm/lib/dns-zone";
 import { NetworkSecurityGroup } from "@cdktn/provider-azurerm/lib/network-security-group";
 import { NetworkSecurityRule } from "@cdktn/provider-azurerm/lib/network-security-rule";
 import { PublicIp } from "@cdktn/provider-azurerm/lib/public-ip";
@@ -21,6 +23,7 @@ import { ComputeNetwork as GoogleVpc } from "@cdktn/provider-google/lib/compute-
 import { ComputeRegionUrlMap } from "@cdktn/provider-google/lib/compute-region-url-map";
 import { ComputeSubnetwork } from "@cdktn/provider-google/lib/compute-subnetwork";
 import { ComputeUrlMap } from "@cdktn/provider-google/lib/compute-url-map";
+import { DnsManagedZone } from "@cdktn/provider-google/lib/dns-managed-zone";
 import { Token } from "cdktf";
 
 // AWS VPC resources interface
@@ -240,8 +243,12 @@ export interface AwsCertificateConfig {
 // Google Managed SSL configuration
 export interface GoogleManagedSslConfig {
   enabled: boolean;
+  mode: "AWS_MANAGED" | "IMPORT"; // Required
   domains: string[]; // e.g., ["*.googletest.tohonokai.com", "googletest.tohonokai.com"]
   sslCertificateNames?: string[]; // Optional: existing certificate names to include
+  certificatePath?: string; // Optional for IMPORT
+  privateKeyPath?: string; // Optional for IMPORT
+  certificateChainPath?: string; // Optional
 }
 
 // DNS information output from load balancer creation
@@ -283,4 +290,10 @@ export interface PublicDnsZoneResources {
   awsZones?: Record<string, any>; // Route53 zones
   googleZones?: Record<string, any>; // Cloud DNS zones
   azureZones?: Record<string, any>; // Azure DNS zones
+}
+
+export interface CreatedPublicZones {
+  awsZones: Record<string, Route53Zone>;
+  googleZones: Record<string, DnsManagedZone>;
+  azureZones: Record<string, DnsZone>;
 }
