@@ -297,3 +297,46 @@ export interface CreatedPublicZones {
   googleZones: Record<string, DnsManagedZone>;
   azureZones: Record<string, DnsZone>;
 }
+
+// --- AWS ECS (Fargate) Config ---
+export interface AwsEcsConfig {
+  name: string;
+  build: boolean;
+  clusterName: string;
+  cpu: string;
+  memory: string;
+  desiredCount: number;
+  containerName: string;
+  image: string;
+  port: number;
+  securityGroupNames: string[];
+  subnetNames: string[];
+  targetGroupName?: string;
+}
+
+// --- Google Cloud Run Config ---
+export interface GoogleCloudRunConfig {
+  name: string;
+  build: boolean;
+  project: string;
+  location: string;
+  image: string;
+  port: number;
+  allowUnauthenticated: boolean;
+  minInstances?: number;
+  maxInstances?: number;
+}
+
+// --- Azure Container App Config ---
+export interface AzureContainerAppConfig {
+  name: string;
+  build: boolean;
+  resourceGroupName: string;
+  location: string;
+  environmentName: string;
+  image: string;
+  cpu: number;
+  memory: string;
+  targetPort: number;
+  externalEnabled: boolean;
+}

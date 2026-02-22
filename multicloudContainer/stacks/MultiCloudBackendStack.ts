@@ -2,6 +2,7 @@ import { TerraformStack } from "cdktn";
 import { Construct } from "constructs";
 import {
   hostZones,
+  useContainers,
   useDbs,
   useDns,
   useLbs,
@@ -9,17 +10,18 @@ import {
   useVpn,
 } from "../config/commonsettings";
 import { createProviders } from "../providers/providers";
+import { createComputeResources } from "../resources/containerResources";
 import { createDatabaseResources } from "../resources/databaseResources";
 import {
+  CreatedPublicZones,
   DatabaseResourcesOutput,
   LbResourcesOutputWithDns,
-  CreatedPublicZones,
 } from "../resources/interfaces";
 import { createLbResources } from "../resources/loadBarancerResources";
 import { createPrivateZoneResources } from "../resources/privateZoneResources";
 import {
-  createPublicDnsZones,
   createPublicDnsRecords,
+  createPublicDnsZones,
 } from "../resources/publicDnsResources";
 import { createVmResources } from "../resources/vmResources";
 import { createVpcResources } from "../resources/vpcResources";
@@ -105,6 +107,18 @@ export class MultiCloudBackendStack extends TerraformStack {
           lbResourcesOutput,
         );
       }
+    }
+
+    // Container / Compute Phase (新規追加)
+    if (useContainers) {
+      createComputeResources(
+        this,
+        awsProvider,
+        googleProvider,
+        azureProvider,
+        vpcResources.awsVpcResources,
+        lbResourcesOutput?.awsAlbs, // AWS ECSがターゲットグループを検索するのに必要
+      );
     }
 
     // Database
