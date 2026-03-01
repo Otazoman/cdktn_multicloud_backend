@@ -24,7 +24,7 @@ export const createGoogleVpnPeerParams = (
   peerVpcCidr: string,
   gcpNetwork: string,
   forwardingRuleResources: any,
-  labels?: { [key: string]: string } | undefined
+  labels?: { [key: string]: string } | undefined,
 ) => ({
   connectDestination: connectDestination,
   vpnTnnelname: `multicloud-gcp-vpc-gcp-${connectDestination}-vpn-tunnel`,

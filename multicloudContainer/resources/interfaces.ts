@@ -10,6 +10,8 @@ import { DnsZone } from "@cdktn/provider-azurerm/lib/dns-zone";
 import { NetworkSecurityGroup } from "@cdktn/provider-azurerm/lib/network-security-group";
 import { NetworkSecurityRule } from "@cdktn/provider-azurerm/lib/network-security-rule";
 import { PublicIp } from "@cdktn/provider-azurerm/lib/public-ip";
+import { StorageAccount } from "@cdktn/provider-azurerm/lib/storage-account";
+import { StorageShare } from "@cdktn/provider-azurerm/lib/storage-share";
 import { Subnet as AzureSubnet } from "@cdktn/provider-azurerm/lib/subnet";
 import { SubnetNetworkSecurityGroupAssociation } from "@cdktn/provider-azurerm/lib/subnet-network-security-group-association";
 import { VirtualNetwork } from "@cdktn/provider-azurerm/lib/virtual-network";
@@ -339,4 +341,36 @@ export interface AzureContainerAppConfig {
   memory: string;
   targetPort: number;
   externalEnabled: boolean;
+}
+
+// --- AWS EFS Resources ---
+export interface AwsEfsResources {
+  fileSystem: any; // EfsFileSystem
+  mountTargets: any[]; // EfsMountTarget[]
+  accessPoints?: any[]; // EfsAccessPoint[]
+}
+
+// --- Google Filestore Resources ---
+export interface GoogleFilestoreResources {
+  instance: any; // FilestoreInstance
+}
+
+// Combined Storage resources output (S3/GCSから差し替え)
+export interface StorageResourcesOutput {
+  awsEfs: AwsEfsResources[];
+  googleFilestore: GoogleFilestoreResources[];
+  azureFiles: AzureFileResources[];
+}
+
+// Azure Storage and File Share resources interface
+export interface AzureFileResources {
+  storageAccount: StorageAccount;
+  fileShare: StorageShare;
+}
+
+// Combined Storage resources output (S3/GCSから差し替え)
+export interface StorageResourcesOutput {
+  awsEfs: AwsEfsResources[];
+  googleFilestore: GoogleFilestoreResources[];
+  azureFiles: AzureFileResources[];
 }

@@ -1,7 +1,9 @@
+import { LOCATION, PROJECT_NAME } from "./common";
+
 export const gcpLbConfigs = [
   {
     name: "production-http-xlb",
-    project: "multicloud-sitevpn-project",
+    project: PROJECT_NAME,
     build: false,
     loadBalancerType: "GLOBAL" as "GLOBAL" | "REGIONAL",
     reserveStaticIp: true,
@@ -74,7 +76,7 @@ export const gcpLbConfigs = [
   },
   {
     name: "production-https-xlb",
-    project: "multicloud-sitevpn-project",
+    project: PROJECT_NAME,
     build: false,
     loadBalancerType: "GLOBAL",
     reserveStaticIp: true,
@@ -110,10 +112,10 @@ export const gcpLbConfigs = [
 
   {
     name: "regional-http-web-lb",
-    project: "multicloud-sitevpn-project",
+    project: PROJECT_NAME,
     build: false,
     loadBalancerType: "REGIONAL" as "GLOBAL" | "REGIONAL",
-    region: "asia-northeast1",
+    region: LOCATION,
     subnetworkName: "vpc-asia-northeast1",
     reserveStaticIp: true,
     protocol: "HTTP",
@@ -142,10 +144,10 @@ export const gcpLbConfigs = [
   },
   {
     name: "regional-https-web-lb",
-    project: "multicloud-sitevpn-project",
+    project: PROJECT_NAME,
     build: false,
     loadBalancerType: "REGIONAL" as "GLOBAL" | "REGIONAL",
-    region: "asia-northeast1",
+    region: LOCATION,
     subnetworkName: "vpc-asia-northeast1",
     reserveStaticIp: true,
     protocol: "HTTPS",
@@ -179,7 +181,7 @@ export const gcpLbConfigs = [
   },
   {
     name: "plain-http-google-lb",
-    project: "multicloud-sitevpn-project",
+    project: PROJECT_NAME,
     build: true,
     loadBalancerType: "GLOBAL" as "GLOBAL" | "REGIONAL",
     reserveStaticIp: true, // Recommended to keep IP constant
@@ -234,10 +236,10 @@ export const gcpLbConfigs = [
   },
   {
     name: "regional-plain-http-lb",
-    project: "multicloud-sitevpn-project",
+    project: PROJECT_NAME,
     build: true,
     loadBalancerType: "REGIONAL" as "GLOBAL" | "REGIONAL",
-    region: "asia-northeast1",
+    region: LOCATION,
     subnetworkName: "vpc-asia-northeast1",
     reserveStaticIp: true,
     protocol: "HTTP",

@@ -1,3 +1,5 @@
+import { LOCATION, PROJECT_NAME } from "./common";
+
 /* GCE instance configurations */
 const serviceAccountScopes = [
   "https://www.googleapis.com/auth/devstorage.read_only",
@@ -9,13 +11,13 @@ const serviceAccountScopes = [
 ];
 
 export const gceInstancesParams = {
-  project: "multicloud-sitevpn-project",
+  project: PROJECT_NAME,
   instanceConfigs: [
     {
       build: true,
       name: "gce-instance-1",
       machineType: "e2-micro",
-      zone: "asia-northeast1-a",
+      zone: LOCATION + "-a",
       tags: ["multicloud"],
       labels: {
         name: "example-instance1",
@@ -34,7 +36,7 @@ export const gceInstancesParams = {
       build: false,
       name: "gce-instance-2",
       machineType: "e2-micro",
-      zone: "asia-northeast1-b",
+      zone: LOCATION + "-b",
       tags: ["multicloud"],
       labels: {
         name: "example-instance2",

@@ -5,6 +5,7 @@
 ## AWS ECS Note:
 
 - Grant ECS permissions to the user for CDKTN.
+- Add AmazonElasticFileSystemFullAccess to the role for AWS
 
 ## AzureContainerApps Note:
 
@@ -18,6 +19,7 @@ az provider show --namespace Microsoft.App --query registrationState
 
 ## CloudRun Note :
 
+- Keep the CloudFireStoreAPI enabled.
 - You cannot run Cloud Run without enabling the Cloud Run Admin API.
 
 ```bash
@@ -42,3 +44,11 @@ gcloud projects add-iam-policy-binding $PROJECT \
   --member="serviceAccount:${SERVICE_ACCOUNT}" \
   --role="roles/run.admin"
 ```
+
+## AWS EFS Note:
+
+Amazon Elastic File System Full Access permissions must be added to the IAM user in CDKTN.
+
+## Google Filestore Note:
+
+You must enable the CloudFireStore API.
