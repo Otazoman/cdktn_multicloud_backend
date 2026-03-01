@@ -6,6 +6,7 @@ import {
   useDbs,
   useDns,
   useLbs,
+  useStorage,
   useVms,
   useVpn,
 } from "../config/commonsettings";
@@ -23,6 +24,7 @@ import {
   createPublicDnsRecords,
   createPublicDnsZones,
 } from "../resources/publicDnsResources";
+import { createStorageResources } from "../resources/storageResources";
 import { createVmResources } from "../resources/vmResources";
 import { createVpcResources } from "../resources/vpcResources";
 import { createVpnResources } from "../resources/vpnResources";
@@ -69,6 +71,16 @@ export class MultiCloudBackendStack extends TerraformStack {
       );
     }
 
+    // 4. Storage Phase
+    // let storageResourcesOutput: StorageResourcesOutput | undefined;
+    if (useStorage) {
+      // storageResourcesOutput = createStorageResources(
+      createStorageResources(this, awsProvider, googleProvider, azureProvider, {
+        awsVpcResources: vpcResources.awsVpcResources,
+        googleVpcResources: vpcResources.googleVpcResources,
+        googleSubnets: vpcResources.googleVpcResources?.subnets || [],
+      });
+    }
     // Load Balancer with SSL/TLS certificates and DNS information
     // DNS Zones Phase (Create zones first)
     let dnsZones: CreatedPublicZones | undefined;

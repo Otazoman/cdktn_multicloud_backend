@@ -177,7 +177,7 @@ export const securityGroups = [
         fromPort: 80,
         toPort: 80,
         protocol: "tcp",
-        cidrBlocks: ["0.0.0.0/0"], // パブリックALBの場合。内部限定ならVPC CIDRに変更
+        cidrBlocks: ["0.0.0.0/0"],
         description: "Allow HTTP inbound traffic",
       },
       {
@@ -196,6 +196,31 @@ export const securityGroups = [
         cidrBlocks: ["0.0.0.0/0"],
         ipv6CidrBlocks: ["::/0"],
         description: "Allow all outbound traffic to backends",
+      },
+    ],
+  },
+  {
+    resourcetype: "other",
+    name: "myaws-efs-sg",
+    tags: {
+      Purpose: "SharedStorage",
+    },
+    ingress: [
+      {
+        fromPort: 2049,
+        toPort: 2049,
+        protocol: "tcp",
+        cidrBlocks: ["10.0.0.0/16"],
+        description: "Allow NFS traffic for EFS",
+      },
+    ],
+    egress: [
+      {
+        fromPort: 0,
+        toPort: 0,
+        protocol: "-1",
+        cidrBlocks: ["0.0.0.0/0"],
+        description: "Allow all outbound traffic",
       },
     ],
   },

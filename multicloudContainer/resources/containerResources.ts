@@ -2,9 +2,9 @@ import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
 import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
 import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
 import { Construct } from "constructs";
-import { awsEcsConfigs } from "../config/aws/ecs";
-import { azureAcaConfigs } from "../config/azure/containerapps";
-import { gcpRunConfigs } from "../config/google/cloudrun";
+import { awsEcsConfigs } from "../config/aws/awssettings";
+import { azureAcaConfigs } from "../config/azure/azuresettings";
+import { gcpRunConfigs } from "../config/google/googlesettings";
 
 import { createAwsEcsFargateResources } from "../constructs/container/awsecs";
 import { createAzureContainerAppResources } from "../constructs/container/azureaca";

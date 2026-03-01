@@ -51,6 +51,15 @@ export const firewallIngressRules = [
     sourceRanges: ["10.0.0.0/16", "10.1.0.0/16", "10.2.0.0/16"],
     priority: 1000,
   },
+  {
+    name: "allow-filestore-nfs",
+    permission: {
+      protocol: "tcp",
+      ports: ["2049", "111", "20048"],
+    },
+    sourceRanges: ["10.1.0.0/16"],
+    priority: 1000,
+  },
 ];
 
 // Egress Rule
