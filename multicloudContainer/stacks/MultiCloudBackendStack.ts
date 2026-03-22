@@ -72,15 +72,19 @@ export class MultiCloudBackendStack extends TerraformStack {
     }
 
     // 4. Storage Phase
-    // let storageResourcesOutput: StorageResourcesOutput | undefined;
-    if (useStorage) {
-      // storageResourcesOutput = createStorageResources(
-      createStorageResources(this, awsProvider, googleProvider, azureProvider, {
-        awsVpcResources: vpcResources.awsVpcResources,
-        googleVpcResources: vpcResources.googleVpcResources,
-        googleSubnets: vpcResources.googleVpcResources?.subnets || [],
-      });
-    }
+    let storageResourcesOutput = useStorage
+      ? createStorageResources(
+          this,
+          awsProvider,
+          googleProvider,
+          azureProvider,
+          {
+            awsVpcResources: vpcResources.awsVpcResources,
+            googleVpcResources: vpcResources.googleVpcResources,
+            googleSubnets: vpcResources.googleVpcResources?.subnets || [],
+          },
+        )
+      : undefined;
     // Load Balancer with SSL/TLS certificates and DNS information
     // DNS Zones Phase (Create zones first)
     let dnsZones: CreatedPublicZones | undefined;
@@ -161,6 +165,8 @@ export class MultiCloudBackendStack extends TerraformStack {
         vpcResources.azureVnetResources,
         databaseResourcesOutput.awsDbResources,
         databaseResourcesOutput.googleCloudSqlInstances,
+        // Pass Filestore instance metadata for DNS A record registration in google.inner
+        storageResourcesOutput?.googleFilestoreInstances,
         databaseResourcesOutput.azureDatabaseResources,
       );
     }

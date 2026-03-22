@@ -355,22 +355,25 @@ export interface GoogleFilestoreResources {
   instance: any; // FilestoreInstance
 }
 
-// Combined Storage resources output (S3/GCSから差し替え)
-export interface StorageResourcesOutput {
-  awsEfs: AwsEfsResources[];
-  googleFilestore: GoogleFilestoreResources[];
-  azureFiles: AzureFileResources[];
-}
-
 // Azure Storage and File Share resources interface
 export interface AzureFileResources {
   storageAccount: StorageAccount;
   fileShare: StorageShare;
 }
 
-// Combined Storage resources output (S3/GCSから差し替え)
+// Combined Storage resources output
 export interface StorageResourcesOutput {
   awsEfs: AwsEfsResources[];
   googleFilestore: GoogleFilestoreResources[];
   azureFiles: AzureFileResources[];
+  /**
+   * Filestore instance metadata for DNS A record registration.
+   * Populated when Filestore instances have aRecordName configured.
+   */
+  googleFilestoreInstances?: Array<{
+    /** DNS A record name (e.g. "filestore001.google.inner") */
+    aRecordName: string;
+    /** Assigned private IP address of the Filestore instance */
+    privateIpAddress: string;
+  }>;
 }

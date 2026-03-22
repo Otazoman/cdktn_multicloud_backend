@@ -27,7 +27,8 @@
     "cdktn": "^0.22.0",
     "cdktn-cli": "^0.22.0",
     "constructs": "^10.4.2",
-    "js-base64": "^3.7.8"
+    "js-base64": "^3.7.8",
+    "npm": "^11.11.1"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",

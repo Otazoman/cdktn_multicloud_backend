@@ -1,14 +1,13 @@
+import { PROJECT_NAME } from "../common";
+
 // CloudSQL Instance Configurations
+// PSA settings (IP range, prefix length) have been moved to config/google/psa.ts (googlePsaConfig)
 export const cloudSqlConfig = {
-  project: "multicloud-sitevpn-project",
-  // Private network settings
-  privateIpRangeName: "cloudsql-private-ip", // Changed name to ensure uniqueness
-  googleManagedServicesVpcAddress: "10.100.0.0", // Changed IP address to avoid conflicts
-  prefixLength: 16,
+  project: PROJECT_NAME,
   instances: [
     // MySQL Instance
     {
-      build: true,
+      build: false,
       name: "cloudsql-mysql-instance-2026-0118-1700",
       // DNS A record name for google.inner zone (e.g., cloudsql-mysql.google.inner)
       aRecordName: "cloudsql-mysql.google.inner",

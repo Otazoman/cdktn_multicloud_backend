@@ -1,4 +1,5 @@
 export * from "./applicationgateway";
+export * from "./azuredatabase/databases";
 export * from "./common";
 export * from "./containerapps";
 export * from "./files";

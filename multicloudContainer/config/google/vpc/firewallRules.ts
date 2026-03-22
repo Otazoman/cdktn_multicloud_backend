@@ -57,7 +57,7 @@ export const firewallIngressRules = [
       protocol: "tcp",
       ports: ["2049", "111", "20048"],
     },
-    sourceRanges: ["10.1.0.0/16"],
+    sourceRanges: ["10.0.0.0/16", "10.1.0.0/16", "10.2.0.0/16"],
     priority: 1000,
   },
 ];

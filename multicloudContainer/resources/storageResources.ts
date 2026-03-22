@@ -15,7 +15,11 @@ import {
   awsToGoogle,
   googleToAzure,
 } from "../config/commonsettings";
-import { filestoreConfigs } from "../config/google/googlesettings";
+import {
+  filestoreConfigs,
+  googlePsaConfig,
+} from "../config/google/googlesettings";
+import { GooglePrivateServiceAccess } from "../constructs/vpcnetwork/googlepsa";
 import {
   AwsVpcResources,
   GoogleVpcResources,
@@ -85,19 +89,46 @@ export const createStorageResources = (
         target.node.addDependency(awsVpcResources),
       );
 
-      // Set dependency for all Access Points (Added in this fix)
+      // Set dependency for all Access Points
       res.accessPoints.forEach((ap) => ap.node.addDependency(awsVpcResources));
     });
   }
 
   // 2. Google Cloud Filestore
   if ((awsToGoogle || googleToAzure) && googleVpcResources) {
+    // Create or reuse the shared PSA construct.
+    // PSA settings are read from googlePsaConfig (config/google/psa.ts).
+    // getOrCreate ensures only one PSA construct exists per CDK scope even when
+    // both Filestore and CloudSQL are deployed simultaneously.
+    const psa = GooglePrivateServiceAccess.getOrCreate(
+      scope,
+      googlePsaConfig.psaConstructId,
+      googleProvider,
+      {
+        project: filestoreConfigs.project,
+        vpcId: googleVpcResources.vpc.id,
+        vpcName: googleVpcResources.vpc.name,
+        isExisting: googlePsaConfig.isExisting,
+        serviceRanges: googlePsaConfig.serviceRanges,
+      },
+    );
+
+    // Build only the instances that have build: true, keeping index alignment
+    const buildableInstances = filestoreConfigs.instances.filter(
+      (c) => c.build,
+    );
+
     const filestoreRes = createGoogleFilestoreInstances(
       scope,
       googleProvider,
       {
-        project: filestoreConfigs[0].project,
-        filestoreConfigs: filestoreConfigs,
+        project: filestoreConfigs.project,
+        filestoreConfigs: buildableInstances,
+        // Pass PSA resources as explicit TerraformResource references so they
+        // appear in the generated cdk.tf.json depends_on array.
+        // node.addDependency() on a Construct is not serialised into depends_on
+        // by CDKTF, so we must use ITerraformDependable references directly.
+        psaDependencies: [psa.connection, psa.peeringRoutesConfig],
       },
       googleVpcResources.vpc,
       googleVpcResources.subnets,
@@ -105,7 +136,29 @@ export const createStorageResources = (
 
     outputs.googleFilestore.push(...filestoreRes);
 
+    // Collect Filestore instance metadata for DNS A record registration.
+    // ipAddresses is a list attribute on the network block; index 0 is the primary IP.
+    outputs.googleFilestoreInstances = filestoreRes
+      .map((res, idx) => {
+        const cfg = buildableInstances[idx];
+        if (!cfg.aRecordName) return null;
+        return {
+          aRecordName: cfg.aRecordName,
+          // networks[0].ipAddresses[0] is the primary private IP assigned by GCP
+          // ipAddresses is string[] so use array index, not .get()
+          privateIpAddress: res.instance.networks.get(0).ipAddresses[0],
+        };
+      })
+      .filter(
+        (item): item is { aRecordName: string; privateIpAddress: string } =>
+          item !== null,
+      );
+
     filestoreRes.forEach((res) => {
+      // Keep the VPC-level construct dependency for ordering within the CDK graph.
+      // The explicit depends_on on psa.connection and psa.peeringRoutesConfig is
+      // now handled via psaDependencies above, which guarantees the resources appear
+      // in the generated cdk.tf.json depends_on block.
       res.instance.node.addDependency(googleVpcResources);
     });
   }
