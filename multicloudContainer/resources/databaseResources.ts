@@ -1,19 +1,19 @@
 import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
 import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
-import { ComputeGlobalAddress } from "@cdktn/provider-google/lib/compute-global-address";
-import { ComputeNetworkPeeringRoutesConfig } from "@cdktn/provider-google/lib/compute-network-peering-routes-config";
 import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
-import { ServiceNetworkingConnection } from "@cdktn/provider-google/lib/service-networking-connection";
 import { TerraformOutput } from "cdktn";
 import { Construct } from "constructs";
-import { auroraConfigs, rdsConfigs } from "../config/aws/aurorards/aurorards";
-import { azureDatabaseConfig } from "../config/azure/azuredatabase/databases";
+import { auroraConfigs, rdsConfigs } from "../config/aws/awssettings";
+import { azureDatabaseConfig } from "../config/azure/azuresettings";
 import {
   awsToAzure,
   awsToGoogle,
   googleToAzure,
 } from "../config/commonsettings";
-import { cloudSqlConfig } from "../config/google/cloudsql/cloudsql";
+import {
+  cloudSqlConfig,
+  googlePsaConfig,
+} from "../config/google/googlesettings";
 import { createSharedPrivateDnsZones } from "../constructs/dns/privatezone/azureprivatezone";
 import {
   AwsRelationalDatabaseConfig,
@@ -24,6 +24,7 @@ import {
   CloudSqlConfig,
   createGoogleCloudSqlInstance,
 } from "../constructs/relationaldatabase/googlecloudsql";
+import { GooglePrivateServiceAccess } from "../constructs/vpcnetwork/googlepsa";
 import {
   AwsDbResources,
   AwsVpcResources,
@@ -239,51 +240,20 @@ export const createDatabaseResources = (
 
   // Google CloudSQL (only if conditions are met and resources exist)
   if ((awsToGoogle || googleToAzure) && googleProvider && googleVpcResources) {
-    // Cloud SQL Private Service Access
-    const privateIpAddress = new ComputeGlobalAddress(
+    // Create or reuse the shared PSA construct.
+    // PSA settings are read from googlePsaConfig (config/google/psa.ts).
+    // getOrCreate ensures only one PSA construct exists per CDK scope even when
+    // both Filestore and CloudSQL are deployed simultaneously.
+    const psa = GooglePrivateServiceAccess.getOrCreate(
       scope,
-      cloudSqlConfig.privateIpRangeName,
+      googlePsaConfig.psaConstructId,
+      googleProvider,
       {
-        provider: googleProvider,
         project: cloudSqlConfig.project,
-        name: cloudSqlConfig.privateIpRangeName,
-        purpose: "VPC_PEERING",
-        addressType: "INTERNAL",
-        address: cloudSqlConfig.googleManagedServicesVpcAddress,
-        prefixLength: cloudSqlConfig.prefixLength,
-        network: googleVpcResources.vpc.id,
-      },
-    );
-
-    const serviceNetworkingConnection = new ServiceNetworkingConnection(
-      scope,
-      `cloudsql-vpc-peering-${cloudSqlConfig.privateIpRangeName}`,
-      {
-        provider: googleProvider,
-        network: googleVpcResources.vpc.id,
-        service: "servicenetworking.googleapis.com",
-        reservedPeeringRanges: [privateIpAddress.name],
-        // Wait until the VPC is fully provisioned
-        dependsOn: [
-          privateIpAddress,
-          googleVpcResources.vpc,
-          ...googleVpcResources.subnets,
-        ],
-      },
-    );
-
-    // Enable custom route export for VPC peering
-    new ComputeNetworkPeeringRoutesConfig(
-      scope,
-      "cloudsql-export-custom-routes",
-      {
-        provider: googleProvider,
-        project: cloudSqlConfig.project,
-        peering: "servicenetworking-googleapis-com",
-        network: googleVpcResources.vpc.name,
-        exportCustomRoutes: true,
-        importCustomRoutes: true,
-        dependsOn: [serviceNetworkingConnection],
+        vpcId: googleVpcResources.vpc.id,
+        vpcName: googleVpcResources.vpc.name,
+        isExisting: googlePsaConfig.isExisting,
+        serviceRanges: googlePsaConfig.serviceRanges,
       },
     );
 
@@ -301,13 +271,12 @@ export const createDatabaseResources = (
           googleProvider,
           config,
           googleVpcResources.vpc,
-          serviceNetworkingConnection,
+          psa.connection,
           instanceConfig.name, // Use instance name to prevent duplicate construct IDs
         );
       });
 
     googleCloudSqlInstances.forEach((instance, index) => {
-      instance.sqlInstance.node.addDependency(serviceNetworkingConnection);
       googleCloudSqlConnectionNames[instance.sqlInstance.name] =
         instance.connectionName;
 

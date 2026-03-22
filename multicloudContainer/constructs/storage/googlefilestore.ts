@@ -2,8 +2,8 @@ import { ComputeNetwork as GoogleVpc } from "@cdktn/provider-google/lib/compute-
 import { ComputeSubnetwork } from "@cdktn/provider-google/lib/compute-subnetwork";
 import { FilestoreInstance } from "@cdktn/provider-google/lib/filestore-instance";
 import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
+import { ITerraformDependable } from "cdktn";
 import { Construct } from "constructs";
-
 interface FilestoreConfig {
   name: string;
   location: string; // e.g., "asia-northeast1-a"
@@ -38,6 +38,13 @@ interface FilestoreConfig {
 interface CreateFilestoreParams {
   project: string;
   filestoreConfigs: FilestoreConfig[];
+  /**
+   * Terraform resources that must be fully applied before any Filestore instance
+   * is created. Pass psa.connection and psa.peeringRoutesConfig here so that
+   * the ServiceNetworkingConnection and its peering routes are both complete
+   * before GCP validates the PRIVATE_SERVICE_ACCESS network config.
+   */
+  psaDependencies?: ITerraformDependable[];
 }
 
 export function createGoogleFilestoreInstances(
@@ -68,12 +75,21 @@ export function createGoogleFilestoreInstances(
             network: vpc.name,
             modes: ["MODE_IPV4"],
             connectMode: config.connectMode,
+            // Use the named IP range from the instance config.
+            // For PRIVATE_SERVICE_ACCESS, this must be the ComputeGlobalAddress resource name
+            // (e.g. "gcp-psa-filestore-range"), not a CIDR string.
+            // For DIRECT_PEERING, this can be a CIDR string or left undefined.
             reservedIpRange: config.reservedIpRange,
           },
         ],
 
-        // Ensure Filestore is created after the network infrastructure is ready
-        dependsOn: [vpc, ...subnets],
+        // Ensure Filestore is created after the network infrastructure is ready.
+        // psaDependencies (ServiceNetworkingConnection + ComputeNetworkPeeringRoutesConfig)
+        // must also be listed here as TerraformResource references so that the generated
+        // cdk.tf.json depends_on block contains them explicitly.  Using only
+        // node.addDependency() on the parent Construct is NOT sufficient because CDKTF
+        // only serialises ITerraformDependable references into depends_on.
+        dependsOn: [vpc, ...subnets, ...(params.psaDependencies ?? [])],
       });
     });
 

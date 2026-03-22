@@ -1,4 +1,5 @@
 export * from "./alb";
+export * from "./aurorards/aurorards";
 export * from "./ec2";
 export * from "./ecs";
 export * from "./efs";

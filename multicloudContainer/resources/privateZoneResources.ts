@@ -343,6 +343,10 @@ const setupGoogleResources = (
   awsInboundEndpointIps: string[],
   azureDnsResolverIps: string[],
   googleCloudSqlInstances?: any[],
+  googleFilestoreInstances?: Array<{
+    aRecordName: string;
+    privateIpAddress: string;
+  }>,
 ) => {
   const networkSelfLink =
     (googleVpcResources.vpc as any).selfLink ||
@@ -427,6 +431,31 @@ const setupGoogleResources = (
     });
     googleOutput.cloudSqlInternalZone = cloudSqlResult.internalZone;
     googleOutput.cloudSqlARecords = cloudSqlResult.records;
+  }
+
+  // Filestore A records (reuses the same google.inner zone as Cloud SQL)
+  // createGoogleCloudSqlARecords is reused here since the logic is identical:
+  // both create A records in a private DNS zone using instance name + private IP.
+  if (googleFilestoreInstances && googleFilestoreInstances.length > 0) {
+    const filestoreResult = createGoogleCloudSqlARecords(
+      scope,
+      googleProvider,
+      {
+        project,
+        networkSelfLink,
+        internalZoneName:
+          googlePrivateZoneParams.filestoreARecords.internalZoneName,
+        zoneDescription:
+          googlePrivateZoneParams.filestoreARecords.zoneDescription,
+        cloudSqlInstances: googleFilestoreInstances.map((i) => ({
+          name: i.aRecordName,
+          privateIpAddress: i.privateIpAddress,
+        })),
+        labels: googlePrivateZoneParams.labels,
+      },
+    );
+    googleOutput.filestoreInternalZone = filestoreResult.internalZone;
+    googleOutput.filestoreARecords = filestoreResult.records;
   }
 
   return googleOutput;
@@ -547,6 +576,10 @@ export const createPrivateZoneResources = (
   azureVnetResources?: AzureVnetResources,
   awsDbResources?: AwsDbResources,
   googleCloudSqlInstances?: any[],
+  googleFilestoreInstances?: Array<{
+    aRecordName: string;
+    privateIpAddress: string;
+  }>,
   azureDatabaseResources?: any[],
 ): PrivateZoneResources => {
   const output: PrivateZoneResources = {};
@@ -602,6 +635,7 @@ export const createPrivateZoneResources = (
         awsInboundEndpointIps,
         azureDnsResolverIps,
         googleCloudSqlInstances,
+        googleFilestoreInstances,
       ),
       inboundPolicy: googleInboundPolicy,
     };

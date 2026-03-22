@@ -33,4 +33,9 @@ export const googlePrivateZoneParams = {
     internalZoneName: "google.inner",
     zoneDescription: "Private DNS zone for Cloud SQL short names",
   },
+  // Filestore A record configuration (shares the same google.inner zone as Cloud SQL)
+  filestoreARecords: {
+    internalZoneName: "google.inner",
+    zoneDescription: "Private DNS zone for Filestore short names",
+  },
 };

@@ -1,7 +1,8 @@
 /* EFS configurations */
 export const efsConfigs = [
+  // 1. Existing High-Performance EFS
   {
-    build: true,
+    build: false,
     name: "aws-app-shared-storage",
     encrypted: true,
     performanceMode: "generalPurpose" as "generalPurpose" | "maxIO",
@@ -12,22 +13,33 @@ export const efsConfigs = [
       Name: "SharedDataStorage",
       Owner: "Team-A",
     },
-    // Note: Ensure your createAwsEfs function is updated to handle these if used
-    transitionToIa: "AFTER_30_DAYS",
+    transitionToIa: "AFTER_7_DAYS",
     backupPolicy: "ENABLED",
-
-    // Access Point configurations
     accessPoints: [
       {
         name: "app-access-point",
-        path: "/", // Flattened based on our interface
-        creationInfo: {
-          ownerGid: 1000,
-          ownerUid: 1000,
-          permissions: "755",
-        },
+        path: "/",
+        creationInfo: { ownerGid: 1000, ownerUid: 1000, permissions: "755" },
         posixUser: { gid: 1000, uid: 1000 },
       },
     ],
+  },
+
+  // 2. Cost-Optimized EFS (Newly Added)
+  {
+    build: false,
+    name: "aws-backup-storage",
+    encrypted: true,
+    performanceMode: "generalPurpose" as "generalPurpose" | "maxIO", // Best for most use cases
+    throughputMode: "elastic" as "bursting" | "provisioned" | "elastic", // Pay-as-you-go throughput
+    subnetKeys: ["my-aws-vpc-private-subnet1a"], // Single subnet for lower mount target costs (optional)
+    securityGroupIds: ["myaws-efs-sg"],
+    tags: {
+      Name: "CostOptimizedStorage",
+      Owner: "Team-B",
+    },
+    transitionToIa: "AFTER_7_DAYS", // Rapidly transition to Infrequent Access (IA) to save up to 90%
+    backupPolicy: "DISABLED", // Disable backup if data is non-critical to save cost
+    accessPoints: [], // Empty if not needed
   },
 ];
