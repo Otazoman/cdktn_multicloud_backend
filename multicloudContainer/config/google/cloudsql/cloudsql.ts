@@ -7,7 +7,7 @@ export const cloudSqlConfig = {
   instances: [
     // MySQL Instance
     {
-      build: false,
+      build: true,
       name: "cloudsql-mysql-instance-2026-0118-1700",
       // DNS A record name for google.inner zone (e.g., cloudsql-mysql.google.inner)
       aRecordName: "cloudsql-mysql.google.inner",

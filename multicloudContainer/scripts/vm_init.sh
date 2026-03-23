@@ -56,7 +56,7 @@ wait_for_apt_lock
 if [ -f /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh ]; then
   yes "" | /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
 fi
-apt install -y mysql-client postgresql-client
+apt install -y mysql-client postgresql-client nfs-common
 wait_for_apt_lock
 
 # package upgrade

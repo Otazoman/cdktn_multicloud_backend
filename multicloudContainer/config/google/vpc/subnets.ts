@@ -15,4 +15,12 @@ export const subnets = [
       Tier: "App",
     },
   },
+  {
+    name: "other-subnet",
+    cidr: "10.1.31.0/24",
+    region: "asia-northeast1",
+    labels: {
+      Tier: "other",
+    },
+  },
 ];
