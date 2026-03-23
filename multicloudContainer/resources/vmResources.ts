@@ -1,7 +1,7 @@
 import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
 import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
 import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
-import { Token } from "cdktn";
+import { ITerraformDependable, Token } from "cdktn";
 import { Construct } from "constructs";
 import { ec2Configs } from "../config/aws/awssettings";
 import { azureVmsConfigparams } from "../config/azure/azuresettings";
@@ -28,6 +28,13 @@ export const createVmResources = (
   awsVpcResources?: AwsVpcResources,
   googleVpcResources?: GoogleVpcResources,
   azureVnetResources?: AzureVnetResources,
+  /**
+   * PSA TerraformResource references forwarded from storageResources or
+   * databaseResources.  When present they are added to every Google GCE
+   * instance's depends_on so that VM placement does not race with VPC
+   * peering-route reconfiguration performed by PSA.
+   */
+  googlePsaDependencies?: ITerraformDependable[],
 ) => {
   if ((awsToAzure || awsToGoogle) && awsVpcResources) {
     //AWS EC2 Instances
@@ -66,7 +73,11 @@ export const createVmResources = (
     const googleGceInstances = createGoogleGceInstances(
       scope,
       googleProvider,
-      gceInstancesParams,
+      {
+        ...gceInstancesParams,
+        // Forward PSA dependencies so GCE waits for peering routes to settle.
+        psaDependencies: googlePsaDependencies,
+      },
       googleVpcResources.vpc,
       googleVpcResources.subnets,
     );

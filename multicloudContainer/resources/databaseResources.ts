@@ -1,7 +1,7 @@
 import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
 import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
 import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
-import { TerraformOutput } from "cdktn";
+import { ITerraformDependable, TerraformOutput } from "cdktn";
 import { Construct } from "constructs";
 import { auroraConfigs, rdsConfigs } from "../config/aws/awssettings";
 import { azureDatabaseConfig } from "../config/azure/azuresettings";
@@ -159,6 +159,9 @@ export const createDatabaseResources = (
   }> = [];
 
   let awsDbResources: AwsDbResources | undefined;
+  // PSA TerraformResource references populated when CloudSQL PSA is created.
+  // Passed back to the caller so GCE can declare explicit depends_on entries.
+  let googlePsaDeps: ITerraformDependable[] | undefined;
   let azureDatabaseResources:
     | Array<{
         server: any;
@@ -256,6 +259,10 @@ export const createDatabaseResources = (
         serviceRanges: googlePsaConfig.serviceRanges,
       },
     );
+
+    // Expose PSA TerraformResource references so that GCE instances can declare
+    // explicit depends_on entries and wait for peering routes to be configured.
+    googlePsaDeps = [psa.connection, psa.peeringRoutesConfig];
 
     // Create CloudSQL instances in a loop and handle build flags
     const googleCloudSqlInstances = cloudSqlConfig.instances
@@ -362,5 +369,6 @@ export const createDatabaseResources = (
         : undefined,
     awsDbResources: awsDbResources,
     azureDatabaseResources: azureDatabaseResources,
+    googlePsaDependencies: googlePsaDeps,
   };
 };

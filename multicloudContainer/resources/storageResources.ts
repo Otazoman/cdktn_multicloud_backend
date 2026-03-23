@@ -161,6 +161,11 @@ export const createStorageResources = (
       // in the generated cdk.tf.json depends_on block.
       res.instance.node.addDependency(googleVpcResources);
     });
+
+    // Expose PSA TerraformResource references so that GCE instances created in
+    // vmResources can declare explicit depends_on entries and wait for the peering
+    // routes to be fully configured before attempting VM placement.
+    outputs.googlePsaDependencies = [psa.connection, psa.peeringRoutesConfig];
   }
 
   // 3. Azure Storage & File Shares

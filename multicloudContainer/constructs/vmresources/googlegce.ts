@@ -2,10 +2,10 @@ import { ComputeInstance } from "@cdktn/provider-google/lib/compute-instance";
 import { ComputeNetwork as GoogleVpc } from "@cdktn/provider-google/lib/compute-network";
 import { ComputeSubnetwork } from "@cdktn/provider-google/lib/compute-subnetwork";
 import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
+import { ITerraformDependable } from "cdktn";
 import { Construct } from "constructs";
 import * as fs from "fs";
 import * as path from "path";
-
 
 interface GceInstanceConfig {
   name: string;
@@ -26,6 +26,15 @@ interface GceInstanceConfig {
 interface CreateGceInstancesParams {
   project: string;
   instanceConfigs: GceInstanceConfig[];
+  /**
+   * PSA TerraformResource references (ServiceNetworkingConnection +
+   * ComputeNetworkPeeringRoutesConfig) to include in every GCE instance's
+   * depends_on list.  When PSA reconfigures VPC peering routes the network
+   * is temporarily unstable; without this dependency GCE creation overlaps
+   * with that window and fails with a misleading "not enough resources" error.
+   * Pass undefined when no PSA is in use (useStorage: false, useDbs: false).
+   */
+  psaDependencies?: ITerraformDependable[];
 }
 
 export function createGoogleGceInstances(
@@ -33,7 +42,7 @@ export function createGoogleGceInstances(
   provider: GoogleProvider,
   params: CreateGceInstancesParams,
   vpc: GoogleVpc,
-  subnets: ComputeSubnetwork[]
+  subnets: ComputeSubnetwork[],
 ) {
   const instances = params.instanceConfigs
     .filter((config) => config.build)
@@ -48,7 +57,7 @@ export function createGoogleGceInstances(
         } catch (error) {
           console.error(
             `Error reading startup script file at ${config.startupScriptPath}:`,
-            error
+            error,
           );
           startupScriptContent = undefined;
         }
@@ -81,7 +90,10 @@ export function createGoogleGceInstances(
         metadata: startupScriptContent
           ? { "startup-script": startupScriptContent }
           : undefined,
-        dependsOn: [vpc, ...subnets],
+        // Wait for VPC infrastructure AND PSA peering routes before placing the VM.
+        // PSA rewrites VPC routing tables; if GCE creation overlaps with that
+        // operation GCP returns a misleading "not enough resources" error.
+        dependsOn: [vpc, ...subnets, ...(params.psaDependencies ?? [])],
       });
     });
 

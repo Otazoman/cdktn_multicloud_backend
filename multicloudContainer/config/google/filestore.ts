@@ -3,7 +3,6 @@ import { LOCATION, PROJECT_NAME } from "./common";
 /** Filestore instance configurations */
 export const filestoreConfigs = {
   project: PROJECT_NAME,
-  // PSA settings have been moved to psa.ts (googlePsaConfig)
   instances: [
     {
       build: true,
@@ -37,9 +36,9 @@ export const filestoreConfigs = {
       },
     },
     {
-      build: true,
+      build: false,
       name: "gcp-shared-filestore002",
-      location: LOCATION + "-a",
+      location: LOCATION + "-b",
       tier: "BASIC_HDD" as
         | "BASIC_HDD"
         | "BASIC_SSD"

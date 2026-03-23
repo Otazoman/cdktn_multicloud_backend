@@ -15,7 +15,7 @@ export const googleVpcResourcesparams = {
   proxySubnets: [
     {
       name: "proxy-subnet",
-      cidr: "10.1.30.0/24",
+      cidr: "10.1.110.0/24",
       region: "asia-northeast1",
     },
   ],

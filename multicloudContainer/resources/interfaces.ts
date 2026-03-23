@@ -27,6 +27,7 @@ import { ComputeSubnetwork } from "@cdktn/provider-google/lib/compute-subnetwork
 import { ComputeUrlMap } from "@cdktn/provider-google/lib/compute-url-map";
 import { DnsManagedZone } from "@cdktn/provider-google/lib/dns-managed-zone";
 import { Token } from "cdktf";
+import { ITerraformDependable } from "cdktn";
 
 // AWS VPC resources interface
 export interface AwsVpcResources {
@@ -162,6 +163,13 @@ export interface DatabaseResourcesOutput {
   googleCloudSqlConnectionNames: {
     [instanceName: string]: string;
   };
+  /**
+   * PSA TerraformResource references produced by the database layer.
+   * Populated when CloudSQL is created with PRIVATE_SERVICE_ACCESS.
+   * Used by vmResources to ensure GCE is created after PSA peering routes
+   * are fully configured.
+   */
+  googlePsaDependencies?: ITerraformDependable[];
   googleCloudSqlInstances?: Array<{
     name: string;
     privateIpAddress: string;
@@ -376,4 +384,11 @@ export interface StorageResourcesOutput {
     /** Assigned private IP address of the Filestore instance */
     privateIpAddress: string;
   }>;
+  /**
+   * PSA TerraformResource references (ServiceNetworkingConnection +
+   * ComputeNetworkPeeringRoutesConfig) that must be fully applied before
+   * any GCE instance is created in the same VPC.
+   * Passed to vmResources so GCE can declare explicit depends_on entries.
+   */
+  googlePsaDependencies?: ITerraformDependable[];
 }
