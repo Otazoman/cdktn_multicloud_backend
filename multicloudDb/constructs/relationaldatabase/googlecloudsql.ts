@@ -72,7 +72,7 @@ export function createGoogleCloudSqlInstance(
   config: CloudSqlConfig,
   vpc: GoogleVpc,
   serviceNetworkingConnection: ServiceNetworkingConnection,
-  id: string // Use a string identifier for construct IDs
+  id: string, // Use a string identifier for construct IDs
 ): CloudSqlOutput {
   // Load database flags from file if specified
   let databaseFlags: DatabaseFlag[] = [];
@@ -80,7 +80,7 @@ export function createGoogleCloudSqlInstance(
     try {
       const absolutePath = path.resolve(
         process.cwd(),
-        config.databaseFlagsFile
+        config.databaseFlagsFile,
       );
       const paramModule = require(absolutePath);
       // Support both default export and named export
@@ -89,7 +89,7 @@ export function createGoogleCloudSqlInstance(
     } catch (error) {
       console.error(
         `Error reading database flags file at ${config.databaseFlagsFile}:`,
-        error
+        error,
       );
     }
   }
@@ -120,7 +120,7 @@ export function createGoogleCloudSqlInstance(
         },
         transactionLogRetentionDays: config.backupTransactionLogRetentionDays,
         pointInTimeRecoveryEnabled: config.databaseVersion.startsWith(
-          "POSTGRES"
+          "POSTGRES",
         )
           ? config.pointInTimeRecoveryEnabled
           : undefined,
@@ -176,7 +176,7 @@ export function createGoogleCloudSqlInstance(
       lifecycle: {
         createBeforeDestroy: true,
       },
-    }
+    },
   );
 
   // Create default database

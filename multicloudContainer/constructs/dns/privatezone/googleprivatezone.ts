@@ -17,7 +17,7 @@ export function getGoogleDnsInboundIps(
     networkName: string;
     region?: string;
     dependsOn?: any[];
-  }
+  },
 ): DataGoogleComputeAddresses {
   const filter = `purpose="DNS_RESOLVER"`;
   const dataSource = new DataGoogleComputeAddresses(
@@ -29,7 +29,7 @@ export function getGoogleDnsInboundIps(
       filter: filter,
       region: params.region,
       dependsOn: params.dependsOn,
-    }
+    },
   );
 
   return dataSource;
@@ -68,7 +68,7 @@ export function createGooglePrivateDnsZones(
     forwardingZoneDescription?: string;
     privateZoneNamePrefix?: string;
     privateZoneDescription?: string;
-  }
+  },
 ) {
   const zones: { [name: string]: DnsManagedZone } = {};
 
@@ -145,7 +145,7 @@ export function createGooglePrivateDnsZones(
         zones[zoneName] = mz;
       } else {
         console.warn(
-          `No target DNS resolver found for zone: ${zoneName}, creating private zone instead`
+          `No target DNS resolver found for zone: ${zoneName}, creating private zone instead`,
         );
         // Fall back to creating a private zone
         const mz = new DnsManagedZone(scope, `gcp-private-zone-${idx}`, {
@@ -194,7 +194,7 @@ export function createGoogleCnameRecords(
   scope: Construct,
   provider: GoogleProvider,
   zone: DnsManagedZone,
-  records: { name: string; cname: string; ttl?: number }[]
+  records: { name: string; cname: string; ttl?: number }[],
 ) {
   return records.map(
     (r, idx) =>
@@ -208,8 +208,8 @@ export function createGoogleCnameRecords(
           type: "CNAME",
           ttl: r.ttl || 300,
           rrdatas: [r.cname.endsWith(".") ? r.cname : r.cname + "."],
-        }
-      )
+        },
+      ),
   );
 }
 
@@ -227,7 +227,7 @@ export function createGoogleDbCnameRecords(
       shortName: string;
       dbEndpoint: string;
     }>;
-  }
+  },
 ) {
   const records: DnsRecordSet[] = [];
 
@@ -271,10 +271,12 @@ export function createGoogleDbCnameRecords(
 }
 
 /**
- * Creates A records for Cloud SQL instances to provide short, easy-to-remember names
- * This function automatically registers Cloud SQL private IP addresses as A records
+ * Creates a google.inner private DNS zone and A records for GCP-internal services
+ * (Cloud SQL, Filestore, etc.) to provide short, easy-to-remember names.
+ *
+ * Renamed from createGoogleCloudSqlARecords to reflect its general-purpose usage.
  */
-export function createGoogleCloudSqlARecords(
+export function createGoogleInnerZoneWithARecords(
   scope: Construct,
   provider: GoogleProvider,
   params: {
@@ -282,21 +284,24 @@ export function createGoogleCloudSqlARecords(
     networkSelfLink: string;
     internalZoneName: string;
     zoneDescription: string;
-    cloudSqlInstances: Array<{
+    instances: Array<{
       name: string;
       privateIpAddress: string;
     }>;
+    recordIdPrefix?: string; // Construct ID prefix for A records (default: "gcp-inner-a-record")
     labels?: { [key: string]: string };
-  }
+  },
 ) {
   const records: DnsRecordSet[] = [];
 
-  if (!params.cloudSqlInstances || params.cloudSqlInstances.length === 0) {
+  if (!params.instances || params.instances.length === 0) {
     return { internalZone: null, records };
   }
 
-  // Create a private DNS zone for Cloud SQL internal DNS names
-  const internalZone = new DnsManagedZone(scope, "gcp-cloudsql-internal-zone", {
+  const recordIdPrefix = params.recordIdPrefix ?? "gcp-inner-a-record";
+
+  // Create a private DNS zone for GCP-internal service DNS names (google.inner)
+  const internalZone = new DnsManagedZone(scope, "gcp-inner-zone", {
     provider: provider,
     name: params.internalZoneName.replace(/\./g, "-"),
     dnsName: params.internalZoneName.endsWith(".")
@@ -311,9 +316,9 @@ export function createGoogleCloudSqlARecords(
     },
   });
 
-  // Create A records for each Cloud SQL instance
-  params.cloudSqlInstances.forEach((instance, idx) => {
-    const aRecord = new DnsRecordSet(scope, `gcp-cloudsql-a-${idx}`, {
+  // Create A records for each instance
+  params.instances.forEach((instance, idx) => {
+    const aRecord = new DnsRecordSet(scope, `${recordIdPrefix}-${idx}`, {
       provider: provider,
       name: instance.name.endsWith(".") ? instance.name : instance.name + ".",
       managedZone: internalZone.name,
@@ -325,6 +330,33 @@ export function createGoogleCloudSqlARecords(
   });
 
   return { internalZone, records };
+}
+
+/**
+ * Adds A records to an already-created google.inner private DNS zone.
+ * Use this when the zone was created by createGoogleInnerZoneWithARecords
+ * and additional records (e.g. Filestore) need to be registered in the same zone.
+ */
+export function addGoogleInnerZoneARecords(
+  scope: Construct,
+  provider: GoogleProvider,
+  internalZone: DnsManagedZone,
+  instances: Array<{
+    name: string;
+    privateIpAddress: string;
+  }>,
+  recordIdPrefix: string = "gcp-inner-a-record-extra",
+): DnsRecordSet[] {
+  return instances.map((instance, idx) => {
+    return new DnsRecordSet(scope, `${recordIdPrefix}-${idx}`, {
+      provider: provider,
+      name: instance.name.endsWith(".") ? instance.name : instance.name + ".",
+      managedZone: internalZone.name,
+      type: "A",
+      ttl: 300,
+      rrdatas: [instance.privateIpAddress],
+    });
+  });
 }
 
 /**
@@ -347,7 +379,7 @@ export function createGoogleDnsInboundAndCloudSql(
       internalZoneName: string;
       zoneDescription: string;
     };
-  }
+  },
 ) {
   const output: any = {};
 
@@ -357,12 +389,13 @@ export function createGoogleDnsInboundAndCloudSql(
 
   // Create Cloud SQL A records if instances are provided
   if (params.cloudSqlInstances && config.cloudSqlARecords) {
-    const cloudSqlResult = createGoogleCloudSqlARecords(scope, provider, {
+    const cloudSqlResult = createGoogleInnerZoneWithARecords(scope, provider, {
       project: params.project,
       networkSelfLink: params.networkSelfLink,
       internalZoneName: config.cloudSqlARecords.internalZoneName,
       zoneDescription: config.cloudSqlARecords.zoneDescription,
-      cloudSqlInstances: params.cloudSqlInstances,
+      instances: params.cloudSqlInstances,
+      recordIdPrefix: "gcp-cloudsql-a-record",
       labels: config.labels,
     });
     output.cloudSqlInternalZone = cloudSqlResult.internalZone;
@@ -389,7 +422,7 @@ export function createGoogleCloudDnsInboundPolicy(
     networkSelfLink: string;
     policyName?: string;
     labels?: { [key: string]: string };
-  }
+  },
 ) {
   const policyName = params.policyName || "gcp-inbound-dns-policy";
 
@@ -430,7 +463,7 @@ export function createGoogleCloudSqlCnameRecords(
       connectionName: string; // Cloud SQL connection name (e.g., project:region:instance)
     }>;
     labels?: { [key: string]: string };
-  }
+  },
 ) {
   const records: DnsRecordSet[] = [];
 

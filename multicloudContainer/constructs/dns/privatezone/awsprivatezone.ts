@@ -157,6 +157,34 @@ export function createAwsOutboundEndpointWithRules(
 }
 
 /**
+ * Creates CNAME records for EFS file systems in the aws.inner private hosted zone.
+ * Each EFS instance is registered with a short, easy-to-remember CNAME pointing
+ * to the EFS DNS name (fs-xxxx.efs.<region>.amazonaws.com).
+ */
+export function createAwsEfsCnameRecords(
+  scope: Construct,
+  provider: AwsProvider,
+  zone: Route53Zone,
+  records: Array<{
+    name: string; // e.g. "efs-shared.aws.inner"
+    efsDnsName: string; // e.g. "fs-xxxx.efs.ap-northeast-1.amazonaws.com"
+    ttl?: number;
+  }>,
+): Route53Record[] {
+  return records.map((record) => {
+    const domainSafeName = record.name.replace(/\./g, "-");
+    return new Route53Record(scope, `efs-cname-${domainSafeName}`, {
+      provider: provider,
+      zoneId: zone.zoneId,
+      name: record.name,
+      type: "CNAME",
+      ttl: record.ttl ?? 300,
+      records: [record.efsDnsName],
+    });
+  });
+}
+
+/**
  * Creates CNAME records in a Route53 zone
  */
 export function createAwsCnameRecords(

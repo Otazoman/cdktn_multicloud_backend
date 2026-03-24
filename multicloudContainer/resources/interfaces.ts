@@ -375,7 +375,17 @@ export interface StorageResourcesOutput {
   googleFilestore: GoogleFilestoreResources[];
   azureFiles: AzureFileResources[];
   /**
-   * Filestore instance metadata for DNS A record registration.
+   * EFS instance metadata for DNS CNAME record registration in aws.inner.
+   * Populated when EFS instances have cnameRecordName configured.
+   */
+  awsEfsInstances?: Array<{
+    /** CNAME record name in aws.inner (e.g. "efs-shared.aws.inner") */
+    cnameRecordName: string;
+    /** EFS DNS name (e.g. "fs-xxxx.efs.ap-northeast-1.amazonaws.com") */
+    dnsFqdn: string;
+  }>;
+  /**
+   * Filestore instance metadata for DNS A record registration in google.inner.
    * Populated when Filestore instances have aRecordName configured.
    */
   googleFilestoreInstances?: Array<{
@@ -383,6 +393,16 @@ export interface StorageResourcesOutput {
     aRecordName: string;
     /** Assigned private IP address of the Filestore instance */
     privateIpAddress: string;
+  }>;
+  /**
+   * Azure Files instance metadata for DNS CNAME record registration in azure.inner.
+   * Populated when Azure Files configs have cnameRecordName configured.
+   */
+  azureFilesInstances?: Array<{
+    /** CNAME short name in azure.inner (e.g. "files-shared1") */
+    cnameRecordName: string;
+    /** Storage account primary file endpoint FQDN (e.g. "stcatappdata001.file.core.windows.net") */
+    fqdn: string;
   }>;
   /**
    * PSA TerraformResource references (ServiceNetworkingConnection +

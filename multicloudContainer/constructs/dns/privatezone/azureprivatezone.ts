@@ -329,6 +329,39 @@ export function createAzureInnerPrivateDnsZone(
 }
 
 /**
+ * Creates CNAME records for Azure Files storage accounts in the azure.inner Private DNS Zone.
+ * Each storage account is registered with a short name pointing to its primary file endpoint
+ * (e.g. "<accountName>.file.core.windows.net").
+ */
+export function createAzureFilesInnerCnameRecords(
+  scope: Construct,
+  provider: AzurermProvider,
+  resourceGroupName: string,
+  privateDnsZone: PrivateDnsZone,
+  records: Array<{
+    name: string; // short name, e.g. "files-shared"
+    fqdn: string; // e.g. "stcatappdata001.file.core.windows.net"
+    ttl?: number;
+  }>,
+): PrivateDnsCnameRecord[] {
+  return records.map((record, index) => {
+    return new PrivateDnsCnameRecord(
+      scope,
+      `azure-files-cname-${record.name}-${index}`,
+      {
+        provider: provider,
+        name: record.name,
+        resourceGroupName: resourceGroupName,
+        zoneName: privateDnsZone.name,
+        record: record.fqdn.endsWith(".") ? record.fqdn : record.fqdn + ".",
+        ttl: record.ttl ?? 300,
+        dependsOn: [privateDnsZone],
+      },
+    );
+  });
+}
+
+/**
  * Creates CNAME records in azure.inner Private DNS Zone
  */
 export function createAzureInnerCnameRecords(

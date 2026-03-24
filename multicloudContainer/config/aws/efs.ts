@@ -2,7 +2,7 @@
 export const efsConfigs = [
   // 1. Existing High-Performance EFS
   {
-    build: false,
+    build: true,
     name: "aws-app-shared-storage",
     encrypted: true,
     performanceMode: "generalPurpose" as "generalPurpose" | "maxIO",
@@ -15,6 +15,8 @@ export const efsConfigs = [
     },
     transitionToIa: "AFTER_7_DAYS",
     backupPolicy: "ENABLED",
+    // DNS CNAME record name registered in aws.inner private zone
+    cnameRecordName: "efs-shared.aws.inner",
     accessPoints: [
       {
         name: "app-access-point",
@@ -40,6 +42,8 @@ export const efsConfigs = [
     },
     transitionToIa: "AFTER_7_DAYS", // Rapidly transition to Infrequent Access (IA) to save up to 90%
     backupPolicy: "DISABLED", // Disable backup if data is non-critical to save cost
+    // DNS CNAME record name registered in aws.inner private zone
+    cnameRecordName: "efs-backup.aws.inner",
     accessPoints: [], // Empty if not needed
   },
 ];

@@ -63,8 +63,10 @@ export const createStorageResources = (
       return "default-security-group-id";
     };
 
+    const buildableEfsConfigs = efsConfigs.filter((c) => c.build);
+
     const efsRes = createAwsEfs(scope, awsProvider, {
-      efsConfigs: efsConfigs.map((config) => ({
+      efsConfigs: buildableEfsConfigs.map((config) => ({
         ...config,
         // Convert SG names to IDs
         securityGroupIds:
@@ -92,6 +94,22 @@ export const createStorageResources = (
       // Set dependency for all Access Points
       res.accessPoints.forEach((ap) => ap.node.addDependency(awsVpcResources));
     });
+
+    // Collect EFS metadata for DNS CNAME record registration in aws.inner.
+    // fileSystem.dnsName resolves to "fs-xxxx.efs.<region>.amazonaws.com" at apply time.
+    outputs.awsEfsInstances = efsRes
+      .map((res, idx) => {
+        const cfg = buildableEfsConfigs[idx];
+        if (!cfg.cnameRecordName) return null;
+        return {
+          cnameRecordName: cfg.cnameRecordName,
+          dnsFqdn: res.fileSystem.dnsName,
+        };
+      })
+      .filter(
+        (item): item is { cnameRecordName: string; dnsFqdn: string } =>
+          item !== null,
+      );
   }
 
   // 2. Google Cloud Filestore
@@ -170,16 +188,33 @@ export const createStorageResources = (
 
   // 3. Azure Storage & File Shares
   if (awsToAzure || googleToAzure) {
-    azureFilesConfigs
-      .filter((c) => c.build)
-      .forEach((config) => {
-        const azureRes = createAzureFilesResources(
-          scope,
-          azureProvider,
-          config,
-        );
-        outputs.azureFiles.push(azureRes);
-      });
+    const buildableAzureFilesConfigs = azureFilesConfigs.filter((c) => c.build);
+
+    buildableAzureFilesConfigs.forEach((config) => {
+      const azureRes = createAzureFilesResources(scope, azureProvider, config);
+      outputs.azureFiles.push(azureRes);
+    });
+
+    // Collect Azure Files metadata for DNS CNAME record registration in azure.inner.
+    // primaryFileEndpoint resolves to "https://<accountName>.file.core.windows.net/" at apply time.
+    // We strip the "https://" prefix and trailing "/" to get the bare FQDN.
+    outputs.azureFilesInstances = buildableAzureFilesConfigs
+      .map((cfg, idx) => {
+        if (!cfg.cnameRecordName) return null;
+        const storageAccount = outputs.azureFiles[idx]?.storageAccount;
+        if (!storageAccount) return null;
+        // primaryFileEndpoint = "https://<account>.file.core.windows.net/"
+        // Token.asString ensures it is treated as a Terraform reference.
+        const fqdn = `${cfg.accountName}.file.core.windows.net`;
+        return {
+          cnameRecordName: cfg.cnameRecordName,
+          fqdn,
+        };
+      })
+      .filter(
+        (item): item is { cnameRecordName: string; fqdn: string } =>
+          item !== null,
+      );
   }
 
   return outputs;

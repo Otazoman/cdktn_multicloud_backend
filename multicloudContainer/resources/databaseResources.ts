@@ -278,7 +278,11 @@ export const createDatabaseResources = (
           googleProvider,
           config,
           googleVpcResources.vpc,
-          psa.connection,
+          // Pass both PSA resources so SqlDatabaseInstance depends_on includes
+          // ComputeNetworkPeeringRoutesConfig in addition to ServiceNetworkingConnection.
+          // This matches the Filestore pattern and ensures correct destroy ordering:
+          // SqlDatabaseInstance → PeeringRoutesConfig → ServiceNetworkingConnection → ComputeGlobalAddress
+          [psa.connection, psa.peeringRoutesConfig],
           instanceConfig.name, // Use instance name to prevent duplicate construct IDs
         );
       });

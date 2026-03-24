@@ -181,6 +181,10 @@ export class MultiCloudBackendStack extends TerraformStack {
         // Pass Filestore instance metadata for DNS A record registration in google.inner
         storageResourcesOutput?.googleFilestoreInstances,
         databaseResourcesOutput?.azureDatabaseResources,
+        // Pass EFS instance metadata for DNS CNAME registration in aws.inner
+        storageResourcesOutput?.awsEfsInstances,
+        // Pass Azure Files instance metadata for DNS CNAME registration in azure.inner
+        storageResourcesOutput?.azureFilesInstances,
       );
     }
   }

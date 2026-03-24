@@ -1,9 +1,9 @@
 import { ComputeNetwork as GoogleVpc } from "@cdktn/provider-google/lib/compute-network";
 import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
-import { ServiceNetworkingConnection } from "@cdktn/provider-google/lib/service-networking-connection";
 import { SqlDatabase } from "@cdktn/provider-google/lib/sql-database";
 import { SqlDatabaseInstance } from "@cdktn/provider-google/lib/sql-database-instance";
 import { SqlUser } from "@cdktn/provider-google/lib/sql-user";
+import { ITerraformDependable } from "cdktn";
 import { Construct } from "constructs";
 import * as path from "path";
 
@@ -71,7 +71,7 @@ export function createGoogleCloudSqlInstance(
   provider: GoogleProvider,
   config: CloudSqlConfig,
   vpc: GoogleVpc,
-  serviceNetworkingConnection: ServiceNetworkingConnection,
+  psaDependencies: ITerraformDependable[],
   id: string, // Use a string identifier for construct IDs
 ): CloudSqlOutput {
   // Load database flags from file if specified
@@ -169,10 +169,9 @@ export function createGoogleCloudSqlInstance(
     {
       // Use id for construct ID
       ...sqlInstanceProps,
-      // ServiceNetworkingConnection
-      dependsOn: config.privateNetwork
-        ? [vpc, serviceNetworkingConnection]
-        : [vpc],
+      // PSA dependencies: ServiceNetworkingConnection + ComputeNetworkPeeringRoutesConfig
+      // Both must be fully applied (and destroyed last) to avoid PSA teardown errors.
+      dependsOn: config.privateNetwork ? [vpc, ...psaDependencies] : [vpc],
       lifecycle: {
         createBeforeDestroy: true,
       },
