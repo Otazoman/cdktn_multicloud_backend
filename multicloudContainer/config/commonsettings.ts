@@ -1,12 +1,12 @@
 export const env: string = "dev"; // 'dev' for SingleVPN, 'prod' for HAVpn
-export const awsToGoogle: boolean = true; // Enable/disable VPN connection between AWS and Google
-export const awsToAzure: boolean = false; // Enable/disable VPN connection between AWS and Azure
+export const awsToGoogle: boolean = false; // Enable/disable VPN connection between AWS and Google
+export const awsToAzure: boolean = true; // Enable/disable VPN connection between AWS and Azure
 export const googleToAzure: boolean = false; // Enable/disable VPN connection between Google and Azure
 export const useVpn: boolean = false; // Enable/disable VPN usage
 export const useVms: boolean = true; // Enable/disable VM usage
-export const useDbs: boolean = false; // Enable/disable DataBase usage
+export const useDbs: boolean = true; // Enable/disable DataBase usage
 export const hostZones: boolean = true; // Enable/disable PrivateHostZone usage
 export const useLbs: boolean = false; // Enable/disable loadbarancers usage
 export const useDns: boolean = false; // Enable/disable DNS usage
 export const useContainers: boolean = false; // Enable/disable Container usage
-export const useStorage: boolean = true; // Enable/disable Storage usage
+export const useStorage: boolean = false; // Enable/disable Storage usage

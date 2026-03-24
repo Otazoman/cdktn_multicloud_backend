@@ -182,6 +182,8 @@ export interface DatabaseResourcesOutput {
     database: any;
     privateDnsZone?: any;
     fqdn: string;
+    /** CNAME short name registered in azure.inner (from databases.ts cnameRecordName) */
+    cnameRecordName?: string;
   }>;
 }
 
