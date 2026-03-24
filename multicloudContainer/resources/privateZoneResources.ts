@@ -10,24 +10,28 @@ import {
   awsToAzure,
   awsToGoogle,
   googleToAzure,
+  useVpn,
 } from "../config/commonsettings";
 import { googlePrivateZoneParams } from "../config/google/privatezone";
 import {
   createAwsCnameRecords,
+  createAwsEfsCnameRecords,
   createAwsInboundEndpoint,
   createAwsOutboundEndpointWithRules,
   createAwsPrivateZones,
   ForwardingRule,
 } from "../constructs/dns/privatezone/awsprivatezone";
 import {
+  createAzureFilesInnerCnameRecords,
   createAzureForwardingRuleset,
   createAzureInnerCnameRecords,
   createAzureInnerPrivateDnsZone,
   createAzurePrivateResolver,
 } from "../constructs/dns/privatezone/azureprivatezone";
 import {
+  addGoogleInnerZoneARecords,
   createGoogleCloudDnsInboundPolicy,
-  createGoogleCloudSqlARecords,
+  createGoogleInnerZoneWithARecords,
   createGooglePrivateDnsZones,
   getGoogleDnsInboundIps,
 } from "../constructs/dns/privatezone/googleprivatezone";
@@ -166,6 +170,7 @@ const setupAwsResources = (
   azureDnsResolverIps: string[],
   googleInboundIps: any,
   awsDbResources?: AwsDbResources,
+  awsEfsInstances?: Array<{ cnameRecordName: string; dnsFqdn: string }>,
 ) => {
   const uniqueVpcIds = [awsVpcResources.vpc.id];
   const awsOutput: any = {};
@@ -196,7 +201,7 @@ const setupAwsResources = (
 
   // 2. Cross-cloud DNS resources
   let awsInboundEndpointIps: string[] = [];
-  if (awsToAzure || awsToGoogle) {
+  if ((awsToAzure || awsToGoogle) && useVpn) {
     const subnetIds = getAwsResolverSubnetIds(awsVpcResources);
     const sgId = getAwsResolverSecurityGroupId(
       awsVpcResources,
@@ -209,7 +214,7 @@ const setupAwsResources = (
       // Prepare forwarding rules
       const forwardingRules: ForwardingRule[] = [];
 
-      if (awsToGoogle) {
+      if (awsToGoogle && useVpn) {
         const googleIpsList = Token.asList(googleInboundIps);
         const iterator = TerraformIterator.fromList(googleIpsList);
         const googleTargetIps = iterator.dynamic({
@@ -231,7 +236,7 @@ const setupAwsResources = (
           });
       }
 
-      if (awsToAzure) {
+      if (awsToAzure && useVpn) {
         const azureTargetIps = azureDnsResolverIps.map((ip) => ({
           ip,
           port: 53,
@@ -330,6 +335,19 @@ const setupAwsResources = (
     }
   }
 
+  // 4. EFS CNAME Records
+  if (awsInnerZone && awsEfsInstances && awsEfsInstances.length > 0) {
+    awsOutput.efsCnameRecords = createAwsEfsCnameRecords(
+      scope,
+      awsProvider,
+      awsInnerZone,
+      awsEfsInstances.map((i) => ({
+        name: i.cnameRecordName,
+        efsDnsName: i.dnsFqdn,
+      })),
+    );
+  }
+
   return { awsOutput, awsInboundEndpointIps };
 };
 
@@ -415,47 +433,76 @@ const setupGoogleResources = (
     },
   );
 
-  // Cloud SQL A records
-  if (googleCloudSqlInstances && googleCloudSqlInstances.length > 0) {
-    const cloudSqlResult = createGoogleCloudSqlARecords(scope, googleProvider, {
-      project,
-      networkSelfLink,
-      internalZoneName:
-        googlePrivateZoneParams.cloudSqlARecords.internalZoneName,
-      zoneDescription: googlePrivateZoneParams.cloudSqlARecords.zoneDescription,
-      cloudSqlInstances: googleCloudSqlInstances.map((i) => ({
-        name: i.aRecordName,
-        privateIpAddress: i.privateIpAddress,
-      })),
-      labels: googlePrivateZoneParams.labels,
-    });
-    googleOutput.cloudSqlInternalZone = cloudSqlResult.internalZone;
-    googleOutput.cloudSqlARecords = cloudSqlResult.records;
-  }
+  // google.inner zone shared by Cloud SQL and Filestore.
+  // The zone is created once by whichever service is processed first,
+  // and subsequent services reuse the existing zone via addGoogleInnerZoneARecords.
+  let googleInnerZone: any = null;
 
-  // Filestore A records (reuses the same google.inner zone as Cloud SQL)
-  // createGoogleCloudSqlARecords is reused here since the logic is identical:
-  // both create A records in a private DNS zone using instance name + private IP.
-  if (googleFilestoreInstances && googleFilestoreInstances.length > 0) {
-    const filestoreResult = createGoogleCloudSqlARecords(
+  // Cloud SQL A records (creates google.inner zone)
+  if (googleCloudSqlInstances && googleCloudSqlInstances.length > 0) {
+    const cloudSqlResult = createGoogleInnerZoneWithARecords(
       scope,
       googleProvider,
       {
         project,
         networkSelfLink,
         internalZoneName:
-          googlePrivateZoneParams.filestoreARecords.internalZoneName,
+          googlePrivateZoneParams.cloudSqlARecords.internalZoneName,
         zoneDescription:
-          googlePrivateZoneParams.filestoreARecords.zoneDescription,
-        cloudSqlInstances: googleFilestoreInstances.map((i) => ({
+          googlePrivateZoneParams.cloudSqlARecords.zoneDescription,
+        instances: googleCloudSqlInstances.map((i) => ({
           name: i.aRecordName,
           privateIpAddress: i.privateIpAddress,
         })),
+        recordIdPrefix: "gcp-cloudsql-a-record",
         labels: googlePrivateZoneParams.labels,
       },
     );
-    googleOutput.filestoreInternalZone = filestoreResult.internalZone;
-    googleOutput.filestoreARecords = filestoreResult.records;
+    googleInnerZone = cloudSqlResult.internalZone;
+    googleOutput.googleInnerZone = cloudSqlResult.internalZone;
+    googleOutput.cloudSqlARecords = cloudSqlResult.records;
+  }
+
+  // Filestore A records:
+  // - If google.inner zone already exists (Cloud SQL created it), reuse it.
+  // - If Storage only (no Cloud SQL), create the zone here.
+  if (googleFilestoreInstances && googleFilestoreInstances.length > 0) {
+    if (googleInnerZone) {
+      // Zone already exists — add records only (avoids Construct name collision)
+      googleOutput.filestoreARecords = addGoogleInnerZoneARecords(
+        scope,
+        googleProvider,
+        googleInnerZone,
+        googleFilestoreInstances.map((i) => ({
+          name: i.aRecordName,
+          privateIpAddress: i.privateIpAddress,
+        })),
+        "gcp-filestore-a-record",
+      );
+    } else {
+      // Storage only — create google.inner zone here
+      const filestoreResult = createGoogleInnerZoneWithARecords(
+        scope,
+        googleProvider,
+        {
+          project,
+          networkSelfLink,
+          internalZoneName:
+            googlePrivateZoneParams.filestoreARecords.internalZoneName,
+          zoneDescription:
+            googlePrivateZoneParams.filestoreARecords.zoneDescription,
+          instances: googleFilestoreInstances.map((i) => ({
+            name: i.aRecordName,
+            privateIpAddress: i.privateIpAddress,
+          })),
+          recordIdPrefix: "gcp-filestore-a-record",
+          labels: googlePrivateZoneParams.labels,
+        },
+      );
+      googleInnerZone = filestoreResult.internalZone;
+      googleOutput.googleInnerZone = filestoreResult.internalZone;
+      googleOutput.filestoreARecords = filestoreResult.records;
+    }
   }
 
   return googleOutput;
@@ -472,6 +519,7 @@ const setupAzureForwardingAndInner = (
   awsInboundEndpointIps: string[],
   googleInboundIps: any,
   azureDatabaseResources?: any[],
+  azureFilesInstances?: Array<{ cnameRecordName: string; fqdn: string }>,
 ) => {
   const azureOutput: any = { ...azureResolverTemp };
 
@@ -534,10 +582,12 @@ const setupAzureForwardingAndInner = (
   }
 
   // 2. azure.inner Zone
-  if (
-    azureDatabaseResources?.length &&
-    azurePrivateZoneParams.azureInnerDomain?.enabled
-  ) {
+  // Created when: DB records exist OR Azure Files CNAME records exist
+  const needsAzureInnerZone =
+    azurePrivateZoneParams.azureInnerDomain?.enabled &&
+    (azureDatabaseResources?.length || azureFilesInstances?.length);
+
+  if (needsAzureInnerZone) {
     const azureInnerZone = createAzureInnerPrivateDnsZone(
       scope,
       azureProvider,
@@ -545,20 +595,35 @@ const setupAzureForwardingAndInner = (
       azureVnetResources.vnet as any,
       azurePrivateZoneParams.azureInnerDomain.zoneName,
     );
+    azureOutput.azureInnerZone = azureInnerZone;
 
+    // 2a. DB CNAME records
     const cnameRecordsToCreate =
       azurePrivateZoneParams.azureInnerDomain.cnameRecords
         ?.filter((r) => r.enabled)
         .map((r) => ({ name: r.name, target: r.target })) || [];
 
     if (cnameRecordsToCreate.length > 0) {
-      azureOutput.azureInnerZone = azureInnerZone;
       azureOutput.azureInnerCnameRecords = createAzureInnerCnameRecords(
         scope,
         azureProvider,
         azurePrivateZoneParams.resourceGroup,
         azureInnerZone.privateDnsZone,
         cnameRecordsToCreate,
+      );
+    }
+
+    // 2b. Azure Files CNAME records
+    if (azureFilesInstances && azureFilesInstances.length > 0) {
+      azureOutput.azureFilesCnameRecords = createAzureFilesInnerCnameRecords(
+        scope,
+        azureProvider,
+        azurePrivateZoneParams.resourceGroup,
+        azureInnerZone.privateDnsZone,
+        azureFilesInstances.map((i) => ({
+          name: i.cnameRecordName,
+          fqdn: i.fqdn,
+        })),
       );
     }
   }
@@ -581,13 +646,20 @@ export const createPrivateZoneResources = (
     privateIpAddress: string;
   }>,
   azureDatabaseResources?: any[],
+  awsEfsInstances?: Array<{ cnameRecordName: string; dnsFqdn: string }>,
+  azureFilesInstances?: Array<{ cnameRecordName: string; fqdn: string }>,
 ): PrivateZoneResources => {
   const output: PrivateZoneResources = {};
 
   // Step 1: Azure Resolver (Initial IP collection)
   let azureDnsResolverIps: string[] = [];
   let azureResolverTemp: any;
-  if (azureProvider && azureVnetResources && (awsToAzure || googleToAzure)) {
+  if (
+    azureProvider &&
+    azureVnetResources &&
+    (awsToAzure || googleToAzure) &&
+    useVpn
+  ) {
     const { resolver, ip } = setupAzureResolver(
       scope,
       azureProvider,
@@ -600,7 +672,12 @@ export const createPrivateZoneResources = (
   // Step 2: Google Inbound Policy (Initial IP collection)
   let googleInboundPolicy: any;
   let googleInboundIps: any = [];
-  if (googleProvider && googleVpcResources && (awsToGoogle || googleToAzure)) {
+  if (
+    googleProvider &&
+    googleVpcResources &&
+    (awsToGoogle || googleToAzure) &&
+    useVpn
+  ) {
     const { policy, ips } = setupGoogleInboundPolicy(
       scope,
       googleProvider,
@@ -620,13 +697,19 @@ export const createPrivateZoneResources = (
       azureDnsResolverIps,
       googleInboundIps,
       awsDbResources,
+      awsEfsInstances,
     );
     output.aws = awsOutput;
     awsInboundEndpointIps = ips;
   }
 
   // Step 4: Google DNS Zones
-  if (googleProvider && googleVpcResources && (awsToGoogle || googleToAzure)) {
+  if (
+    googleProvider &&
+    googleVpcResources &&
+    (awsToGoogle || googleToAzure) &&
+    useVpn
+  ) {
     output.google = {
       ...setupGoogleResources(
         scope,
@@ -651,11 +734,12 @@ export const createPrivateZoneResources = (
       awsInboundEndpointIps,
       googleInboundIps,
       azureDatabaseResources,
+      azureFilesInstances,
     );
   } else if (
     azureProvider &&
     azureVnetResources &&
-    azureDatabaseResources?.length
+    (azureDatabaseResources?.length || azureFilesInstances?.length)
   ) {
     // Case where only inner zone is needed but no resolver
     output.azure = setupAzureForwardingAndInner(
@@ -666,6 +750,7 @@ export const createPrivateZoneResources = (
       [],
       [],
       azureDatabaseResources,
+      azureFilesInstances,
     );
   }
 

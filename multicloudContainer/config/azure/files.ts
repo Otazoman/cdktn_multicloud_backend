@@ -13,6 +13,8 @@ export const azureFilesConfigs = [
     tags: {
       Department: "IT",
     },
+    // DNS CNAME record name registered in azure.inner private zone
+    cnameRecordName: "files-shared1",
   },
   {
     build: false,
@@ -26,5 +28,7 @@ export const azureFilesConfigs = [
     tags: {
       Department: "DEV",
     },
+    // DNS CNAME record name registered in azure.inner private zone
+    cnameRecordName: "files-shared2",
   },
 ];
