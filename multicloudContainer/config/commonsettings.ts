@@ -9,4 +9,4 @@ export const hostZones: boolean = true; // Enable/disable PrivateHostZone usage
 export const useLbs: boolean = false; // Enable/disable loadbarancers usage
 export const useDns: boolean = false; // Enable/disable DNS usage
 export const useContainers: boolean = false; // Enable/disable Container usage
-export const useStorage: boolean = false; // Enable/disable Storage usage
+export const useStorage: boolean = true; // Enable/disable Storage usage

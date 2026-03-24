@@ -59,7 +59,7 @@ interface AzureResourcesParams {
 export function createAzureVnetResources(
   scope: Construct,
   provider: AzurermProvider,
-  params: AzureResourcesParams
+  params: AzureResourcesParams,
 ) {
   // --- Virtual Network ---
   const vnet = new VirtualNetwork(scope, "azureVnet", {
@@ -75,10 +75,22 @@ export function createAzureVnetResources(
   });
 
   // --- Subnets ---
-  // Create all subnets first and store them in a map for easy lookup.
+  // Azure serializes subnet operations on the same VNet.
+  // Creating multiple subnets in parallel causes a 409 AnotherOperationInProgress error.
+  // We chain each subnet's dependsOn to the previous one so Terraform applies them
+  // sequentially, matching Azure Resource Manager's exclusive lock requirement.
   const subnets: { [key: string]: Subnet } = {};
+  let previousSubnet: Subnet | undefined = undefined;
   for (const subnetConfig of params.subnets) {
-    const subnetResource = new Subnet(
+    // Resolve dependsOn before creating the subnet resource to avoid
+    // TypeScript circular-initializer errors (TS7022).
+    // Azure serializes subnet operations per VNet, so each subnet must wait
+    // for the previous one to complete (avoids 409 AnotherOperationInProgress).
+    const subnetDependsOn = previousSubnet
+      ? ([previousSubnet] as [Subnet])
+      : ([vnet] as [VirtualNetwork]);
+
+    const subnetResource: Subnet = new Subnet(
       scope,
       `myAzureSubnet-${subnetConfig.name}`,
       {
@@ -99,9 +111,11 @@ export function createAzureVnetResources(
               },
             }))
           : [],
-      }
+        dependsOn: subnetDependsOn,
+      },
     );
     subnets[subnetConfig.name] = subnetResource;
+    previousSubnet = subnetResource;
   }
 
   // --- Network Security Groups and Associations ---
@@ -139,7 +153,7 @@ export function createAzureVnetResources(
           destinationPortRange: rule.destinationPortRange,
           sourceAddressPrefix: rule.sourceAddressPrefix,
           destinationAddressPrefix: rule.destinationAddressPrefix,
-        }
+        },
       );
       nsgRules[nsgConfig.name].push(nsgRule);
     }
@@ -156,7 +170,7 @@ export function createAzureVnetResources(
             subnetId: subnetResource.id,
             networkSecurityGroupId: nsg.id,
             dependsOn: [subnetResource, nsg],
-          }
+          },
         );
         subnetAssociations.push(association);
       }
