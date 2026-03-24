@@ -31,21 +31,16 @@ export const azurePrivateZoneParams = {
   ],
 
   // Azure Inner Domain Configuration
+  // Note: DB CNAME records are now generated dynamically from databases.ts (cnameRecordName field)
+  // Note: Azure Files CNAME records are generated dynamically from files.ts (cnameRecordName field)
   azureInnerDomain: {
     zoneName: "azure.inner",
     enabled: true,
-    cnameRecords: [
-      {
-        name: "mysql-prod",
-        target: "azure-mysql-server-2025-1108.mysql.database.azure.com",
-        enabled: true,
-      },
-      {
-        name: "postgres-prod",
-        target: "azure-postgres-server-2025-1108.postgres.database.azure.com",
-        enabled: true,
-      },
-    ],
+    cnameRecords: [] as Array<{
+      name: string;
+      target: string;
+      enabled: boolean;
+    }>,
   },
 
   tags: {

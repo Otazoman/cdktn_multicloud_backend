@@ -12,6 +12,13 @@ export const subnets = [
     cidr: "10.2.20.0/24",
   },
   {
+    // Subnet for Azure Files Private Endpoints
+    // privateEndpointNetworkPoliciesEnabled must be false for Private Endpoints
+    name: "storage-subnet",
+    cidr: "10.2.40.0/24",
+    privateEndpointNetworkPoliciesEnabled: false,
+  },
+  {
     name: "db-mysql-subnet",
     cidr: "10.2.31.0/24",
     delegations: [

@@ -28,7 +28,7 @@ git clone https://github.com/Otazoman/cdktf_multicloud_backend.git
 cd cdktf_multicloudbackend
 docker build --build-arg NODE_VERSION=22 --build-arg TERRAFORM_VERSION=1.13.4 -t cdktf-docker .
 docker compose up -d
-docker compose exec cdktf-backend bash
+docker compose exec cdktn-backend bash
 ```
 
 ## If you want to initialize
@@ -47,12 +47,12 @@ Volume of compose.yaml - ./app:/app in place of ./workdir:/app and replace it wi
 
 ```
 npm install
-cdktf plan
-cdktf deploy
+cdktn plan
+cdktn deploy
 ```
 
 If you want to delete a resource
 
 ```
-cdktf destroy
+cdktn destroy
 ```

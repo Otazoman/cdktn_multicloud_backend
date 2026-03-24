@@ -43,6 +43,8 @@ export const azureDatabaseConfig = {
         Owner: "TeamA",
         Database: "MySQL",
       },
+      // DNS CNAME record name registered in azure.inner private zone
+      cnameRecordName: "mysql-prod",
       configurationParametersFile:
         "config/azure/azuredatabase/mysql-parameters.ts",
     },
@@ -81,6 +83,8 @@ export const azureDatabaseConfig = {
         Owner: "TeamB",
         Database: "PostgreSQL",
       },
+      // DNS CNAME record name registered in azure.inner private zone
+      cnameRecordName: "postgres-prod",
       configurationParametersFile:
         "config/azure/azuredatabase/postgres-parameters.ts",
     },

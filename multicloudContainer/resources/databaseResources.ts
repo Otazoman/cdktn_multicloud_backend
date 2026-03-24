@@ -357,12 +357,19 @@ export const createDatabaseResources = (
     });
 
     // Collect Azure database resources for Private DNS Zone CNAME creation
-    azureDatabaseResources = azureDatabases.map((dbOutput: any) => ({
-      server: dbOutput.server,
-      database: dbOutput.database,
-      privateDnsZone: dbOutput.privateDnsZone,
-      fqdn: dbOutput.fqdn,
-    }));
+    // Also collect cnameRecordName from databases.ts config for azure.inner DNS registration
+    const buildableDbConfigs = azureDatabaseConfig.databases.filter(
+      (config) => config.build,
+    );
+    azureDatabaseResources = azureDatabases.map(
+      (dbOutput: any, idx: number) => ({
+        server: dbOutput.server,
+        database: dbOutput.database,
+        privateDnsZone: dbOutput.privateDnsZone,
+        fqdn: dbOutput.fqdn,
+        cnameRecordName: buildableDbConfigs[idx]?.cnameRecordName,
+      }),
+    );
   }
 
   return {

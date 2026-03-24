@@ -4,8 +4,12 @@ import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
 import { Token } from "cdktn";
 import { Construct } from "constructs";
 
+import { PrivateDnsZone } from "@cdktn/provider-azurerm/lib/private-dns-zone";
 import { createAwsEfs } from "../constructs/storage/awsefs";
-import { createAzureFilesResources } from "../constructs/storage/azurefiles";
+import {
+  AzureFilesOutput,
+  createAzureFilesResources,
+} from "../constructs/storage/azurefiles";
 import { createGoogleFilestoreInstances } from "../constructs/storage/googlefilestore";
 
 import { efsConfigs } from "../config/aws/awssettings";
@@ -22,6 +26,7 @@ import {
 import { GooglePrivateServiceAccess } from "../constructs/vpcnetwork/googlepsa";
 import {
   AwsVpcResources,
+  AzureVnetResources,
   GoogleVpcResources,
   StorageResourcesOutput,
 } from "./interfaces";
@@ -39,9 +44,10 @@ export const createStorageResources = (
     awsVpcResources?: AwsVpcResources;
     googleVpcResources?: GoogleVpcResources;
     googleSubnets: any[];
+    azureVnetResources?: AzureVnetResources;
   },
 ): StorageResourcesOutput => {
-  const { awsVpcResources, googleVpcResources } = networks;
+  const { awsVpcResources, googleVpcResources, azureVnetResources } = networks;
   const outputs: StorageResourcesOutput = {
     awsEfs: [],
     googleFilestore: [],
@@ -190,22 +196,59 @@ export const createStorageResources = (
   if (awsToAzure || googleToAzure) {
     const buildableAzureFilesConfigs = azureFilesConfigs.filter((c) => c.build);
 
+    // Shared privatelink.file.core.windows.net DNS Zone across all storage accounts.
+    // Created by the first account; reused by subsequent accounts to avoid duplicate zone error.
+    let sharedFilesPrivateDnsZone: PrivateDnsZone | undefined = undefined;
+
     buildableAzureFilesConfigs.forEach((config) => {
-      const azureRes = createAzureFilesResources(scope, azureProvider, config);
+      // Resolve Private Endpoint options from VNet resources when privateEndpointEnabled
+      let azureRes: AzureFilesOutput;
+
+      if (
+        config.privateEndpointEnabled &&
+        azureVnetResources &&
+        config.subnetKey
+      ) {
+        const subnetResource = (
+          azureVnetResources.subnets as Record<string, any>
+        )[config.subnetKey];
+        const subnetId: string = subnetResource?.id ?? subnetResource ?? "";
+        const virtualNetworkId: string =
+          (azureVnetResources.vnet as any).id ?? "";
+
+        azureRes = createAzureFilesResources(scope, azureProvider, config, {
+          subnetId,
+          virtualNetworkId,
+          sharedPrivateDnsZone: sharedFilesPrivateDnsZone,
+        });
+
+        // Capture the shared DNS zone from the first storage account
+        if (!sharedFilesPrivateDnsZone && azureRes.privateDnsZone) {
+          sharedFilesPrivateDnsZone = azureRes.privateDnsZone;
+        }
+      } else {
+        azureRes = createAzureFilesResources(scope, azureProvider, config);
+      }
+
       outputs.azureFiles.push(azureRes);
     });
 
     // Collect Azure Files metadata for DNS CNAME record registration in azure.inner.
-    // primaryFileEndpoint resolves to "https://<accountName>.file.core.windows.net/" at apply time.
-    // We strip the "https://" prefix and trailing "/" to get the bare FQDN.
+    // When Private Endpoint is enabled, CNAME points to the privatelink FQDN so that
+    // DNS resolution stays within the VNet via the Private DNS Zone.
+    // When Private Endpoint is disabled, CNAME points to the public file endpoint.
     outputs.azureFilesInstances = buildableAzureFilesConfigs
       .map((cfg, idx) => {
         if (!cfg.cnameRecordName) return null;
         const storageAccount = outputs.azureFiles[idx]?.storageAccount;
         if (!storageAccount) return null;
-        // primaryFileEndpoint = "https://<account>.file.core.windows.net/"
-        // Token.asString ensures it is treated as a Terraform reference.
-        const fqdn = `${cfg.accountName}.file.core.windows.net`;
+
+        // Use privatelink FQDN when Private Endpoint is enabled (stays within VNet)
+        // Use public FQDN when Private Endpoint is disabled
+        const fqdn = cfg.privateEndpointEnabled
+          ? `${cfg.accountName}.privatelink.file.core.windows.net`
+          : `${cfg.accountName}.file.core.windows.net`;
+
         return {
           cnameRecordName: cfg.cnameRecordName,
           fqdn,

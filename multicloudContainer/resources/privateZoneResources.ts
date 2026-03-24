@@ -352,19 +352,15 @@ const setupAwsResources = (
 };
 
 /**
- * Setup Google DNS Zones
+ * Setup Google DNS Forwarding Zones (requires VPN)
+ * Creates forwarding zones to AWS/Azure DNS resolvers.
  */
-const setupGoogleResources = (
+const setupGoogleForwardingZones = (
   scope: Construct,
   googleProvider: GoogleProvider,
   googleVpcResources: GoogleVpcResources,
   awsInboundEndpointIps: string[],
   azureDnsResolverIps: string[],
-  googleCloudSqlInstances?: any[],
-  googleFilestoreInstances?: Array<{
-    aRecordName: string;
-    privateIpAddress: string;
-  }>,
 ) => {
   const networkSelfLink =
     (googleVpcResources.vpc as any).selfLink ||
@@ -398,7 +394,7 @@ const setupGoogleResources = (
     );
   }
 
-  const googleOutput: any = createGooglePrivateDnsZones(
+  return createGooglePrivateDnsZones(
     scope,
     googleProvider,
     {
@@ -432,6 +428,29 @@ const setupGoogleResources = (
       privateZoneDescription: googlePrivateZoneParams.privateZoneDescription,
     },
   );
+};
+
+/**
+ * Setup Google Inner Zone (google.inner) with A records for CloudSQL and Filestore.
+ * This does NOT require VPN — it runs whenever GCP services need internal DNS.
+ */
+const setupGoogleInnerZone = (
+  scope: Construct,
+  googleProvider: GoogleProvider,
+  googleVpcResources: GoogleVpcResources,
+  googleCloudSqlInstances?: any[],
+  googleFilestoreInstances?: Array<{
+    aRecordName: string;
+    privateIpAddress: string;
+  }>,
+) => {
+  const networkSelfLink =
+    (googleVpcResources.vpc as any).selfLink ||
+    (googleVpcResources.vpc as any).id ||
+    googleVpcResources.vpc.name;
+  const project = (googleProvider as any).project || "";
+
+  const innerOutput: any = {};
 
   // google.inner zone shared by Cloud SQL and Filestore.
   // The zone is created once by whichever service is processed first,
@@ -459,8 +478,8 @@ const setupGoogleResources = (
       },
     );
     googleInnerZone = cloudSqlResult.internalZone;
-    googleOutput.googleInnerZone = cloudSqlResult.internalZone;
-    googleOutput.cloudSqlARecords = cloudSqlResult.records;
+    innerOutput.googleInnerZone = cloudSqlResult.internalZone;
+    innerOutput.cloudSqlARecords = cloudSqlResult.records;
   }
 
   // Filestore A records:
@@ -469,7 +488,7 @@ const setupGoogleResources = (
   if (googleFilestoreInstances && googleFilestoreInstances.length > 0) {
     if (googleInnerZone) {
       // Zone already exists — add records only (avoids Construct name collision)
-      googleOutput.filestoreARecords = addGoogleInnerZoneARecords(
+      innerOutput.filestoreARecords = addGoogleInnerZoneARecords(
         scope,
         googleProvider,
         googleInnerZone,
@@ -500,12 +519,12 @@ const setupGoogleResources = (
         },
       );
       googleInnerZone = filestoreResult.internalZone;
-      googleOutput.googleInnerZone = filestoreResult.internalZone;
-      googleOutput.filestoreARecords = filestoreResult.records;
+      innerOutput.googleInnerZone = filestoreResult.internalZone;
+      innerOutput.filestoreARecords = filestoreResult.records;
     }
   }
 
-  return googleOutput;
+  return innerOutput;
 };
 
 /**
@@ -597,11 +616,14 @@ const setupAzureForwardingAndInner = (
     );
     azureOutput.azureInnerZone = azureInnerZone;
 
-    // 2a. DB CNAME records
-    const cnameRecordsToCreate =
-      azurePrivateZoneParams.azureInnerDomain.cnameRecords
-        ?.filter((r) => r.enabled)
-        .map((r) => ({ name: r.name, target: r.target })) || [];
+    // 2a. DB CNAME records (dynamically generated from databases.ts cnameRecordName field)
+    // azureDatabaseResources carries { fqdn, cnameRecordName } collected in databaseResources.ts
+    const cnameRecordsToCreate = (azureDatabaseResources ?? [])
+      .filter((r) => r.cnameRecordName && r.fqdn)
+      .map((r) => ({
+        name: r.cnameRecordName as string,
+        target: r.fqdn,
+      }));
 
     if (cnameRecordsToCreate.length > 0) {
       azureOutput.azureInnerCnameRecords = createAzureInnerCnameRecords(
@@ -703,24 +725,43 @@ export const createPrivateZoneResources = (
     awsInboundEndpointIps = ips;
   }
 
-  // Step 4: Google DNS Zones
+  // Step 4a: Google DNS Forwarding Zones
   if (
     googleProvider &&
     googleVpcResources &&
     (awsToGoogle || googleToAzure) &&
     useVpn
   ) {
+    const forwardingZones = setupGoogleForwardingZones(
+      scope,
+      googleProvider,
+      googleVpcResources,
+      awsInboundEndpointIps,
+      azureDnsResolverIps,
+    );
     output.google = {
-      ...setupGoogleResources(
-        scope,
-        googleProvider,
-        googleVpcResources,
-        awsInboundEndpointIps,
-        azureDnsResolverIps,
-        googleCloudSqlInstances,
-        googleFilestoreInstances,
-      ),
+      ...output.google,
+      ...forwardingZones,
       inboundPolicy: googleInboundPolicy,
+    };
+  }
+
+  // Step 4b: Google Inner Zone (google.inner)
+  if (
+    googleProvider &&
+    googleVpcResources &&
+    (googleCloudSqlInstances?.length || googleFilestoreInstances?.length)
+  ) {
+    const innerZoneOutput = setupGoogleInnerZone(
+      scope,
+      googleProvider,
+      googleVpcResources,
+      googleCloudSqlInstances,
+      googleFilestoreInstances,
+    );
+    output.google = {
+      ...output.google,
+      ...innerZoneOutput,
     };
   }
 
