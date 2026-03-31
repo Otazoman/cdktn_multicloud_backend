@@ -210,7 +210,12 @@ export const securityGroups = [
         fromPort: 2049,
         toPort: 2049,
         protocol: "tcp",
-        cidrBlocks: ["10.0.0.0/16"],
+        cidrBlocks: [
+          "10.0.0.0/16",
+          "10.1.0.0/16",
+          "10.2.0.0/16",
+          "10.100.0.0/16",
+        ],
         description: "Allow NFS traffic for EFS",
       },
     ],

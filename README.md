@@ -25,8 +25,8 @@ Docker Compose v2.40.1
 
 ```
 git clone https://github.com/Otazoman/cdktf_multicloud_backend.git
-cd cdktf_multicloudbackend
-docker build --build-arg NODE_VERSION=22 --build-arg TERRAFORM_VERSION=1.13.4 -t cdktf-docker .
+cd cdktn_multicloudbackend
+docker build --build-arg NODE_VERSION=22 --build-arg TERRAFORM_VERSION=1.13.4 -t cdktn-docker .
 docker compose up -d
 docker compose exec cdktn-backend bash
 ```

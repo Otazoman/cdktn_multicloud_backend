@@ -248,6 +248,58 @@ export const nsgConfigs = [
       },
     ],
   },
+  // NSG for Storage Subnet (Azure Files Private Endpoint)
+  {
+    name: "azure-storage-nsg",
+    subnetKeys: ["storage-subnet"],
+    tags: { Purpose: "StorageSecurity" },
+    rules: [
+      {
+        name: "AllowNFSFromAWS",
+        priority: 100,
+        direction: "Inbound",
+        access: "Allow",
+        protocol: "Tcp",
+        sourcePortRange: "*",
+        destinationPortRange: "2049",
+        sourceAddressPrefix: "10.0.0.0/16", // AWS VPC CIDR
+        destinationAddressPrefix: "*",
+      },
+      {
+        name: "AllowNFSFromGCP",
+        priority: 110,
+        direction: "Inbound",
+        access: "Allow",
+        protocol: "Tcp",
+        sourcePortRange: "*",
+        destinationPortRange: "2049",
+        sourceAddressPrefix: "10.1.0.0/16", // GCP VPC CIDR
+        destinationAddressPrefix: "*",
+      },
+      {
+        name: "AllowVnetInBound",
+        priority: 120,
+        direction: "Inbound",
+        access: "Allow",
+        protocol: "*",
+        sourcePortRange: "*",
+        destinationPortRange: "*",
+        sourceAddressPrefix: "VirtualNetwork",
+        destinationAddressPrefix: "VirtualNetwork",
+      },
+      {
+        name: "DenyAllInbound",
+        priority: 4096,
+        direction: "Inbound",
+        access: "Deny",
+        protocol: "*",
+        sourcePortRange: "*",
+        destinationPortRange: "*",
+        sourceAddressPrefix: "*",
+        destinationAddressPrefix: "*",
+      },
+    ],
+  },
   {
     name: "azure-appgw-nsg",
     subnetKeys: ["web-appgw-subnet"],

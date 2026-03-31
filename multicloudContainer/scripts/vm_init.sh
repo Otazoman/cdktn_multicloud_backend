@@ -63,3 +63,18 @@ wait_for_apt_lock
 echo "Running system upgrade..."
 apt upgrade -y
 wait_for_apt_lock
+
+# Disable SSH reverse DNS lookup (UseDNS) to prevent connection delays
+# when Private DNS Zones are linked to the VNet (e.g. after Azure Files NFS deployment).
+# By default sshd performs a reverse PTR lookup on the connecting client IP;
+# if the lookup times out (common in cross-cloud VPN environments where
+# 10.0.x.x / 10.1.x.x PTR records do not exist in Azure DNS), SSH connections
+# from AWS and GCP stall for 20-60 seconds before the auth phase begins.
+echo "Disabling SSH reverse DNS lookup (UseDNS=no)..."
+if grep -q "^UseDNS" /etc/ssh/sshd_config; then
+  sed -i 's/^UseDNS.*/UseDNS no/' /etc/ssh/sshd_config
+else
+  echo "UseDNS no" >> /etc/ssh/sshd_config
+fi
+systemctl restart ssh
+echo "SSH UseDNS disabled."
