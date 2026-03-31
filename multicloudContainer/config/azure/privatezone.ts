@@ -28,6 +28,18 @@ export const azurePrivateZoneParams = {
       enabled: true,
       target: "google",
     },
+    // EFS mount target DNS names (fs-xxxxx.efs.<region>.amazonaws.com) are only
+    // resolvable via the AWS VPC's internal DNS (169.254.169.253 / Route53 Resolver).
+    // Unlike RDS endpoints which are registered in public DNS, EFS DNS names are
+    // VPC-private. Without this forwarding rule, Azure VM DNS resolution for the EFS
+    // CNAME target (returned by aws.inner CNAME records) falls back to public DNS
+    // and fails to return the private mount target IP.
+    {
+      name: "aws-efs-forward",
+      domainName: "efs.ap-northeast-1.amazonaws.com.",
+      enabled: true,
+      target: "aws",
+    },
   ],
 
   // Azure Inner Domain Configuration

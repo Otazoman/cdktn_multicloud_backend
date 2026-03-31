@@ -245,6 +245,10 @@ const setupAwsResources = (
           .filter(
             (d) =>
               d.includes("azure") ||
+              // privatelink.file.core.windows.net does not contain "azure"
+              // but must be forwarded to Azure DNS Private Resolver so that
+              // AWS EC2 instances resolve the Private Endpoint IP (not the public IP).
+              d.includes("windows.net") ||
               d === azurePrivateZoneParams.azureInnerDomain.zoneName,
           )
           .forEach((domain) => {

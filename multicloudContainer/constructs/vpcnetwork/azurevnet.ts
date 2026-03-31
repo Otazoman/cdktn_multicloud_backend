@@ -22,6 +22,22 @@ interface SubnetConfig {
   name: string;
   cidr: string;
   delegations?: SubnetDelegation[];
+  privateEndpointNetworkPoliciesEnabled?: boolean; // config value (boolean)
+  /**
+   * Whether to associate this subnet with the NAT Gateway.
+   * Defaults to true when omitted.
+   *
+   * Must be set to false for:
+   *  - Private Endpoint subnets (e.g. storage-subnet):
+   *    Combining privateEndpointNetworkPolicies:"Disabled" + NAT Gateway on the same subnet
+   *    rewrites VNet system routes and breaks link-local addresses 168.63.129.16 (Azure DNS)
+   *    and 169.254.169.254 (Azure IMDS) for ALL VMs in the VNet, causing Bastion, SSH,
+   *    WALinuxAgent, and sudo hostname resolution to fail.
+   *    Ref: https://learn.microsoft.com/azure/private-link/private-endpoint-overview#limitations
+   *  - Delegated subnets (db-mysql-subnet, db-postgres-subnet):
+   *    Azure does not allow NAT Gateway on subnets delegated to managed PaaS services.
+   */
+  natGatewayEnabled?: boolean;
 }
 
 interface NSGRuleConfig {
@@ -111,6 +127,17 @@ export function createAzureVnetResources(
               },
             }))
           : [],
+        // Enable/disable network policies for Private Endpoints on this subnet.
+        // Must be "Disabled" for subnets hosting Private Endpoints so that NSG
+        // and route table policies do not interfere with Private Endpoint traffic.
+        // config/azure/vnet/subnets.ts sets privateEndpointNetworkPoliciesEnabled: false
+        // for storage-subnet; this maps to privateEndpointNetworkPolicies: "Disabled".
+        privateEndpointNetworkPolicies:
+          subnetConfig.privateEndpointNetworkPoliciesEnabled !== undefined
+            ? subnetConfig.privateEndpointNetworkPoliciesEnabled
+              ? "Enabled"
+              : "Disabled"
+            : undefined,
         dependsOn: subnetDependsOn,
       },
     );
@@ -211,13 +238,27 @@ export function createAzureVnetResources(
       publicIpAddressId: natPublicIp.id,
     });
 
-    Object.values(subnets).forEach((subnet, index) => {
-      new SubnetNatGatewayAssociation(scope, `AzureNatAssoc-${index}`, {
+    // Associate NAT Gateway only with subnets where natGatewayEnabled is not false.
+    // Subnets with natGatewayEnabled: false must be excluded:
+    //  - storage-subnet (Private Endpoint): privateEndpointNetworkPolicies:"Disabled" + NAT Gateway
+    //    rewrites VNet system routes, breaking 168.63.129.16 (Azure DNS) and
+    //    169.254.169.254 (Azure IMDS) for ALL VMs in the VNet.
+    //  - db-*-subnet (delegated): Azure does not support NAT Gateway on delegated subnets.
+    // Subnets without a natGatewayEnabled field default to true (associated).
+    let natAssocIndex = 0;
+    for (const subnetConfig of params.subnets) {
+      if (subnetConfig.natGatewayEnabled === false) {
+        continue;
+      }
+      const subnet = subnets[subnetConfig.name];
+      if (!subnet) continue;
+      new SubnetNatGatewayAssociation(scope, `AzureNatAssoc-${natAssocIndex}`, {
         provider,
         subnetId: subnet.id,
         natGatewayId: natGateway.id,
       });
-    });
+      natAssocIndex++;
+    }
   }
 
   // --- Bastion ---

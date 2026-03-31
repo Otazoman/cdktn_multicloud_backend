@@ -10,6 +10,8 @@ export const awsPrivateZoneParams = {
     // Private Link domains for Azure Private Endpoints
     "privatelink.mysql.database.azure.com",
     "privatelink.postgres.database.azure.com",
+    // Private Link domain for Azure Files (NFS mount from AWS/GCP)
+    "privatelink.file.core.windows.net",
     // for CNAME
     "azure.inner",
     // Google Cloud domains

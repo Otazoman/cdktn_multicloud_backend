@@ -99,12 +99,14 @@ export function createAzureFilesResources(
     allowNestedItemsToBePublic: false,
 
     // publicNetworkAccessEnabled controls whether the public internet route is open.
-    // - When allowedIpRanges is set: enable public access so that specified IPs
-    //   (e.g. developer PC, Azure Portal) can reach the account via networkRules.
-    // - When no IPs are allowed: disable public access entirely (VNet only via PE).
-    // - NFS always requires private access only (no public).
+    // - NFS always requires Private Endpoint; public access must be disabled.
+    //   Cross-cloud VPN traffic (AWS/GCP) reaches NFS via Private Endpoint which
+    //   bypasses StorageAccount firewall rules entirely — no public access needed.
+    // - SMB + privateEndpointEnabled + allowedIpRanges: enable public route so that
+    //   specified IPs (e.g. developer PC, Azure Portal) can reach via networkRules.
+    // - SMB + privateEndpointEnabled + no allowedIpRanges: disable public access.
     publicNetworkAccessEnabled: isNfs
-      ? false
+      ? false // NFS is always Private Endpoint only; public access disabled
       : config.privateEndpointEnabled
       ? config.allowedIpRanges && config.allowedIpRanges.length > 0
         ? true // open public route but restrict via networkRules ipRules

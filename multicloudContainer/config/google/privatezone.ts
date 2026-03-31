@@ -7,6 +7,8 @@ export const googlePrivateZoneParams = {
     // Private Link domains for Azure Private Endpoints
     "privatelink.mysql.database.azure.com",
     "privatelink.postgres.database.azure.com",
+    // Private Link domain for Azure Files (NFS mount from GCP/AWS)
+    "privatelink.file.core.windows.net",
     // for CNAME
     "azure.inner",
     // AWS domains

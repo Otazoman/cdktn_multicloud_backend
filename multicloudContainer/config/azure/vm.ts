@@ -7,7 +7,7 @@ export const azureVmsConfigparams = [
     name: "example-vm-1",
     resourceGroupName: RESOURCE_GROUP,
     location: LOCATION,
-    size: "Standard_B1ls",
+    size: "Standard_B1s",
     adminUsername: "azureuser",
     publicKeyPath: "pubkey/azurevmauthkey.pub",
     osDisk: {
