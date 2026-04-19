@@ -32,7 +32,13 @@ export interface EcsConfig {
   securityGroupIds: string[];
   subnetIds: string[];
   containerConfig: ContainerConfig;
-  targetGroupArn?: string; // ALBと紐付ける場合に渡す
+  targetGroupArn?: string;
+  targetGroupArnGreen?: string;
+  targetGroupName?: string;
+  targetGroupNameGreen?: string;
+  listenerArn?: string;
+  useBlueGreen?: boolean;
+  bakeTime?: number;
   tags?: { [key: string]: string };
 }
 
@@ -127,22 +133,54 @@ export function createAwsEcsFargateResources(
     taskDefinition: taskDefinition.arn,
     desiredCount: config.desiredCount,
     launchType: "FARGATE",
+
+    deploymentConfiguration: {
+      //Native Blue/Green
+      deploymentOption: "WITH_TRAFFIC_CONTROL",
+      strategy: config.useBlueGreen ? "BLUE_GREEN" : "ROLLING",
+      blueGreenDeploymentConfig: config.useBlueGreen
+        ? {
+            bakeTimeInMinutes: config.bakeTime ?? 3,
+            productionTrafficRoute: {
+              listenerArn: config.listenerArn,
+            },
+            targetGroup: {
+              blue: config.targetGroupName,
+              green: config.targetGroupNameGreen,
+            },
+          }
+        : undefined,
+      deploymentCircuitBreaker: {
+        enable: true,
+        rollback: true,
+      },
+      minHealthyPercent: 100,
+      maxPercent: 200,
+    } as any,
+
     networkConfiguration: {
       securityGroups: config.securityGroupIds,
       subnets: config.subnetIds,
       assignPublicIp: true,
     },
-    loadBalancer: config.targetGroupArn
-      ? [
-          {
-            targetGroupArn: config.targetGroupArn,
-            containerName: config.containerConfig.name,
-            containerPort: config.containerConfig.containerPort,
-          },
-        ]
-      : undefined,
+
+    deploymentController: {
+      type: "ECS",
+    },
+
+    loadBalancer: [
+      {
+        targetGroupArn: config.targetGroupArn,
+        containerName: config.containerConfig.name,
+        containerPort: config.containerConfig.containerPort,
+      },
+    ],
     tags: config.tags,
   });
 
+  // This override is required. Without it, Terraform will attempt to reset
+  service.addOverride("lifecycle", {
+    ignore_changes: ["load_balancer", "task_definition"],
+  });
   return { cluster, taskDefinition, service, logGroup };
 }
