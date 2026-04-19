@@ -22,11 +22,11 @@ import {
   AwsVpcResources,
   AzureAppGwResourcesWithDns,
   AzureVnetResources,
+  CreatedPublicZones,
   GoogleLbResourcesWithDns,
   GoogleVpcResources,
   LbResourcesOutputWithDns,
   LoadBalancerDnsInfo,
-  CreatedPublicZones,
 } from "./interfaces";
 
 export const createLbResources = (

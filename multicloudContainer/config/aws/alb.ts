@@ -69,10 +69,9 @@ export const albConfigs = [
       mode: "IMPORT" as "AWS_MANAGED" | "IMPORT",
       domains: ["imported.awstest.tohonokai.com"],
       validationZone: "awstest.tohonokai.com",
-      // Paths to your local SSL certificate files
       certificatePath: "./sslcerts/openssl/server.crt",
       privateKeyPath: "./sslcerts/openssl/server.key",
-      certificateChainPath: undefined, // Optional
+      certificateChainPath: undefined,
     },
     listenerConfig: {
       port: 443,
@@ -120,7 +119,7 @@ export const albConfigs = [
       fqdn: "http.awstest.tohonokai.com",
     },
     certificateConfig: {
-      enabled: false, // Disable certificate processing
+      enabled: false,
       mode: "AWS_MANAGED" as "AWS_MANAGED" | "IMPORT",
       domains: [],
       validationZone: "",
@@ -136,7 +135,7 @@ export const albConfigs = [
         targetGroupName: "http-api-tg",
       },
     },
-    additionalListeners: [], // No HTTPS redirect needed
+    additionalListeners: [],
     targetGroups: [
       {
         name: "http-api-tg",
@@ -152,19 +151,20 @@ export const albConfigs = [
       ManagedBy: "CDKTF",
     },
   },
+
+  // 4. Pattern: Plain HTTP (Public IP access for Blue/Green)
   {
     name: "plain-http-alb",
     build: true,
-    internal: false, // Public access via IP
+    internal: false,
     securityGroupNames: ["alb-sg"],
     subnetNames: ["my-aws-vpc-public-subnet1a", "my-aws-vpc-public-subnet1c"],
-    // dnsConfig is not used for Route53 record creation in this pattern
     dnsConfig: {
       subdomain: "",
       fqdn: "",
     },
     certificateConfig: {
-      enabled: false, // Fully disable ACM certificate logic
+      enabled: false,
       mode: "AWS_MANAGED" as "AWS_MANAGED" | "IMPORT",
       domains: [],
       validationZone: "",
@@ -177,13 +177,30 @@ export const albConfigs = [
       protocol: "HTTP",
       defaultAction: {
         type: "forward",
-        targetGroupName: "plain-http-tg",
+        targetGroupName: "managed-api-tg-blue",
       },
     },
-    additionalListeners: [], // No Port 443 redirect
+    // Fix: Added test listener for Blue/Green deployment to associate Green TG with ALB
+    additionalListeners: [
+      {
+        port: 8080,
+        protocol: "HTTP",
+        defaultAction: {
+          type: "forward",
+          targetGroupName: "managed-api-tg-green",
+        },
+      },
+    ],
     targetGroups: [
       {
-        name: "plain-http-tg",
+        name: "managed-api-tg-blue",
+        port: 80,
+        protocol: "HTTP",
+        targetType: "ip",
+        healthCheckPath: "/",
+      },
+      {
+        name: "managed-api-tg-green",
         port: 80,
         protocol: "HTTP",
         targetType: "ip",

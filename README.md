@@ -21,7 +21,7 @@ Docker Compose v2.40.1
 3.Get Azure Authentication Information  
 4.Save the .env.sample file as .env after editing 5.Launch docker and run terraform in a container
 
-## Docker startup for CDKTF
+## Docker startup for CDKTN
 
 ```
 git clone https://github.com/Otazoman/cdktf_multicloud_backend.git

@@ -15,6 +15,9 @@ export const awsEcsConfigs = [
       "my-aws-vpc-private-subnet1c",
       "my-aws-vpc-private-subnet1d",
     ],
-    targetGroupName: "managed-api-tg",
+    useBlueGreen: false,
+    bakeTime: 1,
+    targetGroupName: "managed-api-tg-blue", // Blue
+    targetGroupNameGreen: "managed-api-tg-green", // Green
   },
 ];

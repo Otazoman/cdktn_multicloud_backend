@@ -25,11 +25,29 @@ export const createComputeResources = (
       .filter((c) => c.build)
       .map((config) => {
         let targetGroupArn: string | undefined;
-        if (awsAlbs && config.targetGroupName) {
+        let targetGroupArnGreen: string | undefined;
+        let listenerArn: string | undefined;
+
+        if (awsAlbs) {
           for (const albRes of awsAlbs) {
-            if (albRes.targetGroups[config.targetGroupName]) {
+            // BlueTG
+            if (
+              config.targetGroupName &&
+              albRes.targetGroups[config.targetGroupName]
+            ) {
               targetGroupArn = albRes.targetGroups[config.targetGroupName].arn;
-              break;
+            }
+            // GreenTG
+            if (
+              config.targetGroupNameGreen &&
+              albRes.targetGroups[config.targetGroupNameGreen]
+            ) {
+              targetGroupArnGreen =
+                albRes.targetGroups[config.targetGroupNameGreen].arn;
+            }
+            // Listener ARN (for potential future use in listener rules)
+            if (albRes.listener && Object.keys(albRes.listener).length > 0) {
+              listenerArn = Object.values(albRes.listener)[0].arn;
             }
           }
         }
@@ -51,6 +69,8 @@ export const createComputeResources = (
             hostPort: config.port,
           },
           targetGroupArn: targetGroupArn,
+          targetGroupArnGreen: targetGroupArnGreen,
+          listenerArn: listenerArn,
         });
 
         ecs.service.node.addDependency(awsVpcResources.vpc);
