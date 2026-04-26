@@ -81,3 +81,14 @@ Amazon Elastic File System Full Access permissions must be added to the IAM user
 ## Google Filestore Note:
 
 You must enable the CloudFireStore API.
+
+## AWS ECS Note:  
+You need to add the “AutoscalingFullAccess” permission in IAM  
+
+``` json
+{
+  “Effect”: “Allow”,
+  “Action”: “application-autoscaling:*”,
+  “Resource”: “*”
+}
+```

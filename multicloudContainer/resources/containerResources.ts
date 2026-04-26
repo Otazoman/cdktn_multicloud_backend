@@ -52,8 +52,9 @@ export const createComputeResources = (
           }
         }
 
+        // Create ECS resources with updated config parameters
         const ecs = createAwsEcsFargateResources(scope, awsProvider, {
-          ...config,
+          ...config, // Pass through deploymentStrategy, autoScaling, and logRetentionInDays
           securityGroupIds: config.securityGroupNames.map(
             (name) => awsVpcResources.securityGroupMapping[name] as any,
           ),
@@ -65,8 +66,9 @@ export const createComputeResources = (
             image: config.image,
             cpu: parseInt(config.cpu),
             memory: parseInt(config.memory),
-            containerPort: config.port,
-            hostPort: config.port,
+            containerPort: (config as any).port,
+            hostPort: (config as any).port,
+            environment: (config as any).environment, // Ensure environment variables are passed
           },
           targetGroupArn: targetGroupArn,
           targetGroupArnGreen: targetGroupArnGreen,
