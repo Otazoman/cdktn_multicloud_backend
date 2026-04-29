@@ -54,8 +54,11 @@ export interface EcsConfig {
   targetGroupArnGreen?: string;
   targetGroupName?: string;
   targetGroupNameGreen?: string;
-  listenerArn?: string;
-  bakeTime?: number;
+  listenerArn?: string; // Production listener ARN (for blueGreenDeploymentConfig.productionTrafficRoute)
+  testListenerArn?: string; // Test listener ARN (for blueGreenDeploymentConfig.testTrafficRoute)
+  productionListenerRuleArn?: string; // Production Listener Rule ARN (for advancedConfiguration.productionListenerRule)
+  testListenerRuleArn?: string; // Test Listener Rule ARN (for advancedConfiguration.testListenerRule)
+  bakeTime?: number; // Bake time in minutes after deployment before considering stable (0 = disabled)
   enableExec?: boolean;
   tags?: { [key: string]: string };
 }
@@ -65,16 +68,18 @@ export function createAwsEcsFargateResources(
   provider: AwsProvider,
   config: EcsConfig,
 ) {
-// 1. ECS Cluster
+  // 1. ECS Cluster
   // Check if a cluster construct with this ID already exists in the current scope.
   const clusterId = `cluster-${config.clusterName}`;
   const existingCluster = scope.node.tryFindChild(clusterId);
 
-  const cluster = (existingCluster as EcsCluster) ?? new EcsCluster(scope, clusterId, {
-    provider,
-    name: config.clusterName,
-    tags: config.tags,
-  });
+  const cluster =
+    (existingCluster as EcsCluster) ??
+    new EcsCluster(scope, clusterId, {
+      provider,
+      name: config.clusterName,
+      tags: config.tags,
+    });
 
   // 2. CloudWatch Log Group for Container Logs
   const logGroup = new CloudwatchLogGroup(scope, `log-group-${config.name}`, {
@@ -175,9 +180,60 @@ export function createAwsEcsFargateResources(
     },
   );
 
-  // 5. ECS Service
+  // --- 5. Infrastructure Role & Blue/Green Flag ---
   const isBlueGreen = config.deploymentStrategy === "BLUE_GREEN";
 
+  const infraRole = new IamRole(scope, `ecs-infra-role-${config.name}`, {
+    provider,
+    name: `${config.name}-infra-role`,
+    assumeRolePolicy: JSON.stringify({
+      Version: "2012-10-17",
+      Statement: [
+        {
+          Action: "sts:AssumeRole",
+          Effect: "Allow",
+          Principal: { Service: "ecs.amazonaws.com" },
+        },
+      ],
+    }),
+  });
+
+  new IamRolePolicyAttachment(scope, `ecs-infra-policy-${config.name}`, {
+    provider,
+    role: infraRole.name,
+    policyArn: "arn:aws:iam::aws:policy/AmazonECS_FullAccess",
+  });
+
+  // ECS Native Blue/Green requires ELB permissions on the infrastructure role
+  // to perform target health checks (DescribeTargetHealth) and traffic shifting
+  // (ModifyListener, ModifyRule, RegisterTargets, DeregisterTargets, etc.)
+  new IamRolePolicyAttachment(scope, `ecs-infra-elb-policy-${config.name}`, {
+    provider,
+    role: infraRole.name,
+    policyArn: "arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess",
+  });
+
+  // --- Blue/Green pre-flight validation ---
+  if (isBlueGreen) {
+    if (!config.targetGroupArn) {
+      throw new Error(
+        `Blue/Green deployment for "${config.name}" requires targetGroupArn (blue target group).`,
+      );
+    }
+    if (!config.targetGroupArnGreen) {
+      throw new Error(
+        `Blue/Green deployment for "${config.name}" requires targetGroupArnGreen (green target group).`,
+      );
+    }
+    if (!config.listenerArn) {
+      throw new Error(
+        `Blue/Green deployment for "${config.name}" requires listenerArn (production listener). ` +
+          `Ensure listenerName in ecs.ts matches a named listener in alb.ts.`,
+      );
+    }
+  }
+
+  // --- 6. ECS Service ---
   const service = new EcsService(scope, `service-${config.name}`, {
     provider,
     name: config.name,
@@ -188,18 +244,16 @@ export function createAwsEcsFargateResources(
 
     deploymentConfiguration: {
       deploymentOption: isBlueGreen ? "WITH_TRAFFIC_CONTROL" : undefined,
-      strategy: config.deploymentStrategy,
-      blueGreenDeploymentConfig: isBlueGreen
-        ? {
-            bakeTimeInMinutes: config.bakeTime ?? 3,
-            productionTrafficRoute: { listenerArn: config.listenerArn },
-            targetGroup: {
-              blue: config.targetGroupName,
-              green: config.targetGroupNameGreen,
-            },
-          }
+      strategy: isBlueGreen ? "BLUE_GREEN" : config.deploymentStrategy,
+      // bakeTimeInMinutes: string type, placed directly in deploymentConfiguration.
+      // This is the correct field per CDKTF provider schema (not inside blueGreenDeploymentConfig).
+      bakeTimeInMinutes:
+        isBlueGreen && config.bakeTime !== undefined && config.bakeTime > 0
+          ? String(config.bakeTime)
+          : undefined,
+      deploymentCircuitBreaker: !isBlueGreen
+        ? { enable: true, rollback: true }
         : undefined,
-      deploymentCircuitBreaker: { enable: true, rollback: true },
       minHealthyPercent: 100,
       maxPercent: 200,
     } as any,
@@ -212,22 +266,40 @@ export function createAwsEcsFargateResources(
 
     deploymentController: { type: "ECS" },
 
-    // Note: Only one load balancer is defined to avoid Terraform validation issues
-    // while keeping Native Blue/Green compatibility through blueGreenDeploymentConfig
-    loadBalancer: config.targetGroupArn ? [
-      {
-        targetGroupArn: config.targetGroupArn,
-        containerName: config.containerConfig.name,
-        containerPort: config.containerConfig.containerPort,
-      },
-    ] : undefined,
+    // loadBalancer with advancedConfiguration is REQUIRED for all entries when using Blue/Green.
+    // advancedConfiguration must always be set (not undefined) when isBlueGreen is true.
+    loadBalancer: config.targetGroupArn
+      ? [
+          {
+            targetGroupArn: config.targetGroupArn,
+            containerName: config.containerConfig.name,
+            containerPort: config.containerConfig.containerPort,
+            // advancedConfiguration is required for Blue/Green; omitted for rolling deployments.
+            // productionListenerRule and testListenerRule must be Listener Rule ARNs,
+            // NOT Listener ARNs — ECS API will reject Listener ARNs here.
+            advancedConfiguration: isBlueGreen
+              ? {
+                  alternateTargetGroupArn: config.targetGroupArnGreen!,
+                  productionListenerRule: config.productionListenerRuleArn!,
+                  testListenerRule: config.testListenerRuleArn,
+                  roleArn: infraRole.arn,
+                }
+              : undefined,
+          },
+        ]
+      : undefined,
     enableExecuteCommand: config.enableExec ?? false,
     tags: config.tags,
   });
 
   // Dynamic Lifecycle Management
-  // If Auto Scaling is enabled, desired_count must be ignored by Terraform
-  const ignoreChanges = ["load_balancer", "task_definition"];
+  // Blue/Green: ECS manages TG switching internally — do NOT ignore load_balancer
+  // Rolling:    ignore load_balancer to prevent forced recreate on TG changes
+  // Always:     ignore task_definition to allow external deployments without Terraform drift
+  const ignoreChanges = ["task_definition"];
+  if (!isBlueGreen) {
+    ignoreChanges.push("load_balancer");
+  }
   if (config.autoScaling?.enabled) {
     ignoreChanges.push("desired_count");
   }
@@ -236,7 +308,7 @@ export function createAwsEcsFargateResources(
     ignore_changes: ignoreChanges,
   });
 
-  // 6. Application Auto Scaling Setup
+  // 7. Application Auto Scaling Setup
   if (config.autoScaling?.enabled) {
     const target = new AppautoscalingTarget(
       scope,

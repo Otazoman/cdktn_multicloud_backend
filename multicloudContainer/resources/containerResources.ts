@@ -27,17 +27,20 @@ export const createComputeResources = (
         let targetGroupArn: string | undefined;
         let targetGroupArnGreen: string | undefined;
         let listenerArn: string | undefined;
+        let testListenerArn: string | undefined;
+        let productionListenerRuleArn: string | undefined;
+        let testListenerRuleArn: string | undefined;
 
         if (awsAlbs) {
           for (const albRes of awsAlbs) {
-            // BlueTG
+            // BlueTG: look up by targetGroupName
             if (
               config.targetGroupName &&
               albRes.targetGroups[config.targetGroupName]
             ) {
               targetGroupArn = albRes.targetGroups[config.targetGroupName].arn;
             }
-            // GreenTG
+            // GreenTG: look up by targetGroupNameGreen
             if (
               config.targetGroupNameGreen &&
               albRes.targetGroups[config.targetGroupNameGreen]
@@ -45,9 +48,40 @@ export const createComputeResources = (
               targetGroupArnGreen =
                 albRes.targetGroups[config.targetGroupNameGreen].arn;
             }
-            // Listener ARN (for potential future use in listener rules)
-            if (albRes.listener && Object.keys(albRes.listener).length > 0) {
-              listenerArn = Object.values(albRes.listener)[0].arn;
+
+            const listenerName = (config as any).listenerName as
+              | string
+              | undefined;
+            const testListenerName = (config as any).testListenerName as
+              | string
+              | undefined;
+
+            // Production listener ARN: for blueGreenDeploymentConfig.productionTrafficRoute
+            if (listenerName && albRes.listeners?.[listenerName]) {
+              listenerArn = albRes.listeners[listenerName].arn;
+            } else if (albRes.listener) {
+              listenerArn = albRes.listener.arn;
+            }
+
+            // Test listener ARN: for blueGreenDeploymentConfig.testTrafficRoute
+            if (testListenerName && albRes.listeners?.[testListenerName]) {
+              testListenerArn = albRes.listeners[testListenerName].arn;
+            }
+
+            // Production listener RULE ARN: for advancedConfiguration.productionListenerRule
+            // ECS Native Blue/Green requires a Listener Rule ARN here (not a Listener ARN)
+            if (listenerName && albRes.namedListenerRules?.[listenerName]) {
+              productionListenerRuleArn =
+                albRes.namedListenerRules[listenerName].arn;
+            }
+
+            // Test listener RULE ARN: for advancedConfiguration.testListenerRule
+            if (
+              testListenerName &&
+              albRes.namedListenerRules?.[testListenerName]
+            ) {
+              testListenerRuleArn =
+                albRes.namedListenerRules[testListenerName].arn;
             }
           }
         }
@@ -73,6 +107,9 @@ export const createComputeResources = (
           targetGroupArn: targetGroupArn,
           targetGroupArnGreen: targetGroupArnGreen,
           listenerArn: listenerArn,
+          testListenerArn: testListenerArn,
+          productionListenerRuleArn: productionListenerRuleArn,
+          testListenerRuleArn: testListenerRuleArn,
         });
 
         ecs.service.node.addDependency(awsVpcResources.vpc);

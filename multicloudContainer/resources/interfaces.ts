@@ -198,7 +198,9 @@ export interface PrivateZoneResources {
 export interface AwsAlbResources {
   alb: Lb;
   targetGroups: Record<string, LbTargetGroup>; // Key is the logical name from config
-  listener: LbListener;
+  listener: LbListener; // Primary listener (backward compatibility)
+  listeners: Record<string, LbListener>; // All listeners keyed by logical name (e.g., "production-listener", "test-listener")
+  namedListenerRules: Record<string, any>; // Catch-all Listener Rules keyed by listener name (Rule ARN required by ECS Blue/Green advancedConfiguration)
 }
 
 // Google Cloud Load Balancing output resources
