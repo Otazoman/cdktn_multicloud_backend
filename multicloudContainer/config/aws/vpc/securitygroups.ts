@@ -229,4 +229,37 @@ export const securityGroups = [
       },
     ],
   },
+    {
+    resourcetype: "ecs",
+    name: "ecs-sg",
+    tags: {
+      Purpose: "ALB",
+    },
+    ingress: [
+      {
+        fromPort: 80,
+        toPort: 80,
+        protocol: "tcp",
+        cidrBlocks: ["10.0.0.0/16"],
+        description: "Allow HTTP inbound traffic",
+      },
+      {
+        fromPort: 443,
+        toPort: 443,
+        protocol: "tcp",
+        cidrBlocks: ["10.0.0.0/16"],
+        description: "Allow HTTPS inbound traffic",
+      },
+    ],
+    egress: [
+      {
+        fromPort: 0,
+        toPort: 0,
+        protocol: "-1",
+        cidrBlocks: ["0.0.0.0/0"],
+        ipv6CidrBlocks: ["::/0"],
+        description: "Allow all outbound traffic to backends",
+      },
+    ],
+  },
 ];

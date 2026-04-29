@@ -58,6 +58,7 @@ export interface AlbTargetGroupConfig {
  * Configuration for the Listener
  */
 export interface AlbListenerConfig {
+  name?: string; // Logical name for identifying the listener (e.g., "production-listener", "test-listener")
   port: number;
   protocol: string;
   sslPolicy?: string;
@@ -136,6 +137,7 @@ export function createAwsAlbResources(
   });
 
   // 3. Create primary Listener
+  const primaryListenerName = config.listenerConfig.name ?? "primary";
   const listener = new LbListener(scope, `listener-${config.name}`, {
     provider,
     loadBalancerArn: alb.arn,
@@ -151,10 +153,20 @@ export function createAwsAlbResources(
     ],
   });
 
-  // 3b. Create additional Listeners (e.g., HTTP redirect listener)
-  const additionalListeners: LbListener[] = [];
+  // 3b. Create additional Listeners (e.g., HTTP redirect listener, test listener for Blue/Green)
+  // All listeners are stored in a Record keyed by their logical name for easy lookup
+  const listeners: Record<string, LbListener> = {
+    [primaryListenerName]: listener,
+  };
+
+  // Track each listener's defaultAction config for rule creation below
+  const listenerActionConfigs: Record<string, AlbActionConfig> = {
+    [primaryListenerName]: config.listenerConfig.defaultAction,
+  };
+
   if (config.additionalListeners) {
     config.additionalListeners.forEach((listenerConfig, index) => {
+      const listenerName = listenerConfig.name ?? `additional-${index}`;
       const additionalListener = new LbListener(
         scope,
         `listener-${config.name}-additional-${index}`,
@@ -170,11 +182,36 @@ export function createAwsAlbResources(
           ],
         },
       );
-      additionalListeners.push(additionalListener);
+      listeners[listenerName] = additionalListener;
+      listenerActionConfigs[listenerName] = listenerConfig.defaultAction;
     });
   }
 
-  // 4. Create Listener Rules
+  // 3c. Create a catch-all Listener Rule for each named "forward" listener.
+  // ECS Native Blue/Green advancedConfiguration.productionListenerRule / testListenerRule
+  // requires a Listener Rule ARN (not a Listener ARN). We create a priority-1 rule that
+  // matches all traffic ("/*") so it can be referenced by ECS during Blue/Green deployments.
+  const namedListenerRules: Record<string, LbListenerRule> = {};
+  Object.entries(listeners).forEach(([name, lsnr]) => {
+    const actionConfig = listenerActionConfigs[name];
+    // Only create rules for forward actions (redirect/fixed-response listeners don't need it)
+    if (actionConfig?.type === "forward") {
+      const rule = new LbListenerRule(
+        scope,
+        `default-rule-${config.name}-${name}`,
+        {
+          provider,
+          listenerArn: lsnr.arn,
+          priority: 1,
+          action: [buildAction(actionConfig, targetGroups)],
+          condition: [{ pathPattern: { values: ["/*"] } }],
+        },
+      );
+      namedListenerRules[name] = rule;
+    }
+  });
+
+  // 4. Create additional Listener Rules from config
   config.listenerRules.forEach((rule) => {
     const conditions: any[] = [];
     if (rule.conditions.pathPatterns) {
@@ -202,5 +239,5 @@ export function createAwsAlbResources(
     });
   });
 
-  return { alb, targetGroups, listener };
+  return { alb, targetGroups, listener, listeners, namedListenerRules };
 }

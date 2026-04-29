@@ -9,7 +9,8 @@ export const awsEcsConfigs = [
     cpu: "256",
     memory: "512",
     desiredCount: 1,
-    deploymentStrategy: "ROLLING",
+    deploymentStrategy: "BLUE_GREEN",
+    bakeTime: 3,
     enableExec: true,
     autoScaling: {
       enabled: true,
@@ -24,7 +25,7 @@ export const awsEcsConfigs = [
     containerName: "api-container",
     image: "nginx:latest",
     port: 80,
-    securityGroupNames: ["alb-sg"],
+    securityGroupNames: ["ecs-sg"],
     subnetNames: [
       "my-aws-vpc-private-subnet1a",
       "my-aws-vpc-private-subnet1c",
@@ -32,6 +33,8 @@ export const awsEcsConfigs = [
     ],
     targetGroupName: "managed-api-tg-blue",
     targetGroupNameGreen: "managed-api-tg-green",
+    listenerName: "production-listener", // Must match the name set in alb.ts listenerConfig.name
+    testListenerName: "test-listener", // Must match the name set in alb.ts additionalListeners[].name
     tags: {
       ServiceType: "API",
       ManagedBy: "CDKTN",
@@ -59,15 +62,13 @@ export const awsEcsConfigs = [
     containerName: "worker-container",
     image: "postgres:latest",
     port: 5432,
-    securityGroupNames: ["alb-sg"],
+    securityGroupNames: ["myaws-db-sg"],
     subnetNames: [
       "my-aws-vpc-private-subnet1a",
       "my-aws-vpc-private-subnet1c",
       "my-aws-vpc-private-subnet1d",
     ],
-    environment: [
-      { name: "POSTGRES_PASSWORD", value: "mypassword" },
-    ],
+    environment: [{ name: "POSTGRES_PASSWORD", value: "mypassword" }],
     // If worker doesn't need an ALB, these can be optional or point to dummy TGs
     targetGroupName: "managed-worker-tg",
     tags: {
