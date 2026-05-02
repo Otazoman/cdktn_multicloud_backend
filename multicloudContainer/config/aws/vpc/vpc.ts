@@ -5,7 +5,7 @@ import { subnets } from "./subnets";
 export const awsVpcResourcesparams = {
   vpcCidrBlock: "10.0.0.0/16",
   vpcName: "my-aws-vpc",
-  isEnabled: true,
+  isEnabled: false,
   vpcTags: {
     Project: "MultiCloud",
   },
@@ -14,6 +14,7 @@ export const awsVpcResourcesparams = {
 
   // ICE Endpoint
   ec2ICEndpoint: {
+    enable: true,
     endpointName: "my-ec2-instance-connect-endpoint",
     securityGroupNames: ["EC2InstanceConnect"],
   },

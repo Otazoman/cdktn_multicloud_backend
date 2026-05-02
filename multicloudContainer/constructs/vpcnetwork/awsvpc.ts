@@ -41,6 +41,7 @@ interface SecurityGroupConfig {
 }
 
 interface ec2InstanceConnectEndpointsConfig {
+  enable: boolean;
   endpointName: string;
   securityGroupNames: string[];
 }
@@ -75,7 +76,7 @@ interface AwsResourcesParams {
 export function createAwsVpcResources(
   scope: Construct,
   provider: AwsProvider,
-  params: AwsResourcesParams
+  params: AwsResourcesParams,
 ) {
   // For ensuring power equality when re-running
   new NullProvider(scope, "null-provider-vpc", {
@@ -164,7 +165,7 @@ export function createAwsVpcResources(
           routeTableId: publicRouteTable.id,
         });
       }
-    }
+    },
   );
 
   let natGateway: NatGateway | undefined;
@@ -219,7 +220,7 @@ export function createAwsVpcResources(
           routeTableId: privateRouteTable.id,
         });
       }
-    }
+    },
   );
 
   // security groups
@@ -258,70 +259,76 @@ export function createAwsVpcResources(
     return sg;
   });
 
-  // EC2 Instance Connect Endpoint
   const firstSubnet = subnets[0];
   const securityGroupMapping = Object.fromEntries(
     securityGroups.map((sg, index) => [
       `${params.securityGroups[index].name}`,
       sg.id,
-    ])
+    ]),
   );
 
   // Provide a mapping of security group name -> SecurityGroup resource
   const securityGroupsByName: Record<string, SecurityGroup> =
     Object.fromEntries(
-      securityGroups.map((sg, index) => [params.securityGroups[index].name, sg])
+      securityGroups.map((sg, index) => [
+        params.securityGroups[index].name,
+        sg,
+      ]),
     );
 
-  const ec2InstanceConnectEndpoint = new Ec2InstanceConnectEndpoint(
-    scope,
-    "ec2InstanceConnectEndpoint",
-    {
-      provider: provider,
-      subnetId: firstSubnet.id,
-      securityGroupIds: params.ec2ICEndpoint.securityGroupNames.map(
-        (name) => securityGroupMapping[name]
-      ),
-      tags: {
-        Name: params.ec2ICEndpoint.endpointName,
-      },
-    }
-  );
-
-  // Add instance connect SG to EC2 security group
-  const ec2SecurityGroup = securityGroups.find(
-    (_, index) => params.securityGroups[index].resourcetype === "ec2"
-  );
-
-  if (ec2SecurityGroup) {
-    const rule = new SecurityGroupRule(
+  // EC2 Instance Connect Endpoint
+  let ec2InstanceConnectEndpoint: Ec2InstanceConnectEndpoint | undefined;
+  if (params.ec2ICEndpoint.enable) {
+    ec2InstanceConnectEndpoint = new Ec2InstanceConnectEndpoint(
       scope,
-      `ec2InstanceConnectIngressRule-${params.ec2ICEndpoint.securityGroupNames[0]}-22-tcp`,
+      "ec2InstanceConnectEndpoint",
       {
         provider: provider,
-        type: "ingress",
-        fromPort: 22,
-        toPort: 22,
-        protocol: "tcp",
-        sourceSecurityGroupId:
-          securityGroupMapping[params.ec2ICEndpoint.securityGroupNames[0]],
-        securityGroupId: ec2SecurityGroup.id,
-        description: "Allow SSH from EC2 Instance Connect Endpoint",
-        dependsOn: [ec2InstanceConnectEndpoint, ec2SecurityGroup],
-        lifecycle: {
-          createBeforeDestroy: true,
-          ignoreChanges: ["security_group_id", "source_security_group_id"],
+        subnetId: firstSubnet.id,
+        securityGroupIds: params.ec2ICEndpoint.securityGroupNames.map(
+          (name) => securityGroupMapping[name],
+        ),
+        tags: {
+          Name: params.ec2ICEndpoint.endpointName,
         },
-      }
-    );
-    ec2SecurityGroup.addOverride("lifecycle.ignore_changes", ["ingress"]);
-    new Resource(scope, `ec2-connect-rule-guard`, {
-      dependsOn: [rule],
-      triggers: {
-        sg_id: ec2SecurityGroup.id,
-        last_updated: "static-last-updated-value",
       },
-    });
+    );
+
+    // Add instance connect SG to EC2 security group
+    const ec2SecurityGroup = securityGroups.find(
+      (_, index) => params.securityGroups[index].resourcetype === "ec2",
+    );
+
+    if (ec2InstanceConnectEndpoint && ec2SecurityGroup) {
+      const rule = new SecurityGroupRule(
+        scope,
+        `ec2InstanceConnectIngressRule-${params.ec2ICEndpoint.securityGroupNames[0]}-22-tcp`,
+        {
+          provider: provider,
+          type: "ingress",
+          fromPort: 22,
+          toPort: 22,
+          protocol: "tcp",
+          sourceSecurityGroupId:
+            securityGroupMapping[params.ec2ICEndpoint.securityGroupNames[0]],
+          securityGroupId: ec2SecurityGroup.id,
+          description: "Allow SSH from EC2 Instance Connect Endpoint",
+          dependsOn: [ec2InstanceConnectEndpoint, ec2SecurityGroup],
+          lifecycle: {
+            createBeforeDestroy: true,
+            ignoreChanges: ["security_group_id", "source_security_group_id"],
+          },
+        },
+      );
+      ec2SecurityGroup.addOverride("lifecycle.ignore_changes", ["ingress"]);
+      new Resource(scope, `ec2-connect-rule-guard`, {
+        dependsOn: [rule],
+        triggers: {
+          sg_id: ec2SecurityGroup.id,
+          last_updated: "static-last-updated-value",
+        },
+      });
+    }
   }
 
   return {
