@@ -33,6 +33,8 @@ export interface AzureAppGwBackendConfig {
   protocol: "Http" | "Https";
   requestTimeout: number;
   hostName?: string;
+  targetFqdns?: string[];
+  pickHostNameFromBackendAddress?: boolean;
 }
 
 /**
@@ -164,7 +166,7 @@ export function createAzureAppGwResources(
     location: config.location,
     resourceGroupName: config.resourceGroupName,
     fipsEnabled: config.enableFips,
-    enableHttp2: config.enableHttp2,
+    http2Enabled: config.enableHttp2,
     tags: config.tags,
 
     // Link the external WAF Policy
@@ -207,6 +209,7 @@ export function createAzureAppGwResources(
 
     backendAddressPool: config.backends.map((be) => ({
       name: `${be.name}-pool`,
+      fqdns: be.targetFqdns,
     })),
 
     backendHttpSettings: config.backends.map((be) => ({
@@ -215,7 +218,9 @@ export function createAzureAppGwResources(
       port: be.port,
       protocol: be.protocol,
       requestTimeout: be.requestTimeout,
-      hostName: be.hostName,
+      hostName: be.hostName ?? publicIp.ipAddress,
+      pickHostNameFromBackendAddress:
+        be.pickHostNameFromBackendAddress ?? false,
     })),
 
     //  SSL Certificates

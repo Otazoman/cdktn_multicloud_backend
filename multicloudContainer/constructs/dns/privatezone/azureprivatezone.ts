@@ -1,3 +1,4 @@
+import { PrivateDnsARecord } from "@cdktn/provider-azurerm/lib/private-dns-a-record";
 import { PrivateDnsCnameRecord } from "@cdktn/provider-azurerm/lib/private-dns-cname-record";
 import { PrivateDnsResolver } from "@cdktn/provider-azurerm/lib/private-dns-resolver";
 import { PrivateDnsResolverDnsForwardingRuleset } from "@cdktn/provider-azurerm/lib/private-dns-resolver-dns-forwarding-ruleset";
@@ -389,4 +390,60 @@ export function createAzureInnerCnameRecords(
       },
     );
   });
+}
+
+/**
+ * Creates Private DNS resources for Azure Container Apps (Internal).
+ * This links the ACA Environment's default domain to the VNet and registers A records.
+ */
+export function createAzureAcaPrivateDnsResources(
+  scope: Construct,
+  provider: AzurermProvider,
+  params: {
+    resourceGroupName: string;
+    virtualNetworkId: string; // VNet ID to link the Private DNS Zone
+    defaultDomain: string; // e.g. "wittyriver-c0c2f1e6.japaneast.azurecontainerapps.io"
+    staticIpAddress: string; // Internal Load Balancer IP of ACA Environment
+    apps: string[]; // List of app names to register (e.g. ["backend-api-service"])
+    tags?: { [key: string]: string };
+  },
+) {
+  // 1. Create Private DNS Zone for the ACA Environment domain
+  const privateDnsZone = new PrivateDnsZone(scope, "aca-private-dns-zone", {
+    provider: provider,
+    name: params.defaultDomain,
+    resourceGroupName: params.resourceGroupName,
+    tags: params.tags,
+  });
+
+  // 2. Link the Private DNS Zone to the Virtual Network
+  // This allows resources within the VNet (e.g. AppGW) to resolve ACA private IPs
+  const vnetLink = new PrivateDnsZoneVirtualNetworkLink(
+    scope,
+    "aca-dns-vnet-link",
+    {
+      provider: provider,
+      name: "aca-vnet-link",
+      resourceGroupName: params.resourceGroupName,
+      privateDnsZoneName: privateDnsZone.name,
+      virtualNetworkId: params.virtualNetworkId,
+      registrationEnabled: false,
+      dependsOn: [privateDnsZone],
+    },
+  );
+
+  // 3. Create A Records for each app pointing to the ACA Environment Static IP
+  const aRecords = params.apps.map((appName) => {
+    return new PrivateDnsARecord(scope, `aca-a-record-${appName}`, {
+      provider: provider,
+      name: appName, // The subdomain part, e.g. "backend-api-service"
+      zoneName: privateDnsZone.name,
+      resourceGroupName: params.resourceGroupName,
+      ttl: 300,
+      records: [params.staticIpAddress],
+      dependsOn: [privateDnsZone],
+    });
+  });
+
+  return { privateDnsZone, vnetLink, aRecords };
 }

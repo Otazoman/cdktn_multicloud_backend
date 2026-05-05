@@ -543,8 +543,9 @@ const setupAzureForwardingAndInner = (
   googleInboundIps: any,
   azureDatabaseResources?: any[],
   azureFilesInstances?: Array<{ cnameRecordName: string; fqdn: string }>,
+  azureAcaInstances?: Array<{ cnameRecordName: string; fqdn: string }>,
 ) => {
-  const azureOutput: any = { ...azureResolverTemp };
+  const azureOutput: any = azureResolverTemp ? { ...azureResolverTemp } : {};
 
   // 1. Forwarding Ruleset
   const shouldCreateAwsRule = awsToAzure && awsInboundEndpointIps.length > 0;
@@ -585,7 +586,8 @@ const setupAzureForwardingAndInner = (
 
     if (
       forwardingRules.length > 0 &&
-      azurePrivateZoneParams.forwardingRulesetName
+      azurePrivateZoneParams.forwardingRulesetName &&
+      azureResolverTemp
     ) {
       azureOutput.forwardingRuleset = createAzureForwardingRuleset(
         scope,
@@ -605,10 +607,12 @@ const setupAzureForwardingAndInner = (
   }
 
   // 2. azure.inner Zone
-  // Created when: DB records exist OR Azure Files CNAME records exist
+  // Created when: DB records exist OR Azure Files CNAME records exist OR ACA instances exist
   const needsAzureInnerZone =
     azurePrivateZoneParams.azureInnerDomain?.enabled &&
-    (azureDatabaseResources?.length || azureFilesInstances?.length);
+    (azureDatabaseResources?.length ||
+      azureFilesInstances?.length ||
+      azureAcaInstances?.length);
 
   if (needsAzureInnerZone) {
     const azureInnerZone = createAzureInnerPrivateDnsZone(
@@ -652,6 +656,20 @@ const setupAzureForwardingAndInner = (
         })),
       );
     }
+
+    // 2c. ACA CNAME records (latestRevisionFqdn → cnameRecordName.azure.inner)
+    if (azureAcaInstances && azureAcaInstances.length > 0) {
+      azureOutput.azureAcaCnameRecords = createAzureInnerCnameRecords(
+        scope,
+        azureProvider,
+        azurePrivateZoneParams.resourceGroup,
+        azureInnerZone.privateDnsZone,
+        azureAcaInstances.map((i) => ({
+          name: i.cnameRecordName,
+          target: i.fqdn,
+        })),
+      );
+    }
   }
 
   return azureOutput;
@@ -674,6 +692,7 @@ export const createPrivateZoneResources = (
   azureDatabaseResources?: any[],
   awsEfsInstances?: Array<{ cnameRecordName: string; dnsFqdn: string }>,
   azureFilesInstances?: Array<{ cnameRecordName: string; fqdn: string }>,
+  azureAcaInstances?: Array<{ cnameRecordName: string; fqdn: string }>,
 ): PrivateZoneResources => {
   const output: PrivateZoneResources = {};
 
@@ -780,6 +799,7 @@ export const createPrivateZoneResources = (
       googleInboundIps,
       azureDatabaseResources,
       azureFilesInstances,
+      azureAcaInstances,
     );
   } else if (
     azureProvider &&
@@ -796,6 +816,7 @@ export const createPrivateZoneResources = (
       [],
       azureDatabaseResources,
       azureFilesInstances,
+      azureAcaInstances,
     );
   }
 

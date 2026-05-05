@@ -8,42 +8,56 @@ import { Construct } from "constructs";
  */
 export interface AzureContainerAppConfig {
   name: string;
-  location: string;
+  build: boolean;
   resourceGroupName: string;
+  location: string;
   environmentName: string;
-  container: {
-    name: string;
-    image: string;
-    cpu: number;
-    memory: string;
-    env?: { name: string; value: string }[];
-  };
+  image: string;
+  cpu: number;
+  memory: string;
   targetPort: number;
+  internal: boolean;
   externalEnabled: boolean;
+  subnetName: string;
+  env?: { name: string; value: string }[];
   minReplicas?: number;
   maxReplicas?: number;
-  tags?: { [key: string]: string };
 }
 
 export function createAzureContainerAppResources(
   scope: Construct,
   provider: AzurermProvider,
-  config: AzureContainerAppConfig,
+  config: AzureContainerAppConfig & { infrastructureSubnetId: string },
+  envMap: Map<string, ContainerAppEnvironment>, // 追加
 ) {
-  // 1. Container App Environment
-  const environment = new ContainerAppEnvironment(
-    scope,
-    `aca-env-${config.name}`,
-    {
-      provider,
-      name: config.environmentName,
-      location: config.location,
-      resourceGroupName: config.resourceGroupName,
-      tags: config.tags,
-    },
-  );
+  // 1. Retrieve or Create a Container App Environment
+  let environment = envMap.get(config.environmentName);
 
-  // 2. Container App
+  if (!environment) {
+    // Create the resource only if `environmentName` appears for the first time
+    environment = new ContainerAppEnvironment(
+      scope,
+      `aca-env-${config.environmentName}`,
+      {
+        provider,
+        name: config.environmentName,
+        location: config.location,
+        resourceGroupName: config.resourceGroupName,
+        // Due to Azure provider constraints, `infrastructure_subnet_id` and `internal_load_balancer_enabled`
+        // must be specified together.
+        // In public environments where `subnetName` is empty, omit both.
+        ...(config.infrastructureSubnetId
+          ? {
+              infrastructureSubnetId: config.infrastructureSubnetId,
+              internalLoadBalancerEnabled: config.internal,
+            }
+          : {}),
+      },
+    );
+    envMap.set(config.environmentName, environment);
+  }
+
+  // 2. Container App (This must be created for each service)
   const app = new ContainerApp(scope, `aca-app-${config.name}`, {
     provider,
     name: config.name,
@@ -54,11 +68,11 @@ export function createAzureContainerAppResources(
     template: {
       container: [
         {
-          name: config.container.name,
-          image: config.container.image,
-          cpu: config.container.cpu,
-          memory: config.container.memory,
-          env: config.container.env,
+          name: config.name,
+          image: config.image,
+          cpu: config.cpu,
+          memory: config.memory,
+          env: config.env,
         },
       ],
       minReplicas: config.minReplicas ?? 0,
@@ -66,19 +80,19 @@ export function createAzureContainerAppResources(
     },
 
     ingress: {
+      // Even in Internal mode, “true” is required to allow access from within the VNET (AppGW)
       externalEnabled: config.externalEnabled,
       targetPort: config.targetPort,
-      allowInsecureConnections: false,
-      trafficWeight: [
-        {
-          percentage: 100,
-          latestRevision: true,
-        },
-      ],
+      allowInsecureConnections: true,
+      trafficWeight: [{ percentage: 100, latestRevision: true }],
     },
-
-    tags: config.tags,
   });
 
-  return { environment, app };
+  // Use `<app.name>.<environment.defaultDomain>` as the stable ingressFqdn.
+  // This is consistent regardless of revision updates.
+  return {
+    environment,
+    app,
+    fqdn: `${app.name}.${environment.defaultDomain}`,
+  };
 }

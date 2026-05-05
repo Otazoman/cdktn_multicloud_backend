@@ -353,6 +353,28 @@ export interface AzureContainerAppConfig {
   memory: string;
   targetPort: number;
   externalEnabled: boolean;
+  subnetName: string;
+  env?: { name: string; value: string }[];
+  minReplicas?: number;
+  maxReplicas?: number;
+  /** CNAME short name registered in azure.inner (e.g. "api-backend") */
+  cnameRecordName?: string;
+}
+
+// --- Azure ACA Instance (for DNS registration) ---
+export interface AzureAcaInstance {
+  /** CNAME short name in azure.inner (e.g. "api-backend") */
+  cnameRecordName: string;
+  /** ACA ingressFqdn (e.g. "backend-api-service.xxx.azurecontainerapps.io") */
+  fqdn: string;
+}
+
+// --- Azure ACA AppGW Target (for Application Gateway backend targetFqdns injection) ---
+export interface AzureAcaAppGwTarget {
+  /** AppGW backend pool name to inject the FQDN into (e.g. "http-backend-pool") */
+  backendName: string;
+  /** ACA ingressFqdn to set as targetFqdns in the backend pool */
+  fqdn: string;
 }
 
 // --- AWS EFS Resources ---

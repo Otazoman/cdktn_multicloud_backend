@@ -82,13 +82,66 @@ Amazon Elastic File System Full Access permissions must be added to the IAM user
 
 You must enable the CloudFireStore API.
 
-## AWS ECS Note:  
-You need to add the “AutoscalingFullAccess” permission in IAM  
+## AWS ECS Note:
 
-``` json
+You need to add the “AutoscalingFullAccess” permission in IAM
+
+```json
 {
   “Effect”: “Allow”,
   “Action”: “application-autoscaling:*”,
   “Resource”: “*”
 }
+```
+
+## Azure Container Apps Note:
+
+An error occurs when destroying the object, so if an error occurs, try destroying it again.
+
+## Sub Domain Note:
+
+Processing on the subdomain side
+
+- AWS subdomain
+
+```bash
+SUB_DOMAIN="awstest.YOURDOMAIN"
+SUB_NS=$(aws route53 list-hosted-zones-by-name --dns-name "$SUB_DOMAIN" --query "HostedZones[0].Id" --output text | xargs -I {} aws route53 get-hosted-zone --id {} --query "DelegationSet.NameServers" --output text)
+echo "NS RECORDS: $SUB_NS"
+```
+
+- Azure subdomain
+
+```bash
+SUB_DOMAIN="azuretest.YOURDOMAIN"
+RG_NAME="YOUR_RESOURCE_GROUP"
+SUB_NS=$(az network dns zone show -g "$RG_NAME" -n "$SUB_DOMAIN" --query "nameServers" -o tsv)
+echo "NS RECORDS: $SUB_NS"
+```
+
+Processing on the Route 53 main domain
+
+```bash
+YOUR_PARENT_ZONE_ID=YOUR_ZONE_ID
+SUB_DOMAIN="YOUR_SUB_DOMAIN"
+SUB_NS="PASTE NS RECORDS"
+
+aws route53 change-resource-record-sets \
+  --hosted-zone-id "$YOUR_PARENT_ZONE_ID" \
+  --change-batch "{
+    \"Comment\": \"Update NS for $SUB_DOMAIN\",
+    \"Changes\": [
+      {
+        \"Action\": \"UPSERT\",
+        \"ResourceRecordSet\": {
+          \"Name\": \"$SUB_DOMAIN.\",
+          \"Type\": \"NS\",
+          \"TTL\": 60,
+          \"ResourceRecords\": [
+            $(for ns in $SUB_NS; do echo "{\"Value\": \"$ns\"},"; done | sed '$s/,$//')
+          ]
+        }
+      }
+    ]
+  }"
 ```

@@ -2,10 +2,10 @@ import { LOCATION, RESOURCE_GROUP } from "./common";
 
 export const azureAppGwConfigs = [
   {
-    name: "standard-appgw",
+    name: "plain-https-appgw",
     location: LOCATION,
     resourceGroupName: RESOURCE_GROUP,
-    build: false,
+    build: true,
     useAutoscale: false,
     sku: {
       name: "Standard_v2",
@@ -15,29 +15,36 @@ export const azureAppGwConfigs = [
     // DNS configuration
     dnsConfig: {
       subdomain: "azuretest.tohonokai.com",
-      fqdn: "api.azuretest.tohonokai.com", // Optional: specific FQDN for this App Gateway
+      fqdn: "api.azuretest.tohonokai.com",
     },
     listeners: [
       {
-        name: "http-basic",
+        name: "http-only-listener",
         port: 80,
         protocol: "Http",
-        redirectToListener: "https-basic",
+        redirectToListener: "https-only-listener",
       },
       {
-        name: "https-basic",
+        name: "https-only-listener",
         port: 443,
         protocol: "Https",
-        defaultBackendName: "default-be",
+        defaultBackendName: "api-backend-pool",
         sslCertificateName: "my-ssl-cert",
       },
     ],
     enableHttp2: true,
     subnetName: "web-appgw-subnet",
     backends: [
-      { name: "default-be", port: 80, protocol: "Http", requestTimeout: 30 },
+      {
+        name: "api-backend-pool",
+        port: 80,
+        protocol: "Http",
+        requestTimeout: 30,
+        pickHostNameFromBackendAddress: false,
+        hostName: "api.azuretest.tohonokai.com",
+        targetFqdns: ["backend-api-service"],
+      },
     ],
-    tags: { Environment: "Dev", Project: "MyCloudApp" },
     sslCertificates: [
       {
         name: "my-ssl-cert",
@@ -45,6 +52,10 @@ export const azureAppGwConfigs = [
         password: "Password123!",
       },
     ],
+    tags: {
+      Environment: "Test",
+      Protocol: "HTTPS",
+    },
   },
   {
     name: "main-waf-appgw",
@@ -58,19 +69,18 @@ export const azureAppGwConfigs = [
       minCapacity: 1,
       maxCapacity: 3,
     },
-    // --- Specific Backend Mapping for each Listener ---
     listeners: [
       {
         name: "http-main",
         port: 80,
         protocol: "Http",
-        defaultBackendName: "api-backend", // Port 80 defaults to API
+        defaultBackendName: "api-backend",
       },
       {
         name: "http-alt",
         port: 8080,
         protocol: "Http",
-        defaultBackendName: "static-content", // Port 8080 defaults to Static Content
+        defaultBackendName: "static-content",
       },
     ],
     enableHttp2: true,
@@ -106,7 +116,6 @@ export const azureAppGwConfigs = [
         requestTimeout: 30,
       },
     ],
-    // These paths override the listener's defaultBackendName if matched
     pathRules: [
       { name: "api-rule", paths: ["/api/*"], backendName: "api-backend" },
       {
@@ -124,33 +133,38 @@ export const azureAppGwConfigs = [
     name: "plain-http-appgw",
     location: LOCATION,
     resourceGroupName: RESOURCE_GROUP,
-    build: true,
+    build: false,
     useAutoscale: false,
     sku: {
       name: "Standard_v2",
       tier: "Standard_v2",
       capacity: 1,
     },
-    // No specific dnsConfig provided (Access via Public IP or Default Azure DNS)
+    dnsConfig: {
+      subdomain: "azuretest.tohonokai.com",
+      fqdn: "api.azuretest.tohonokai.com",
+    },
     listeners: [
       {
         name: "http-only-listener",
         port: 80,
         protocol: "Http",
-        defaultBackendName: "http-backend-pool",
+        defaultBackendName: "api-backend-pool",
       },
     ],
-    enableHttp2: false,
+    enableHttp2: true,
     subnetName: "web-appgw-subnet",
     backends: [
       {
-        name: "http-backend-pool",
+        name: "api-backend-pool",
         port: 80,
         protocol: "Http",
         requestTimeout: 30,
+        hostName: "api.azuretest.tohonokai.com",
+        pickHostNameFromBackendAddress: false,
+        targetFqdns: ["backend-api-service"],
       },
     ],
-    // Empty array as no SSL certificates are needed for Port 80
     sslCertificates: [],
     tags: {
       Environment: "Test",
