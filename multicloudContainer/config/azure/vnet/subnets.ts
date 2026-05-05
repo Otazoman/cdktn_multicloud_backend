@@ -55,6 +55,17 @@ export const subnets = [
       },
     ],
   },
+  {
+    name: "aca-subnet",
+    cidr: "10.2.50.0/23",
+    natGatewayEnabled: true,
+    delegations: [
+      {
+        name: "aca-delegation",
+        serviceName: "Microsoft.App/environments",
+      },
+    ],
+  },
 ];
 
 export const bastionSubnetcidr = "10.2.110.0/24";

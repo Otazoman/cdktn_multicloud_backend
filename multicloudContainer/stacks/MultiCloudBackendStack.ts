@@ -5,20 +5,16 @@ import {
   useContainers,
   useDbs,
   useDns,
-  useLbs,
   useStorage,
   useVms,
   useVpn,
 } from "../config/commonsettings";
 import { createProviders } from "../providers/providers";
-import { createComputeResources } from "../resources/containerResources";
+import { createAwsContainerResources } from "../resources/awsContainerResources";
+import { createAzureContainerResources } from "../resources/azureContainerResources";
 import { createDatabaseResources } from "../resources/databaseResources";
-import {
-  CreatedPublicZones,
-  DatabaseResourcesOutput,
-  LbResourcesOutputWithDns,
-} from "../resources/interfaces";
-import { createLbResources } from "../resources/loadBarancerResources";
+import { createGoogleContainerResources } from "../resources/googleContainerResources";
+import { DatabaseResourcesOutput } from "../resources/interfaces";
 import { createPrivateZoneResources } from "../resources/privateZoneResources";
 import {
   createPublicDnsRecords,
@@ -60,9 +56,6 @@ export class MultiCloudBackendStack extends TerraformStack {
 
     // Storage Phase - must run before VM so PSA peering routes are fully applied
     // before GCE instances are placed in the same VPC.
-    // PSA (ComputeNetworkPeeringRoutesConfig) rewrites VPC routing tables;
-    // if GCE creation overlaps with that window GCP returns a misleading
-    // "not enough resources" error.
     let storageResourcesOutput = useStorage
       ? createStorageResources(
           this,
@@ -93,13 +86,11 @@ export class MultiCloudBackendStack extends TerraformStack {
     }
 
     // Collect PSA TerraformResource references from whichever layer created them.
-    // storageResources takes precedence; the singleton pattern guarantees both
-    // layers share the same PSA construct when both are enabled.
     const googlePsaDependencies =
       storageResourcesOutput?.googlePsaDependencies ??
       databaseResourcesOutput?.googlePsaDependencies;
 
-    // VM Phase - created after Storage/DB so GCE depends_on PSA peering routes
+    // VM Phase
     if (useVms) {
       createVmResources(
         this,
@@ -113,11 +104,9 @@ export class MultiCloudBackendStack extends TerraformStack {
       );
     }
 
-    // Load Balancer with SSL/TLS certificates and DNS information
-    // DNS Zones Phase (Create zones first)
-    let dnsZones: CreatedPublicZones | undefined;
+    // DNS Zones Phase (Create zones first, needed for ACM certificate validation)
+    let dnsZones: any | undefined;
     if (useDns) {
-      // Subdomain extraction is handled internally by createPublicDnsZones
       dnsZones = createPublicDnsZones(
         this,
         awsProvider,
@@ -126,48 +115,61 @@ export class MultiCloudBackendStack extends TerraformStack {
       );
     }
 
-    // Load Balancer Phase (Pass dnsZones to enable Certificate Validation without Data sources)
-    let lbResourcesOutput: LbResourcesOutputWithDns | undefined;
-    if (useLbs) {
-      lbResourcesOutput = createLbResources(
+    // ============================================================
+    // Container + LB Phase (each cloud is self-contained)
+    // ============================================================
+
+    // Azure: ACA first → AppGW with ACA ingressFqdn injected (self-contained)
+    let azureResults: { azureAppGws?: any[] } = {};
+    if (useContainers && vpcResources.azureVnetResources) {
+      azureResults = createAzureContainerResources(
         this,
-        awsProvider,
-        googleProvider,
         azureProvider,
-        vpcResources.awsVpcResources,
-        vpcResources.googleVpcResources,
         vpcResources.azureVnetResources,
-        dnsZones, // Pass created zones here!
       );
-
-      // DNS Records Phase (Register A records now that LB IPs are available)
-      if (useDns && lbResourcesOutput && dnsZones) {
-        createPublicDnsRecords(
-          this,
-          awsProvider,
-          googleProvider,
-          azureProvider,
-          dnsZones,
-          lbResourcesOutput,
-        );
-      }
     }
 
-    // Container / Compute Phase
-    if (useContainers) {
-      createComputeResources(
+    // AWS: ALB first → ECS with targetGroupArn (self-contained)
+    let awsResults: { awsAlbs?: any[] } = {};
+    if (useContainers && vpcResources.awsVpcResources) {
+      awsResults = createAwsContainerResources(
+        this,
+        awsProvider,
+        vpcResources.awsVpcResources,
+        dnsZones,
+      );
+    }
+
+    // Google: LB + Cloud Run (self-contained)
+    let googleResults: { googleLbs?: any[] } = {};
+    if (useContainers && vpcResources.googleVpcResources) {
+      googleResults = createGoogleContainerResources(
+        this,
+        googleProvider,
+        vpcResources.googleVpcResources,
+      );
+    }
+
+    // DNS Records Phase (Register A/CNAME records now that LB IPs are available)
+    if (useDns && dnsZones) {
+      const lbResourcesOutput = {
+        awsAlbs: awsResults.awsAlbs,
+        googleLbs: googleResults.googleLbs,
+        azureAppGws: azureResults.azureAppGws,
+      };
+      createPublicDnsRecords(
         this,
         awsProvider,
         googleProvider,
         azureProvider,
-        vpcResources.awsVpcResources,
-        lbResourcesOutput?.awsAlbs,
+        dnsZones,
+        lbResourcesOutput as any,
       );
     }
 
-    // Private DNS zones (Route53 / Cloud DNS) associated with VPCs
-    // Create and register private zones for AWS/GCP/Azure networks
+    // Private DNS zones
     // Must be created after databases to reference actual endpoints for CNAME records
+    // Note: ACA FQDNs are NOT registered here (ACA + AppGW are self-contained)
     if (hostZones) {
       createPrivateZoneResources(
         this,
