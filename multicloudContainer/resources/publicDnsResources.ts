@@ -1,18 +1,18 @@
-import { Route53Zone } from "@cdktn/provider-aws/lib/route53-zone";
-import { Route53Record } from "@cdktn/provider-aws/lib/route53-record";
 import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
-import { DnsZone } from "@cdktn/provider-azurerm/lib/dns-zone";
+import { Route53Record } from "@cdktn/provider-aws/lib/route53-record";
+import { Route53Zone } from "@cdktn/provider-aws/lib/route53-zone";
 import { DnsARecord } from "@cdktn/provider-azurerm/lib/dns-a-record";
+import { DnsZone } from "@cdktn/provider-azurerm/lib/dns-zone";
 import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
 import { DnsManagedZone } from "@cdktn/provider-google/lib/dns-managed-zone";
 import { DnsRecordSet } from "@cdktn/provider-google/lib/dns-record-set";
 import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
-import { Construct } from "constructs";
 import { TerraformOutput } from "cdktn";
+import { Construct } from "constructs";
 import { albConfigs } from "../config/aws/awssettings";
 import { azureAppGwConfigs } from "../config/azure/applicationgateway";
 import { gcpLbConfigs } from "../config/google/googlesettings";
-import { LbResourcesOutputWithDns, CreatedPublicZones } from "./interfaces";
+import { CreatedPublicZones, LbResourcesOutputWithDns } from "./interfaces";
 
 /**
  * Step 1: Create Public DNS Zones
@@ -159,17 +159,33 @@ export function createPublicDnsRecords(
   }
 
   // Azure Records
+  function extractHostName(fqdn: string | undefined, zoneName: string): string {
+    if (!fqdn) return "@";
+
+    const f = fqdn.toLowerCase().replace(/\.$/, "");
+    const z = zoneName.toLowerCase().replace(/\.$/, "");
+
+    if (f === z) return "@";
+
+    const zoneIndex = f.lastIndexOf("." + z);
+    if (zoneIndex !== -1) {
+      return f.substring(0, zoneIndex);
+    }
+
+    return f.split(".")[0];
+  }
+
   if (azureProvider) {
     lbResources.azureAppGws?.forEach((appGw, index) => {
       const zone = zones.azureZones[appGw.dnsInfo.subdomain];
       if (zone) {
         new DnsARecord(scope, `azure-a-rec-${index}`, {
           provider: azureProvider,
-          name: appGw.dnsInfo.fqdn || appGw.dnsInfo.subdomain,
+          name: extractHostName(appGw.dnsInfo.fqdn, zone.name),
           resourceGroupName: zone.resourceGroupName,
           zoneName: zone.name,
           ttl: 300,
-          records: [appGw.publicIp.ipAddress],
+          targetResourceId: appGw.publicIp.id,
         });
       }
     });

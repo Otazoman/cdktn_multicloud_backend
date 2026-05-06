@@ -46,6 +46,8 @@ az provider register --namespace Microsoft.App
 az provider show --namespace Microsoft.App --query registrationState
 ```
 
+- An error occurs when destroying the object, so if an error occurs, try destroying it again.
+
 ## CloudRun Note :
 
 - Keep the CloudFireStoreAPI enabled.
@@ -93,10 +95,6 @@ You need to add the “AutoscalingFullAccess” permission in IAM
   “Resource”: “*”
 }
 ```
-
-## Azure Container Apps Note:
-
-An error occurs when destroying the object, so if an error occurs, try destroying it again.
 
 ## Sub Domain Note:
 

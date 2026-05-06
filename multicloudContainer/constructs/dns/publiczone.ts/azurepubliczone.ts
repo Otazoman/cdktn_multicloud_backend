@@ -44,6 +44,7 @@ export function createAzurePublicRecords(
     name: string;
     type: "A" | "CNAME" | "TXT";
     values: string[];
+    targetResourceId?: string;
     ttl?: number;
   }>,
 ) {
@@ -64,7 +65,8 @@ export function createAzurePublicRecords(
       case "A":
         return new DnsARecord(scope, `public-a-${recordSafeName}`, {
           ...commonProps,
-          records: record.values,
+          targetResourceId: record.targetResourceId,
+          records: record.targetResourceId ? undefined : record.values,
         });
 
       case "CNAME":
