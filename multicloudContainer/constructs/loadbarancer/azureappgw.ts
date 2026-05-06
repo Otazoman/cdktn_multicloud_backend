@@ -218,7 +218,9 @@ export function createAzureAppGwResources(
       port: be.port,
       protocol: be.protocol,
       requestTimeout: be.requestTimeout,
-      hostName: be.hostName ?? publicIp.ipAddress,
+      hostName: be.pickHostNameFromBackendAddress
+        ? undefined
+        : be.hostName ?? publicIp.ipAddress,
       pickHostNameFromBackendAddress:
         be.pickHostNameFromBackendAddress ?? false,
     })),

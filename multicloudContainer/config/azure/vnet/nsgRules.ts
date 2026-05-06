@@ -317,7 +317,7 @@ export const nsgConfigs = [
         destinationAddressPrefix: "*",
       },
       {
-        name: "AllowHGwHttpInbound",
+        name: "AllowGwHttpInbound",
         priority: 110,
         direction: "Inbound",
         access: "Allow",
@@ -328,7 +328,7 @@ export const nsgConfigs = [
         destinationAddressPrefix: "*",
       },
       {
-        name: "AllowHGwttpsInbound",
+        name: "AllowGwHttpsInbound",
         priority: 120,
         direction: "Inbound",
         access: "Allow",

@@ -14,7 +14,7 @@ export const awsVpcResourcesparams = {
 
   // ICE Endpoint
   ec2ICEndpoint: {
-    enable: true,
+    enable: false,
     endpointName: "my-ec2-instance-connect-endpoint",
     securityGroupNames: ["EC2InstanceConnect"],
   },
