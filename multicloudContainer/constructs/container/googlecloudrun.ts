@@ -1,5 +1,5 @@
-import { CloudRunService } from "@cdktn/provider-google/lib/cloud-run-service";
-import { CloudRunServiceIamMember } from "@cdktn/provider-google/lib/cloud-run-service-iam-member";
+import { CloudRunV2Service } from "@cdktn/provider-google/lib/cloud-run-v2-service";
+import { CloudRunV2ServiceIamMember } from "@cdktn/provider-google/lib/cloud-run-v2-service-iam-member";
 import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
 import { Construct } from "constructs";
 
@@ -10,8 +10,8 @@ export interface CloudRunContainerConfig {
   image: string;
   port: number;
   environment?: { name: string; value: string }[];
-  cpu?: string; // e.g., "1000m"
-  memory?: string; // e.g., "512Mi"
+  cpu?: string;
+  memory?: string;
 }
 
 /**
@@ -25,7 +25,8 @@ export interface CloudRunConfig {
   allowUnauthenticated?: boolean;
   minInstances?: number;
   maxInstances?: number;
-  tags?: { [key: string]: string };
+  useLb?: boolean;
+  cpuAlwaysAllocated?: boolean;
 }
 
 export function createGoogleCloudRunResources(
@@ -33,60 +34,58 @@ export function createGoogleCloudRunResources(
   provider: GoogleProvider,
   config: CloudRunConfig,
 ) {
-  // 1. Cloud Run Service
-  const service = new CloudRunService(scope, `run-${config.name}`, {
+  const ingressSetting = config.useLb
+    ? "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+    : "INGRESS_TRAFFIC_ALL";
+
+  const service = new CloudRunV2Service(scope, `run-${config.name}`, {
     provider,
     name: config.name,
     location: config.location,
     project: config.project,
+    ingress: ingressSetting,
+    deletionProtection: false, // Optional: Set to true if you want to prevent accidental deletion
 
     template: {
-      spec: {
-        containers: [
-          {
-            image: config.container.image,
-            ports: [{ containerPort: config.container.port }],
-            env: config.container.environment,
-            resources: {
-              limits: {
-                cpu: config.container.cpu || "1000m",
-                memory: config.container.memory || "512Mi",
-              },
-            },
+      scaling: {
+        minInstanceCount: config.minInstances ?? 0,
+        maxInstanceCount: config.maxInstances ?? 3,
+      },
+      containers: [
+        {
+          image: config.container.image,
+          ports: {
+            containerPort: config.container.port,
           },
-        ],
-        containerConcurrency: 80,
-      },
-      metadata: {
-        annotations: {
-          "autoscaling.knative.dev/minScale": (
-            config.minInstances ?? 0
-          ).toString(),
-          "autoscaling.knative.dev/maxScale": (
-            config.maxInstances ?? 10
-          ).toString(),
+          env: config.container.environment?.map((e) => ({
+            name: e.name,
+            value: e.value,
+          })),
+          resources: {
+            limits: {
+              cpu: config.container.cpu || "0.5",
+              memory: config.container.memory || "256Mi",
+            },
+            cpuIdle:
+              config.cpuAlwaysAllocated !== undefined
+                ? !config.cpuAlwaysAllocated
+                : true,
+          },
         },
-      },
+      ],
     },
-
-    traffic: [
-      {
-        percent: 100,
-        latestRevision: true,
-      },
-    ],
   });
 
-  // 2. IAM Policy: Allow Unauthenticated Access (Public access)
+  // 2. IAM Policy for Public Access
   if (config.allowUnauthenticated) {
-    const iamMember = new CloudRunServiceIamMember(
+    const iamMember = new CloudRunV2ServiceIamMember(
       scope,
       `allow-unauth-${config.name}`,
       {
         provider,
         project: config.project,
         location: config.location,
-        service: service.name,
+        name: service.name,
         role: "roles/run.invoker",
         member: "allUsers",
       },

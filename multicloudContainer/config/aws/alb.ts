@@ -8,12 +8,12 @@ export const albConfigs = [
     subnetNames: ["my-aws-vpc-public-subnet1a", "my-aws-vpc-public-subnet1c"],
     dnsConfig: {
       subdomain: "awstest.tohonokai.com",
-      fqdn: "app.awstest.tohonokai.com",
+      fqdn: "api.awstest.tohonokai.com",
     },
     certificateConfig: {
       enabled: true,
       mode: "AWS_MANAGED",
-      domains: ["app.awstest.tohonokai.com"],
+      domains: ["api.awstest.tohonokai.com"],
       validationZone: "awstest.tohonokai.com",
     },
     listenerConfig: {

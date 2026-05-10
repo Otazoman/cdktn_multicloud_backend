@@ -438,3 +438,7 @@ export interface StorageResourcesOutput {
    */
   googlePsaDependencies?: ITerraformDependable[];
 }
+
+export interface GoogleContainerResourcesOutput {
+  googleLbs?: GoogleLbResourcesWithDns[];
+}

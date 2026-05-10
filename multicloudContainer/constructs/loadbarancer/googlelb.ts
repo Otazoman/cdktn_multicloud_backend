@@ -7,6 +7,7 @@ import { ComputeHealthCheck } from "@cdktn/provider-google/lib/compute-health-ch
 import { ComputeNetwork as GoogleVpc } from "@cdktn/provider-google/lib/compute-network";
 import { ComputeRegionBackendService } from "@cdktn/provider-google/lib/compute-region-backend-service";
 import { ComputeRegionHealthCheck } from "@cdktn/provider-google/lib/compute-region-health-check";
+import { ComputeRegionNetworkEndpointGroup } from "@cdktn/provider-google/lib/compute-region-network-endpoint-group";
 import { ComputeRegionTargetHttpProxy } from "@cdktn/provider-google/lib/compute-region-target-http-proxy";
 import { ComputeRegionTargetHttpsProxy } from "@cdktn/provider-google/lib/compute-region-target-https-proxy";
 import { ComputeRegionUrlMap } from "@cdktn/provider-google/lib/compute-region-url-map";
@@ -23,7 +24,8 @@ export interface GcpBackendConfig {
   protocol: string;
   loadBalancingScheme: string;
   timeoutSec?: number;
-  healthCheck: {
+  cloudRunServiceName?: string;
+  healthCheck?: {
     requestPath: string;
     port: number;
   };
@@ -60,6 +62,7 @@ export interface GcpLbConfig {
   sslCertificateNames?: string[];
   networkTier?: string;
   loadBalancingScheme?: string;
+  cloudRunResources?: Record<string, any>;
 }
 
 /* -------------------- Factory -------------------- */
@@ -105,8 +108,8 @@ function createGlobalLb(
       provider,
       name: `${be.name}-hc`,
       httpHealthCheck: {
-        port: be.healthCheck.port,
-        requestPath: be.healthCheck.requestPath,
+        port: be.healthCheck?.port,
+        requestPath: be.healthCheck?.requestPath,
       },
     });
 
@@ -227,28 +230,63 @@ function createRegionalLb(
   const backendServices: Record<string, ComputeRegionBackendService> = {};
 
   config.backends.forEach((be) => {
-    const hc = new ComputeRegionHealthCheck(scope, `hc-${be.name}`, {
-      provider,
-      name: `${be.name}-hc`,
-      region: config.region,
+    let healthCheckIds: string[] = [];
+    let backendData: any[] = [];
 
-      httpHealthCheck: {
-        port: be.healthCheck.port,
-        requestPath: be.healthCheck.requestPath,
-      },
-    });
+    // Check if cloudRunServiceName is defined (replaces isCloudRun flag)
+    if (be.cloudRunServiceName) {
+      const sneg = new ComputeRegionNetworkEndpointGroup(
+        scope,
+        `sneg-${be.name}`,
+        {
+          provider,
+          name: `${be.name}-sneg`,
+          region: config.region!,
+          networkEndpointType: "SERVERLESS",
+          cloudRun: {
+            service: be.cloudRunServiceName,
+          },
+        },
+      );
+      backendData = [
+        {
+          group: sneg.id,
+          capacityScaler: 1.0,
+        },
+      ];
+    } else {
+      // Standard backend with Health Check
+      const hc = new ComputeRegionHealthCheck(scope, `hc-${be.name}`, {
+        provider,
+        name: `${be.name}-hc`,
+        region: config.region!,
+        httpHealthCheck: {
+          port: be.healthCheck?.port,
+          requestPath: be.healthCheck?.requestPath,
+        },
+      });
+      healthCheckIds = [hc.id];
+    }
+
+    const backendServiceArgs: any = {
+      provider,
+      name: be.name,
+      protocol: be.protocol,
+      loadBalancingScheme: be.loadBalancingScheme,
+      backend: backendData,
+      region: config.region!,
+      timeoutSec: be.timeoutSec ?? 30,
+    };
+
+    // healthCheckIds is only set for non-Cloud Run backends, as Cloud Run backends use NEG which doesn't require explicit health checks in the backend service configuration
+    if (!be.cloudRunServiceName && healthCheckIds.length > 0) {
+      backendServiceArgs.healthChecks = healthCheckIds;
+    }
 
     backendServices[be.name] = new ComputeRegionBackendService(
       scope,
       `be-${be.name}`,
-      {
-        provider,
-        name: be.name,
-        protocol: be.protocol,
-        loadBalancingScheme: be.loadBalancingScheme,
-        healthChecks: [hc.id],
-        region: config.region,
-      },
+      backendServiceArgs,
     );
   });
 
@@ -264,6 +302,7 @@ function createRegionalLb(
   /* ---------- Proxy + Forwarding ---------- */
 
   let forwardingRule;
+  const fwDependsOn = proxySubnet ? [proxySubnet] : [];
 
   if (config.protocol === "HTTPS") {
     const proxy = new ComputeRegionTargetHttpsProxy(
@@ -289,6 +328,7 @@ function createRegionalLb(
       loadBalancingScheme: config.loadBalancingScheme,
       network: vpc.id,
       subnetwork: proxySubnet?.id,
+      dependsOn: fwDependsOn,
     });
   } else {
     const proxy = new ComputeRegionTargetHttpProxy(
@@ -313,6 +353,7 @@ function createRegionalLb(
       loadBalancingScheme: config.loadBalancingScheme,
       network: vpc.id,
       subnetwork: proxySubnet?.id,
+      dependsOn: fwDependsOn,
     });
   }
 
