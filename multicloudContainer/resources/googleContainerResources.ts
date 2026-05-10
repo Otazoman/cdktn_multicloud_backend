@@ -6,25 +6,14 @@ import { createGoogleCertificate } from "../constructs/certificates/googlemanege
 import { createGoogleCloudRunResources } from "../constructs/container/googlecloudrun";
 import { createGoogleLbResources } from "../constructs/loadbarancer/googlelb";
 import {
+  GoogleContainerResourcesOutput,
   GoogleLbResourcesWithDns,
   GoogleVpcResources,
   LoadBalancerDnsInfo,
 } from "./interfaces";
 
-export interface GoogleContainerResourcesOutput {
-  googleLbs?: GoogleLbResourcesWithDns[];
-}
-
 /**
  * Creates Google Cloud Load Balancer and Cloud Run resources.
- *
- * Execution order (self-contained):
- *   1. Managed SSL Certificate (optional)
- *   2. Google Cloud Load Balancer (Global / Regional)
- *   3. Cloud Run services
- *
- * Condition: Runs only when awsToGoogle or googleToAzure is enabled,
- * and googleVpcResources + configs are available.
  */
 export const createGoogleContainerResources = (
   scope: Construct,
@@ -38,12 +27,35 @@ export const createGoogleContainerResources = (
   const globalLbs: any[] = [];
   const regionalLbs: any[] = [];
 
-  // --- Step 1 & 2: Create Google LB resources (with SSL certificates) ---
+  // --- Step 1: Create Cloud Run resources FIRST ---
+  // Store created Cloud Run services to link them with Load Balancers later
+  const cloudRunServices: Record<string, any> = {};
+
+  if (gcpRunConfigs) {
+    gcpRunConfigs
+      .filter((c) => c.build)
+      .forEach((config) => {
+        const res = createGoogleCloudRunResources(scope, googleProvider, {
+          ...config,
+          container: {
+            image: config.image,
+            port: config.port,
+            cpu: config.cpu,
+            memory: config.memory,
+          },
+        });
+        // Save reference by service name
+        cloudRunServices[config.name] = res.service;
+      });
+  }
+
+  // --- Step 2: Create Google LB resources ---
   gcpLbConfigs
     .filter((config) => config.build)
     .forEach((config) => {
       let sslCertificateNames: string[] = [];
 
+      // Handle SSL Certificates
       if (
         config.managedSsl &&
         config.managedSsl.domains &&
@@ -62,6 +74,7 @@ export const createGoogleContainerResources = (
         sslCertificateNames.push(certRes.certificateName);
       }
 
+      // Handle Proxy Subnet for Regional External Managed LB
       let targetProxySubnet: any = undefined;
       if (
         config.loadBalancerType === "REGIONAL" &&
@@ -73,34 +86,34 @@ export const createGoogleContainerResources = (
         );
       }
 
+      // Create Load Balancer resources
       const lb = createGoogleLbResources(
         scope,
         googleProvider,
         {
           ...config,
+          protocol: config.protocol as "HTTP" | "HTTPS",
+          loadBalancerType: config.loadBalancerType as "GLOBAL" | "REGIONAL",
           sslCertificateNames: sslCertificateNames,
-        } as any,
+          cloudRunResources: cloudRunServices,
+        },
         googleVpcResources.vpc,
         targetProxySubnet,
       );
 
-      // Forwarding Rule and Backend Services must be deleted before Proxy Subnet
+      // --- Step 3: Set Explicit Dependencies ---
+      // Ensure VPC exists before LB
       lb.forwardingRule.node.addDependency(googleVpcResources.vpc);
-      if (googleVpcResources.proxySubnets) {
-        googleVpcResources.proxySubnets.forEach((ps) => {
-          lb.forwardingRule.node.addDependency(ps);
+
+      // Dependency on Proxy Subnet (Required for Regional External Managed LB)
+      if (config.loadBalancerType === "REGIONAL" && targetProxySubnet) {
+        lb.forwardingRule.node.addDependency(targetProxySubnet);
+        Object.values(lb.backendServices).forEach((be) => {
+          be.node.addDependency(targetProxySubnet);
         });
       }
 
-      Object.values(lb.backendServices).forEach((be) => {
-        be.node.addDependency(googleVpcResources.vpc);
-        if (googleVpcResources.proxySubnets) {
-          googleVpcResources.proxySubnets.forEach((ps) => {
-            be.node.addDependency(ps);
-          });
-        }
-      });
-
+      // Metadata for DNS
       if (config.dnsConfig) {
         const dnsInfo: LoadBalancerDnsInfo = {
           subdomain: config.dnsConfig.subdomain,
@@ -109,27 +122,13 @@ export const createGoogleContainerResources = (
         (lb as any).dnsInfo = dnsInfo;
       }
 
+      // Categorize LB
       if (config.loadBalancerType === "REGIONAL") {
         regionalLbs.push(lb);
       } else {
         globalLbs.push(lb);
       }
     });
-
-  // --- Step 3: Create Cloud Run resources ---
-  if (gcpRunConfigs) {
-    gcpRunConfigs
-      .filter((c) => c.build)
-      .forEach((config) => {
-        createGoogleCloudRunResources(scope, googleProvider, {
-          ...config,
-          container: {
-            image: config.image,
-            port: config.port,
-          },
-        });
-      });
-  }
 
   const googleLbs: GoogleLbResourcesWithDns[] = [
     {
