@@ -76,6 +76,10 @@ gcloud projects add-iam-policy-binding $PROJECT \
   --role="roles/run.admin"
 ```
 
+- When used in combination with Cloud Load Balancing
+
+An error occurs when I try to delete it, but if I try again, it deletes without any problems.
+
 ## AWS EFS Note:
 
 Amazon Elastic File System Full Access permissions must be added to the IAM user in CDKTN.
@@ -105,6 +109,18 @@ Processing on the subdomain side
 ```bash
 SUB_DOMAIN="awstest.YOURDOMAIN"
 SUB_NS=$(aws route53 list-hosted-zones-by-name --dns-name "$SUB_DOMAIN" --query "HostedZones[0].Id" --output text | xargs -I {} aws route53 get-hosted-zone --id {} --query "DelegationSet.NameServers" --output text)
+echo "NS RECORDS: $SUB_NS"
+```
+
+- Google subdomain
+
+```bash
+SUB_DOMAIN="googletest.YOURDOMAIN."
+PROJECT_NAME="YOUR-PROJECT"
+SUB_NS=$(gcloud dns managed-zones list \
+  --project="$PROJECT_NAME" \
+  --filter="dnsName=$SUB_DOMAIN" \
+  --format="value(nameServers.list())")
 echo "NS RECORDS: $SUB_NS"
 ```
 

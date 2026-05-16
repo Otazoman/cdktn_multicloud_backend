@@ -6,6 +6,6 @@ export const useVpn: boolean = false; // Enable/disable VPN usage
 export const useVms: boolean = false; // Enable/disable VM usage
 export const useDbs: boolean = false; // Enable/disable DataBase usage
 export const hostZones: boolean = false; // Enable/disable PrivateHostZone usage
-export const useDns: boolean = false; // Enable/disable DNS usage
+export const useDns: boolean = true; // Enable/disable DNS usage
 export const useContainers: boolean = true; // Enable/disable Container usage
 export const useStorage: boolean = false; // Enable/disable Storage usage
