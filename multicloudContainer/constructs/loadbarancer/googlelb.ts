@@ -104,26 +104,61 @@ function createGlobalLb(
   const backendServices: Record<string, ComputeBackendService> = {};
 
   config.backends.forEach((be) => {
-    const hc = new ComputeHealthCheck(scope, `hc-${be.name}`, {
+    let healthCheckIds: string[] = [];
+    let backendData: any[] = [];
+
+    // Support for Cloud Run (Serverless NEG) in Global LB
+    if (be.cloudRunServiceName) {
+      // Serverless NEG itself is a regional resource even for Global LB
+      const sneg = new ComputeRegionNetworkEndpointGroup(
+        scope,
+        `sneg-${be.name}`,
+        {
+          provider,
+          name: `${be.name}-sneg`,
+          region: config.region ?? "asia-northeast1", // Serverless NEG requires a specific region (Default to us-central1 or adjust as needed)
+          networkEndpointType: "SERVERLESS",
+          cloudRun: {
+            service: be.cloudRunServiceName,
+          },
+        },
+      );
+      backendData = [
+        {
+          group: sneg.id,
+        },
+      ];
+    } else {
+      // Standard backend with Health Check (Only created if not Cloud Run)
+      const hc = new ComputeHealthCheck(scope, `hc-${be.name}`, {
+        provider,
+        name: `${be.name}-hc`,
+        httpHealthCheck: {
+          port: be.healthCheck?.port ?? 80,
+          requestPath: be.healthCheck?.requestPath ?? "/",
+        },
+      });
+      healthCheckIds = [hc.id];
+    }
+
+    const backendServiceArgs: any = {
       provider,
-      name: `${be.name}-hc`,
-      httpHealthCheck: {
-        port: be.healthCheck?.port,
-        requestPath: be.healthCheck?.requestPath,
-      },
-    });
+      name: be.name,
+      protocol: be.protocol,
+      loadBalancingScheme: be.loadBalancingScheme,
+      backend: backendData,
+      timeoutSec: be.timeoutSec ?? 30,
+    };
+
+    // Pass health checks only if the backend is not Cloud Run
+    if (!be.cloudRunServiceName && healthCheckIds.length > 0) {
+      backendServiceArgs.healthChecks = healthCheckIds;
+    }
 
     backendServices[be.name] = new ComputeBackendService(
       scope,
       `be-${be.name}`,
-      {
-        provider,
-        name: be.name,
-        protocol: be.protocol,
-        loadBalancingScheme: be.loadBalancingScheme,
-        healthChecks: [hc.id],
-        timeoutSec: be.timeoutSec ?? 30,
-      },
+      backendServiceArgs,
     );
   });
 

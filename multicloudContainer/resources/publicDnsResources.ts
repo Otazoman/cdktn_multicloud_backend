@@ -12,7 +12,13 @@ import { Construct } from "constructs";
 import { albConfigs } from "../config/aws/awssettings";
 import { azureAppGwConfigs } from "../config/azure/applicationgateway";
 import { gcpLbConfigs } from "../config/google/googlesettings";
-import { CreatedPublicZones, LbResourcesOutputWithDns } from "./interfaces";
+import {
+  AwsVpcResources,
+  AzureVnetResources,
+  CreatedPublicZones,
+  GoogleVpcResources,
+  LbResourcesOutputWithDns,
+} from "./interfaces";
 
 /**
  * Step 1: Create Public DNS Zones
@@ -23,79 +29,91 @@ export function createPublicDnsZones(
   awsProvider: AwsProvider,
   googleProvider?: GoogleProvider,
   azureProvider?: AzurermProvider,
+  awsVpcResources?: AwsVpcResources,
+  googleVpcResources?: GoogleVpcResources,
+  azureVnetResources?: AzureVnetResources,
   tags: { [key: string]: string } = {},
 ): CreatedPublicZones {
   const awsZones: Record<string, Route53Zone> = {};
   const googleZones: Record<string, DnsManagedZone> = {};
   const azureZones: Record<string, DnsZone> = {};
 
-  // Extract unique subdomains from config files
   const unique = (arr: (string | undefined)[]) =>
     Array.from(new Set(arr.filter(Boolean))) as string[];
 
-  const awsSubdomains = unique(
-    albConfigs?.filter((c) => c.build).map((c) => c.dnsConfig?.subdomain),
-  );
-  const googleSubdomains = unique(
-    gcpLbConfigs?.filter((c) => c.build).map((c) => c.dnsConfig?.subdomain),
-  );
-  const azureSubdomains = unique(
-    azureAppGwConfigs
-      ?.filter((c) => c.build)
-      .map((c) => c.dnsConfig?.subdomain),
-  );
-
   // AWS
-  awsSubdomains.forEach((subdomain) => {
-    const zoneSafeName = subdomain.replace(/\./g, "-");
-    awsZones[subdomain] = new Route53Zone(scope, `p-zone-aws-${zoneSafeName}`, {
-      provider: awsProvider,
-      name: subdomain,
-      tags: { ...tags, Name: subdomain },
-    });
-    new TerraformOutput(scope, `aws-ns-${zoneSafeName}`, {
-      value: awsZones[subdomain].nameServers,
-    });
-  });
-
-  // Google
-  if (googleProvider && googleSubdomains.length > 0) {
-    googleSubdomains.forEach((subdomain) => {
-      const zoneSafeName = subdomain.replace(/\./g, "-");
-      googleZones[subdomain] = new DnsManagedZone(
-        scope,
-        `p-zone-gcp-${zoneSafeName}`,
-        {
-          provider: googleProvider,
-          project: gcpLbConfigs[0].project,
-          name: `zone-${zoneSafeName}`,
-          dnsName: subdomain.endsWith(".") ? subdomain : `${subdomain}.`,
-          visibility: "public",
-        },
-      );
-      new TerraformOutput(scope, `gcp-ns-${zoneSafeName}`, {
-        value: googleZones[subdomain].nameServers,
+  if (awsProvider && awsVpcResources) {
+    const awsSubdomains = unique(
+      albConfigs?.filter((c) => c.build).map((c) => c.dnsConfig?.subdomain),
+    );
+    if (awsSubdomains.length > 0) {
+      awsSubdomains.forEach((subdomain) => {
+        const zoneSafeName = subdomain.replace(/\./g, "-");
+        awsZones[subdomain] = new Route53Zone(
+          scope,
+          `p-zone-aws-${zoneSafeName}`,
+          {
+            provider: awsProvider,
+            name: subdomain,
+            tags: { ...tags, Name: subdomain },
+          },
+        );
+        new TerraformOutput(scope, `aws-ns-${zoneSafeName}`, {
+          value: awsZones[subdomain].nameServers,
+        });
       });
-    });
+    }
+  }
+  // Google
+  if (googleProvider && googleVpcResources) {
+    const googleSubdomains = unique(
+      gcpLbConfigs?.filter((c) => c.build).map((c) => c.dnsConfig?.subdomain),
+    );
+    if (googleSubdomains.length > 0) {
+      googleSubdomains.forEach((subdomain) => {
+        const zoneSafeName = subdomain.replace(/\./g, "-");
+        googleZones[subdomain] = new DnsManagedZone(
+          scope,
+          `p-zone-gcp-${zoneSafeName}`,
+          {
+            provider: googleProvider,
+            project: gcpLbConfigs[0].project,
+            name: `zone-${zoneSafeName}`,
+            dnsName: subdomain.endsWith(".") ? subdomain : `${subdomain}.`,
+            visibility: "public",
+          },
+        );
+        new TerraformOutput(scope, `gcp-ns-${zoneSafeName}`, {
+          value: googleZones[subdomain].nameServers,
+        });
+      });
+    }
   }
 
   // Azure
-  if (azureProvider && azureSubdomains.length > 0) {
-    azureSubdomains.forEach((subdomain) => {
-      const zoneSafeName = subdomain.replace(/\./g, "-");
-      azureZones[subdomain] = new DnsZone(
-        scope,
-        `p-zone-azure-${zoneSafeName}`,
-        {
-          provider: azureProvider,
-          name: subdomain,
-          resourceGroupName: azureAppGwConfigs[0].resourceGroupName,
-        },
-      );
-      new TerraformOutput(scope, `azure-ns-${zoneSafeName}`, {
-        value: azureZones[subdomain].nameServers,
+  if (azureProvider && azureVnetResources) {
+    const azureSubdomains = unique(
+      azureAppGwConfigs
+        ?.filter((c) => c.build)
+        .map((c) => c.dnsConfig?.subdomain),
+    );
+    if (azureSubdomains.length > 0) {
+      azureSubdomains.forEach((subdomain) => {
+        const zoneSafeName = subdomain.replace(/\./g, "-");
+        azureZones[subdomain] = new DnsZone(
+          scope,
+          `p-zone-azure-${zoneSafeName}`,
+          {
+            provider: azureProvider,
+            name: subdomain,
+            resourceGroupName: azureAppGwConfigs[0].resourceGroupName,
+          },
+        );
+        new TerraformOutput(scope, `azure-ns-${zoneSafeName}`, {
+          value: azureZones[subdomain].nameServers,
+        });
       });
-    });
+    }
   }
 
   return { awsZones, googleZones, azureZones };

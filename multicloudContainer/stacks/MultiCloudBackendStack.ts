@@ -112,6 +112,9 @@ export class MultiCloudBackendStack extends TerraformStack {
         awsProvider,
         googleProvider,
         azureProvider,
+        vpcResources.awsVpcResources,
+        vpcResources.googleVpcResources,
+        vpcResources.azureVnetResources,
       );
     }
 
