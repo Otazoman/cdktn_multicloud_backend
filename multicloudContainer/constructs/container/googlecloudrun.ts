@@ -27,6 +27,8 @@ export interface CloudRunConfig {
   maxInstances?: number;
   useLb?: boolean;
   cpuAlwaysAllocated?: boolean;
+  vpcSubnetId?: string;
+  networkId?: string;
 }
 
 export function createGoogleCloudRunResources(
@@ -47,6 +49,18 @@ export function createGoogleCloudRunResources(
     deletionProtection: false, // Optional: Set to true if you want to prevent accidental deletion
 
     template: {
+      // Direct VPC Access
+      vpcAccess: config.vpcSubnetId
+        ? {
+            egress: "ALL_TRAFFIC",
+            networkInterfaces: [
+              {
+                network: config.networkId,
+                subnetwork: config.vpcSubnetId,
+              },
+            ],
+          }
+        : undefined,
       scaling: {
         minInstanceCount: config.minInstances ?? 0,
         maxInstanceCount: config.maxInstances ?? 3,

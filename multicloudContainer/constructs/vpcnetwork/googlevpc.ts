@@ -70,6 +70,7 @@ export function createGoogleVpcResources(
         name: `${params.vpcName}-${subnet.name}`,
         ipCidrRange: subnet.cidr,
         region: subnet.region,
+        privateIpGoogleAccess: true,
       },
     );
     return subnetwork;
