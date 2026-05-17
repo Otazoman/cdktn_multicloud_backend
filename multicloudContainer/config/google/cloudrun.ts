@@ -15,6 +15,7 @@ export const gcpRunConfigs = [
     cpuAlwaysAllocated: true,
     allowUnauthenticated: true,
     useLb: true,
+    subnetworkName: "multicloud-gcp-vpc-app-subnet",
   },
   {
     name: "web-service-standalone",
@@ -30,5 +31,6 @@ export const gcpRunConfigs = [
     cpuAlwaysAllocated: false,
     allowUnauthenticated: true,
     useLb: false,
+    subnetworkName: "multicloud-gcp-vpc-app-subnet",
   },
 ];

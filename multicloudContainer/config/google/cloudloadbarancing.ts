@@ -7,7 +7,7 @@ export const gcpLbConfigs = [
   ===================================================== */
   {
     name: "run-regional-http-lb",
-    build: false,
+    build: true,
     project: PROJECT_NAME,
     loadBalancerType: "REGIONAL",
     region: LOCATION,
@@ -87,7 +87,7 @@ export const gcpLbConfigs = [
   ===================================================== */
   {
     name: "run-global-https-lb",
-    build: true,
+    build: false,
     project: PROJECT_NAME,
     loadBalancerType: "GLOBAL", // ★ Changed from REGIONAL to GLOBAL
     region: LOCATION, // Global LB does not belong to a specific region
