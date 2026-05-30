@@ -79,13 +79,17 @@ export const createGoogleContainerResources = (
           networkId: matchedNetworkId,
         });
         // Add explicit dependency on matched subnetwork if found
-        if (matchedSubnetworkId) {
-          if (
-            (googleVpcResources as any).subnetsByName?.[config.subnetworkName]
-          ) {
-            res.service.node.addDependency(
-              (googleVpcResources as any).subnetsByName[config.subnetworkName],
-            );
+        if (
+          matchedSubnetworkId &&
+          googleVpcResources.subnets &&
+          Array.isArray(googleVpcResources.subnets)
+        ) {
+          const actualSubnetConstruct = googleVpcResources.subnets.find(
+            (sn: any) => sn.id === matchedSubnetworkId,
+          );
+
+          if (actualSubnetConstruct) {
+            res.service.node.addDependency(actualSubnetConstruct);
           }
         }
         if ((googleVpcResources as any).psaConnection) {

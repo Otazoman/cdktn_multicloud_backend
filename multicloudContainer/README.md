@@ -50,7 +50,7 @@ az provider show --namespace Microsoft.App --query registrationState
 
 ## CloudRun Note :
 
-- Keep the CloudFireStoreAPI enabled.
+- Keep the CloudFireStoreAPI Serverless VPC Access API enabled.
 - You cannot run Cloud Run without enabling the Cloud Run Admin API.
 
 ```bash
@@ -79,6 +79,8 @@ gcloud projects add-iam-policy-binding $PROJECT \
 - When used in combination with Cloud Load Balancing
 
 An error occurs when I try to delete it, but if I try again, it deletes without any problems.
+
+- When calling `destroy`
 
 ## AWS EFS Note:
 
