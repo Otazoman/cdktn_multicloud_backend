@@ -4,7 +4,7 @@ import { subnets } from "./subnets";
 
 export const googleVpcResourcesparams = {
   vpcName: "multicloud-gcp-vpc",
-  isEnabled: true,
+  isEnabled: false,
   vpcCidrblock: "10.1.0.0/16",
   vpcLabels: {
     Environment: "Development",

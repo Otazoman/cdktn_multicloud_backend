@@ -22,10 +22,10 @@ import { ComputeForwardingRule } from "@cdktn/provider-google/lib/compute-forwar
 import { ComputeGlobalAddress } from "@cdktn/provider-google/lib/compute-global-address";
 import { ComputeGlobalForwardingRule } from "@cdktn/provider-google/lib/compute-global-forwarding-rule";
 import { ComputeNetwork as GoogleVpc } from "@cdktn/provider-google/lib/compute-network";
+import { DnsManagedZone } from "@cdktn/provider-google/lib/dns-managed-zone";
 import { ComputeRegionUrlMap } from "@cdktn/provider-google/lib/compute-region-url-map";
 import { ComputeSubnetwork } from "@cdktn/provider-google/lib/compute-subnetwork";
 import { ComputeUrlMap } from "@cdktn/provider-google/lib/compute-url-map";
-import { DnsManagedZone } from "@cdktn/provider-google/lib/dns-managed-zone";
 import { Token } from "cdktf";
 import { ITerraformDependable } from "cdktn";
 
@@ -48,6 +48,8 @@ export interface AwsVpcResources {
 export interface GoogleVpcResources {
   vpc: GoogleVpc;
   subnets: ComputeSubnetwork[];
+  /** subnets keyed by name for easy lookup (e.g. subnetsByName["app-subnet"]) */
+  subnetsByName: Record<string, ComputeSubnetwork>;
   proxySubnets?: ComputeSubnetwork[];
   ingressrules: ComputeFirewall[];
   egressrules: ComputeFirewall[];
@@ -441,4 +443,88 @@ export interface StorageResourcesOutput {
 
 export interface GoogleContainerResourcesOutput {
   googleLbs?: GoogleLbResourcesWithDns[];
+}
+
+// ========================================
+// Cloud-unit unified Output types
+// ========================================
+
+/**
+ * Output returned by createGoogleResources().
+ * All Google resources (VPC → PublicZone → Filestore → CloudSQL → GCE → CloudRun → LB → DNS A-records)
+ * are created inside one orchestrator, so cross-resource Construct references are available for
+ * proper depends_on generation – this is the key fix for the VPC zombie-deletion issue.
+ */
+export interface GoogleResourcesOutput {
+  /** VPC resources – passed to VPN and Private Zone orchestrators */
+  vpc?: GoogleVpcResources;
+  /** Public DNS zones – created inside the orchestrator (internal use; exposed for debugging) */
+  publicZones?: Record<string, DnsManagedZone>;
+  /** LB resources with DNS info (A-record registration happens inside the orchestrator) */
+  lbs?: GoogleLbResourcesWithDns[];
+  /** CloudSQL instance metadata for Private Zone A-record registration */
+  cloudSqlInstances?: Array<{
+    name: string;
+    privateIpAddress: string;
+    connectionName: string;
+    aRecordName: string;
+  }>;
+  /** Filestore instance metadata for Private Zone A-record registration */
+  filestoreInstances?: Array<{
+    aRecordName: string;
+    privateIpAddress: string;
+  }>;
+  /**
+   * PSA TerraformResource references (ServiceNetworkingConnection +
+   * ComputeNetworkPeeringRoutesConfig).
+   * Consumed internally to ensure GCE / VM placement waits for PSA peering routes.
+   */
+  psaDependencies?: ITerraformDependable[];
+}
+
+/**
+ * Output returned by createAwsResources().
+ * All AWS resources (VPC → PublicZone → EFS → RDS/Aurora → EC2 → ACM → ALB+ECS → DNS A-records)
+ */
+export interface AwsResourcesOutput {
+  /** VPC resources – passed to VPN and Private Zone orchestrators */
+  vpc?: AwsVpcResources;
+  /** RDS / Aurora resources for Private Zone CNAME registration */
+  dbResources?: AwsDbResources;
+  /** EFS instance metadata for Private Zone CNAME registration */
+  efsInstances?: Array<{
+    cnameRecordName: string;
+    dnsFqdn: string;
+  }>;
+  /** ALB resources with DNS info (A-record registration happens inside the orchestrator) */
+  lbs?: AwsAlbResourcesWithDns[];
+}
+
+/**
+ * Output returned by createAzureResources().
+ * All Azure resources (VNet → PublicZone → Files → AzureDB → VM → AppGW+ACA → DNS A-records)
+ */
+export interface AzureResourcesOutput {
+  /** VNet resources – passed to VPN and Private Zone orchestrators */
+  vpc?: AzureVnetResources;
+  /** Azure Database resources for Private Zone CNAME registration */
+  dbResources?: Array<{
+    server: any;
+    database: any;
+    privateDnsZone?: any;
+    fqdn: string;
+    cnameRecordName?: string;
+  }>;
+  /** Azure Files metadata for Private Zone CNAME registration */
+  filesInstances?: Array<{
+    cnameRecordName: string;
+    fqdn: string;
+  }>;
+  /** Azure Container Apps metadata for Private Zone CNAME registration */
+  acaInstances?: Array<{
+    cnameRecordName: string;
+    fqdn: string;
+  }>;
+  /** AppGW resources with DNS info (A-record registration happens inside the orchestrator) */
+  lbs?: AzureAppGwResourcesWithDns[];
 }
