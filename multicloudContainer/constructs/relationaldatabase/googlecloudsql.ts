@@ -100,10 +100,10 @@ export function createGoogleCloudSqlInstance(
     project: config.project,
     name: config.name,
     databaseVersion: config.databaseVersion,
-    edition: config.edition, // Pass the edition to the SQL instance
     region: config.region,
     deletionProtection: config.deletionProtection,
     settings: {
+      edition: config.edition, // Pass the edition to the SQL instance
       tier: config.tier,
       availabilityType: config.availabilityType,
       diskType: config.diskType,

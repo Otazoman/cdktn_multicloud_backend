@@ -52,6 +52,8 @@ az provider show --namespace Microsoft.App --query registrationState
 
 - Keep the CloudFireStoreAPI Serverless VPC Access API enabled.
 - You cannot run Cloud Run without enabling the Cloud Run Admin API.
+- `resourceInUseByAnotherResource` error when using `destroy`
+  - Since this error cannot be avoided, the only solution is to wait about 12 hours and then manually delete the VPC.
 
 ```bash
 PROJECT=Your_Project

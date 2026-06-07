@@ -31,13 +31,20 @@ interface VpnGatewayParams {
     retentionInDays: number;
   };
   isSingleTunnel: boolean;
+  /**
+   * Availability Zones for VPN Gateway Public IPs.
+   * Required for AZ SKUs (VpnGw1AZ, VpnGw2AZ, etc.).
+   * Example: ["1","2","3"] for zone-redundant.
+   * Omit or set to undefined for non-AZ SKUs.
+   */
+  publicIpZones?: string[];
   tags?: { [key: string]: string };
 }
 
 export function createAzureVpnGateway(
   scope: Construct,
   provider: AzurermProvider,
-  params: VpnGatewayParams
+  params: VpnGatewayParams,
 ) {
   // Create Gateway Subnet for the VPN Gateway
   const gatewaySubnet = new Subnet(scope, "azure_gatewaySubnet", {
@@ -48,6 +55,12 @@ export function createAzureVpnGateway(
     addressPrefixes: [params.gatewaySubnetCidr],
   });
 
+  // Determine if AZ SKU is used → Public IPs require zones + Standard SKU
+  const isAzSku = params.vpnProps.sku.toUpperCase().endsWith("AZ");
+  const pipZones = isAzSku
+    ? params.publicIpZones ?? ["1", "2", "3"]
+    : undefined;
+
   // Create Public IP addresses for the VPN Gateway
   const publicIps = params.isSingleTunnel
     ? [
@@ -57,6 +70,8 @@ export function createAzureVpnGateway(
           resourceGroupName: params.resourceGroupName,
           location: params.location,
           allocationMethod: "Static",
+          sku: "Standard",
+          zones: pipZones,
         }),
       ]
     : params.publicIpNames.map(
@@ -67,7 +82,9 @@ export function createAzureVpnGateway(
             resourceGroupName: params.resourceGroupName,
             location: params.location,
             allocationMethod: "Static",
-          })
+            sku: "Standard",
+            zones: pipZones,
+          }),
       );
 
   // Create a virtual network gateway
@@ -78,7 +95,7 @@ export function createAzureVpnGateway(
     location: params.location,
     type: params.vpnProps.type,
     vpnType: params.vpnProps.vpnType,
-    enableBgp: !params.isSingleTunnel, // HA:true, Single:false
+    bgpEnabled: !params.isSingleTunnel, // HA:true, Single:false
     activeActive: !params.isSingleTunnel,
     sku: params.vpnProps.sku,
     bgpSettings: params.isSingleTunnel
@@ -147,7 +164,7 @@ export function createAzureVpnGateway(
             name,
             resourceGroupName: params.resourceGroupName,
             dependsOn: [vng],
-          })
+          }),
       );
 
   // Create Log Analytics Workspace for diagnostics
@@ -160,7 +177,7 @@ export function createAzureVpnGateway(
       location: params.location,
       resourceGroupName: params.resourceGroupName,
       retentionInDays: params.diagnosticSettings.retentionInDays,
-    }
+    },
   );
 
   // Create Diagnostic Setting for the VPN Gateway
@@ -191,7 +208,7 @@ export function createAzureVpnGateway(
           category: "AllMetrics",
         },
       ],
-    }
+    },
   );
 
   return { publicIpData, virtualNetworkGateway: vng, diagnosticSetting };

@@ -37,7 +37,7 @@ interface VpnGatewayParams {
 export function createAzureVpnGateway(
   scope: Construct,
   provider: AzurermProvider,
-  params: VpnGatewayParams
+  params: VpnGatewayParams,
 ) {
   // Create Gateway Subnet for the VPN Gateway
   const gatewaySubnet = new Subnet(scope, "azure_gatewaySubnet", {
@@ -67,7 +67,7 @@ export function createAzureVpnGateway(
             resourceGroupName: params.resourceGroupName,
             location: params.location,
             allocationMethod: "Static",
-          })
+          }),
       );
 
   // Create a virtual network gateway
@@ -78,7 +78,7 @@ export function createAzureVpnGateway(
     location: params.location,
     type: params.vpnProps.type,
     vpnType: params.vpnProps.vpnType,
-    enableBgp: !params.isSingleTunnel, // HA:true, Single:false
+    bgpEnabled: !params.isSingleTunnel, // HA:true, Single:false
     activeActive: !params.isSingleTunnel,
     sku: params.vpnProps.sku,
     bgpSettings: params.isSingleTunnel
@@ -147,7 +147,7 @@ export function createAzureVpnGateway(
             name,
             resourceGroupName: params.resourceGroupName,
             dependsOn: [vng],
-          })
+          }),
       );
 
   // Create Log Analytics Workspace for diagnostics
@@ -160,7 +160,7 @@ export function createAzureVpnGateway(
       location: params.location,
       resourceGroupName: params.resourceGroupName,
       retentionInDays: params.diagnosticSettings.retentionInDays,
-    }
+    },
   );
 
   // Create Diagnostic Setting for the VPN Gateway
@@ -191,7 +191,7 @@ export function createAzureVpnGateway(
           category: "AllMetrics",
         },
       ],
-    }
+    },
   );
 
   return { publicIpData, virtualNetworkGateway: vng, diagnosticSetting };
