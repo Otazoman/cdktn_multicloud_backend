@@ -1,4 +1,4 @@
-import { RESOURCE_GROUP, VNET_NAME, azureCommonparams } from './common';
+import { RESOURCE_GROUP, VNET_NAME, azureCommonparams } from "./common";
 
 /* VPN configuration parameters */
 export const azureVpnparams = {
@@ -6,10 +6,17 @@ export const azureVpnparams = {
   publicIpNames: ["vpn-gateway-ip-1", "vpn-gateway-ip-2"],
   type: "Vpn",
   vpnType: "RouteBased",
-  sku: "VpnGw1",
+  sku: "VpnGw1AZ",
   azureAsn: 65515,
   vpnConnectionType: "IPsec",
   pipAlloc: "Dynamic",
+  /**
+   * Availability Zones for VPN Gateway Public IPs.
+   * Required when using AZ SKUs (VpnGw1AZ, VpnGw2AZ, etc.).
+   * ["1","2","3"] = zone-redundant (recommended for production HA).
+   * Set to undefined or [] if using non-AZ SKUs (VpnGw1, VpnGw2, etc.).
+   */
+  publicIpZones: ["1", "2", "3"],
   retentionInDays: 30,
   vpnGwtags: {
     project: "multicloud-vpn",
@@ -80,7 +87,7 @@ export const createLocalGatewayParams = (
   googleToAzure: boolean,
   awsVpcCidr?: string,
   googleVpcCidr?: string,
-  tags?: { [key: string]: string }
+  tags?: { [key: string]: string },
 ) => ({
   resourceGroupName: azureCommonparams.resourceGroup,
   location: azureCommonparams.location,

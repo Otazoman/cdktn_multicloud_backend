@@ -35,7 +35,7 @@ interface VpnGatewayParams {
 export function createAzureLocalGateways(
   scope: Construct,
   provider: AzurermProvider,
-  params: VpnGatewayParams
+  params: VpnGatewayParams,
 ) {
   const allResources: AzureGatewayResources[] = [];
   const batchSize = params.batchSize || 2;
@@ -47,7 +47,7 @@ export function createAzureLocalGateways(
     if (i > 0) {
       batchResources.vpnConnections.forEach((conn) => {
         conn.node.addDependency(
-          allResources[allResources.length - 1].vpnConnections
+          allResources[allResources.length - 1].vpnConnections,
         );
       });
     }
@@ -64,7 +64,7 @@ function createBatch(
   provider: AzurermProvider,
   params: VpnGatewayParams,
   tunnels: TunnelConfig[],
-  offset: number
+  offset: number,
 ) {
   const localGateways = tunnels.map((tunnel, index) => {
     const gateway = new LocalNetworkGateway(
@@ -87,7 +87,7 @@ function createBatch(
                 : undefined,
             }),
         tags: params.tags,
-      }
+      },
     );
     return gateway;
   });
@@ -108,9 +108,9 @@ function createBatch(
         virtualNetworkGatewayId: params.virtualNetworkGatewayId,
         localNetworkGatewayId: localGateways[index].id,
         sharedKey: tunnel.sharedKey,
-        enableBgp: !params.isSingleTunnel,
+        bgpEnabled: !params.isSingleTunnel,
         tags: params.tags,
-      }
+      },
     );
 
     return connection;
