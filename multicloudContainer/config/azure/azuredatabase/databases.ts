@@ -12,8 +12,8 @@ export const azureDatabaseConfig = {
       name: "mysql-database",
       serverName: "azure-mysql-server-2025-1108",
       subnetKey: "db-mysql-subnet", // Each database needs its own subnet
-      serverAdminLogin: "mysqladmin",
-      serverAdminPassword: "MySecurePassword123!",
+      serverAdminLogin: process.env.AZUREDB_ROOT_USER!,
+      serverAdminPassword: process.env.AZUREDB_ROOT_PASSWORD!,
       // skuName: "GP_Standard_D2ds_v4", // General Purpose D2ads_v5, 2 vCore, 8GB RAM (minimum for VNet) Cpacity Error
       skuName: "B_Standard_B1ms",
       storageMb: 32768, // 32 GB
@@ -55,8 +55,8 @@ export const azureDatabaseConfig = {
       name: "postgres-database",
       serverName: "azure-postgres-server-2025-1108",
       subnetKey: "db-postgres-subnet", // Each database needs its own subnet (matches subnets.ts)
-      serverAdminLogin: "postgresadmin",
-      serverAdminPassword: "MySecurePassword123!",
+      serverAdminLogin: process.env.AZUREDB_ROOT_USER!,
+      serverAdminPassword: process.env.AZUREDB_ROOT_PASSWORD!,
       // skuName: "GP_Standard_D2ds_v4", // General Purpose D2ds_v4, 2 vCore, 8GB RAM (minimum for VNet)  Cpacity Error
       skuName: "B_Standard_B1ms",
       storageMb: 32768, // 32 GB

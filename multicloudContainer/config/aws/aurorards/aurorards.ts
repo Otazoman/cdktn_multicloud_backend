@@ -9,8 +9,8 @@ export const rdsConfigs = [
     engineVersion: "8.4.6",
     allocatedStorage: 20,
     storageType: "gp3",
-    username: "root",
-    password: "MySecurePassword123!", // Removed for AWS-managed password
+    username: process.env.AWSDB_ROOT_USER!,
+    password: process.env.AWSDB_ROOT_PASSWORD!, // Removed for AWS-managed password
     manageMasterUserPassword: false,
     // suppressSecretOutput: true, // Temporarily suppress output during migration
     subnetKeys: [
@@ -52,17 +52,17 @@ export const rdsConfigs = [
     identifier: "rds-mariadb-instance",
     instanceClass: "db.t3.micro",
     engine: "mariadb",
-    engineVersion: "10.6",
+    engineVersion: "11.8",
     allocatedStorage: 20,
     storageType: "gp3",
-    username: "root",
+    username: process.env.AWSDB_ROOT_USER!,
     manageMasterUserPassword: true,
     subnetKeys: [
       "my-aws-vpc-db-private-subnet1a",
       "my-aws-vpc-db-private-subnet1c",
     ],
     vpcSecurityGroupNames: ["myaws-db-sg"],
-    parameterGroupFamily: "mariadb10.6",
+    parameterGroupFamily: "mariadb11.8",
     skipFinalSnapshot: true,
     // Backup
     backupRetentionPeriod: 14,
@@ -90,11 +90,11 @@ export const rdsConfigs = [
     identifier: "rds-postgres-instance",
     instanceClass: "db.t3.medium",
     engine: "postgres",
-    engineVersion: "17.6",
+    engineVersion: "18.4",
     allocatedStorage: 20,
     storageType: "gp3",
-    username: "root",
-    password: "MySecurePassword123!",
+    username: process.env.AWSDB_ROOT_USER!,
+    password: process.env.AWSDB_ROOT_PASSWORD!,
     manageMasterUserPassword: false,
     // manageMasterUserPassword: true,
     subnetKeys: [
@@ -102,7 +102,7 @@ export const rdsConfigs = [
       "my-aws-vpc-db-private-subnet1c",
     ],
     vpcSecurityGroupNames: ["myaws-db-sg"],
-    parameterGroupFamily: "postgres17",
+    parameterGroupFamily: "postgres18",
     parameterGroupParametersFile: "config/aws/aurorards/postgres-parameters.ts", // Path to parameter file
     skipFinalSnapshot: true,
     // Backup
@@ -138,9 +138,10 @@ export const auroraConfigs = [
     build: true,
     clusterIdentifier: "aurora-mysql-cluster",
     engine: "aurora-mysql",
-    engineVersion: "8.0.mysql_aurora.3.10.2",
-    masterUsername: "root",
-    password: "MySecurePassword123!",
+    // engineVersion: "8.0.mysql_aurora.3.10.2",
+    engineVersion: "8.4.mysql_aurora.8.4.7",
+    masterUsername: process.env.AWSDB_ROOT_USER!,
+    password: process.env.AWSDB_ROOT_PASSWORD!,
     manageMasterUserPassword: false,
     subnetKeys: [
       "my-aws-vpc-db-private-subnet1a",
@@ -148,13 +149,15 @@ export const auroraConfigs = [
       "my-aws-vpc-db-private-subnet1d",
     ],
     vpcSecurityGroupNames: ["myaws-db-sg"],
-    dbClusterParameterGroupFamily: "aurora-mysql8.0",
+    // dbClusterParameterGroupFamily: "aurora-mysql8.0",
+    dbClusterParameterGroupFamily: "aurora-mysql8.4",
     dbClusterParameterGroupParametersFile:
       "config/aws/aurorards/aurora-mysql-cluster-parameters.ts", // Path to cluster parameter file
     skipFinalSnapshot: true,
     instanceClass: "db.t4g.medium",
     instanceCount: 1,
-    instanceParameterGroupFamily: "aurora-mysql8.0",
+    // instanceParameterGroupFamily: "aurora-mysql8.0",
+    instanceParameterGroupFamily: "aurora-mysql8.4",
     instanceParameterGroupParametersFile:
       "config/aws/aurorards/aurora-mysql-instance-parameters.ts", // Path to instance parameter file
     // Backup
@@ -186,9 +189,9 @@ export const auroraConfigs = [
     build: true,
     clusterIdentifier: "aurora-postgres-cluster",
     engine: "aurora-postgresql",
-    engineVersion: "17.4",
-    masterUsername: "root",
-    password: "MySecurePassword123!",
+    engineVersion: "18.3",
+    masterUsername: process.env.AWSDB_ROOT_USER!,
+    password: process.env.AWSDB_ROOT_PASSWORD!,
     manageMasterUserPassword: false,
     subnetKeys: [
       "my-aws-vpc-db-private-subnet1a",
@@ -196,11 +199,11 @@ export const auroraConfigs = [
       "my-aws-vpc-db-private-subnet1d",
     ],
     vpcSecurityGroupNames: ["myaws-db-sg"],
-    dbClusterParameterGroupFamily: "aurora-postgresql17",
+    dbClusterParameterGroupFamily: "aurora-postgresql18",
     skipFinalSnapshot: true,
     instanceClass: "db.t4g.medium",
     instanceCount: 1,
-    instanceParameterGroupFamily: "aurora-postgresql17",
+    instanceParameterGroupFamily: "aurora-postgresql18",
     // Backup
     backupRetentionPeriod: 14,
     preferredBackupWindow: "03:00-04:00",

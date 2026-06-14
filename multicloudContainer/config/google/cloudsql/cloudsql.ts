@@ -22,8 +22,8 @@ export const cloudSqlConfig = {
       diskSize: 10,
       diskAutoresize: true,
       diskAutoresizeLimit: 100,
-      username: "root",
-      password: "MySecurePassword123!",
+      username: process.env.GOOGLEDB_ROOT_USER!,
+      password: process.env.GOOGLEDB_ROOT_PASSWORD!,
       managedPasswordEnabled: false, // Set to true to use Google-managed passwords
       privateNetwork: true, // Enable private IP
       authorizedNetworks: [], // For public IP access (empty for private only)
@@ -72,8 +72,8 @@ export const cloudSqlConfig = {
       diskSize: 10,
       diskAutoresize: true,
       diskAutoresizeLimit: 100,
-      username: "root",
-      password: "MySecurePassword123!",
+      username: process.env.GOOGLEDB_ROOT_USER!,
+      password: process.env.GOOGLEDB_ROOT_PASSWORD!,
       managedPasswordEnabled: false,
       privateNetwork: true,
       authorizedNetworks: [],
