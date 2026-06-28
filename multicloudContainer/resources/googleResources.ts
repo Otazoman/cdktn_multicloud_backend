@@ -33,6 +33,7 @@ import { Construct } from "constructs";
 import {
   awsToGoogle,
   googleToAzure,
+  useCicd,
   useContainers,
   useDbs,
   useDns,
@@ -45,10 +46,12 @@ import {
   gceInstancesParams,
   gcpLbConfigs,
   gcpRunConfigs,
+  googleCicdConfigs,
   googlePsaConfig,
   googleVpcResourcesparams,
 } from "../config/google/googlesettings";
 import { createGoogleCertificate } from "../constructs/certificates/googlemanegedssl";
+import { createGoogleCicdResources } from "../constructs/cicd/googlecicd";
 import { createGoogleCloudRunResources } from "../constructs/container/googlecloudrun";
 import { createGoogleLbResources } from "../constructs/loadbarancer/googlelb";
 import {
@@ -538,6 +541,53 @@ export const createGoogleResources = (
         }
       });
     }
+  }
+  // ──────────────────────────────────────────────
+  // 8. Artifact Registry + Cloud Build (VPC-compatible)
+  // ──────────────────────────────────────────────
+  if (useCicd && googleCicdConfigs) {
+    googleCicdConfigs
+      .filter((c) => c.build)
+      .forEach((config) => {
+        const psa = GooglePrivateServiceAccess.getOrCreate(
+          scope,
+          googlePsaConfig.psaConstructId,
+          googleProvider,
+          {
+            project: cloudSqlConfig.project,
+            vpcId: googleVpcResources.vpc.id,
+            vpcName: googleVpcResources.vpc.name,
+            isExisting: googlePsaConfig.isExisting,
+            serviceRanges: googlePsaConfig.serviceRanges,
+          },
+        );
+
+        if (!psaDependencies) {
+          psaDependencies = [psa.connection, psa.peeringRoutesConfig];
+          output.psaDependencies = psaDependencies;
+        }
+
+        const cicdRes = createGoogleCicdResources(
+          scope,
+          googleProvider,
+          {
+            ...config,
+            project: cloudSqlConfig.project,
+          },
+          googleVpcResources.vpc.id,
+          [psa.connection, psa.peeringRoutesConfig],
+        );
+
+        // Trigger
+        if (cicdRes.cloudbuildTrigger) {
+          cicdRes.cloudbuildTrigger.node.addDependency(googleVpcResources.vpc);
+        }
+
+        // Private Pool
+        cicdRes.cloudbuildPrivatePool.node.addDependency(
+          googleVpcResources.vpc,
+        );
+      });
   }
 
   return output;

@@ -14,13 +14,23 @@
  *   7. DNS A-records    (useDns + useContainers)
  */
 
+import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
 import { Route53Record } from "@cdktn/provider-aws/lib/route53-record";
 import { Route53Zone } from "@cdktn/provider-aws/lib/route53-zone";
-import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
-import { Token, TerraformOutput } from "cdktn";
+import { TerraformOutput, Token } from "cdktn";
 import { Construct } from "constructs";
 import * as fs from "fs";
 
+import {
+  albConfigs,
+  auroraConfigs,
+  awsCicdConfigs,
+  awsEcsConfigs,
+  awsVpcResourcesparams,
+  ec2Configs,
+  efsConfigs,
+  rdsConfigs,
+} from "../config/aws/awssettings";
 import {
   awsToAzure,
   awsToGoogle,
@@ -30,15 +40,6 @@ import {
   useStorage,
   useVms,
 } from "../config/commonsettings";
-import {
-  albConfigs,
-  awsEcsConfigs,
-  auroraConfigs,
-  ec2Configs,
-  efsConfigs,
-  rdsConfigs,
-  awsVpcResourcesparams,
-} from "../config/aws/awssettings";
 import { createAwsCertificate } from "../constructs/certificates/awsacm";
 import { createAwsEcsFargateResources } from "../constructs/container/awsecs";
 import { createAwsAlbResources } from "../constructs/loadbarancer/awsalb";
@@ -50,11 +51,14 @@ import { createAwsEfs } from "../constructs/storage/awsefs";
 import { createAwsEc2Instances } from "../constructs/vmresources/awsec2";
 import { createAwsVpcResources } from "../constructs/vpcnetwork/awsvpc";
 import {
+  AwsAlbResourcesWithDns,
   AwsResourcesOutput,
   AwsVpcResources,
-  AwsAlbResourcesWithDns,
   LoadBalancerDnsInfo,
 } from "./interfaces";
+
+import { useCicd } from "../config/commonsettings";
+import { createAwsCicdResources } from "../constructs/cicd/awscicd";
 
 // ──────────────────────────────────────────────
 // Helpers (kept private to this module)
@@ -497,6 +501,50 @@ export const createAwsResources = (
         }
       });
     }
+  }
+
+  // ──────────────────────────────────────────────
+  // 8. ECR + CodeBuild (VPC-compatible)
+  // ──────────────────────────────────────────────
+  if (useCicd && awsCicdConfigs) {
+    awsCicdConfigs
+      .filter((c) => c.build)
+      .forEach((config) => {
+        let loadedBuildspec: string | undefined = undefined;
+        const cicdRes = createAwsCicdResources(
+          scope,
+          awsProvider,
+          {
+            name: config.name,
+            ecr: config.ecr,
+            codebuild: {
+              computeType: config.codebuild.computeType,
+              image: config.codebuild.image,
+              type: config.codebuild.type,
+              privilegedMode: config.codebuild.privilegedMode,
+              // Safely Convert to Security Group ID
+              securityGroupIds: config.codebuild.securityGroupNames.map(
+                (name) => getSecurityGroupId(name),
+              ),
+              // Convert to Subnet ID Safely
+              subnetIds: config.codebuild.subnetNames.map((name) => {
+                const subnet = awsVpcResources.subnetsByName[name];
+                if (!subnet)
+                  throw new Error(`Subnet ${name} not found for CodeBuild`);
+                return subnet.id;
+              }),
+              repositoryUrl: config.codebuild.repositoryUrl,
+              environmentVariables: config.codebuild.environmentVariables,
+              buildspec: loadedBuildspec,
+            },
+            tags: config.tags,
+          },
+          awsVpcResources.vpc.id,
+        );
+
+        // Dependency Control for Deploying CI/CD Constructs After the VPC Is Fully Created
+        cicdRes.codebuild.node.addDependency(awsVpcResources.vpc);
+      });
   }
 
   return output;

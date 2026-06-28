@@ -5,7 +5,7 @@ import { subnets } from "./subnets";
 export const awsVpcResourcesparams = {
   vpcCidrBlock: "10.0.0.0/16",
   vpcName: "my-aws-vpc",
-  isEnabled: true,
+  isEnabled: false,
   vpcTags: {
     Project: "MultiCloud",
   },

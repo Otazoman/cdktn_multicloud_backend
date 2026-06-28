@@ -8,3 +8,4 @@ export * from "./privatezone";
 export * from "./psa";
 export * from "./vpc/vpc";
 export * from "./vpn";
+export * from "./cicdsettings";
