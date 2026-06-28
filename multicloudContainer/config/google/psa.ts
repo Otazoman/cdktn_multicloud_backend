@@ -56,5 +56,12 @@ export const googlePsaConfig = {
         prefixLength: 29,
       },
     ],
+    cloudbuild: [
+      {
+        rangeName: "gcp-psa-cloudbuild-range",
+        address: "10.110.0.0",
+        prefixLength: 16,
+      },
+    ],
   },
 };

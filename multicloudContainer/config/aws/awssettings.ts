@@ -1,5 +1,6 @@
 export * from "./alb";
 export * from "./aurorards/aurorards";
+export * from "./cicd/cicdsettings";
 export * from "./ec2";
 export * from "./ecs";
 export * from "./efs";

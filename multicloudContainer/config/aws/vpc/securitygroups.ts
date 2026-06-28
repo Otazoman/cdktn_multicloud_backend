@@ -229,7 +229,7 @@ export const securityGroups = [
       },
     ],
   },
-    {
+  {
     resourcetype: "ecs",
     name: "ecs-sg",
     tags: {
@@ -259,6 +259,24 @@ export const securityGroups = [
         cidrBlocks: ["0.0.0.0/0"],
         ipv6CidrBlocks: ["::/0"],
         description: "Allow all outbound traffic to backends",
+      },
+    ],
+  },
+  {
+    resourcetype: "code-build",
+    name: "codebuild-sg",
+    tags: {
+      Purpose: "CodeBuild",
+    },
+    ingress: [],
+    egress: [
+      {
+        fromPort: 0,
+        toPort: 0,
+        protocol: "-1",
+        cidrBlocks: ["0.0.0.0/0"],
+        ipv6CidrBlocks: ["::/0"],
+        description: "Allow all outbound traffic for CodeBuild operations",
       },
     ],
   },

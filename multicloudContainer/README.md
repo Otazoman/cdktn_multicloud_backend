@@ -163,3 +163,39 @@ aws route53 change-resource-record-sets \
     ]
   }"
 ```
+
+## CodeBuild Note:
+
+You must first attach the following built-in policies and the IAMFullAccess policy.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "codebuild:CreateProject",
+        "codebuild:DeleteProject",
+        "codebuild:UpdateProject",
+        "codebuild:BatchGetProjects",
+        "codebuild:ListProjects"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecr:CreateRepository",
+        "ecr:DeleteRepository",
+        "ecr:DescribeRepositories",
+        "ecr:PutLifecyclePolicy",
+        "ecr:GetLifecyclePolicy",
+        "ecr:DeleteLifecyclePolicy",
+        "ecr:SetRepositoryPolicy"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
