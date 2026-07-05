@@ -7,3 +7,4 @@ export * from "./privatezone";
 export * from "./vm";
 export * from "./vnet/vnet";
 export * from "./vpn";
+export * from "./devops_acr_config";

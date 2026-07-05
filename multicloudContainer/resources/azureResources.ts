@@ -17,6 +17,7 @@
 import { DnsARecord } from "@cdktn/provider-azurerm/lib/dns-a-record";
 import { DnsZone } from "@cdktn/provider-azurerm/lib/dns-zone";
 import { PrivateDnsZone } from "@cdktn/provider-azurerm/lib/private-dns-zone";
+import { VirtualNetwork } from "@cdktn/provider-azurerm/lib/virtual-network";
 import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
 import { TerraformOutput } from "cdktn";
 import { Construct } from "constructs";
@@ -28,6 +29,7 @@ import {
   azureFilesConfigs,
   azureVmsConfigparams,
   azureVnetResourcesparams,
+  azureDevOpsAcrConfigs,
 } from "../config/azure/azuresettings";
 import {
   awsToAzure,
@@ -37,6 +39,7 @@ import {
   useDns,
   useStorage,
   useVms,
+  useCicd,
 } from "../config/commonsettings";
 import { createAzureContainerAppResources } from "../constructs/container/azureaca";
 import {
@@ -51,6 +54,7 @@ import {
 } from "../constructs/storage/azurefiles";
 import { createAzureVms } from "../constructs/vmresources/azurevm";
 import { createAzureVnetResources } from "../constructs/vpcnetwork/azurevnet";
+import { createAzureDevOpsAcrResources } from "../constructs/cicd/azuredevopsacr";
 import {
   AzureAppGwResourcesWithDns,
   AzureResourcesOutput,
@@ -245,6 +249,58 @@ export const createAzureResources = (
   }
 
   // ──────────────────────────────────────────────
+  // 5.5. Azure DevOps / ACR
+  // ──────────────────────────────────────────────
+  const acrRegistryMap = new Map<string, any>();
+  let sharedAcrPrivateDnsZone: PrivateDnsZone | undefined = undefined;
+
+  if (useCicd && (awsToAzure || googleToAzure)) {
+    azureDevOpsAcrConfigs
+      .filter((c) => c.build)
+      .forEach((config) => {
+        const subnetResource = (
+          azureVnetResources.subnets as Record<string, any>
+        )[config.subnetName];
+        const subnetId: string = subnetResource?.id ?? subnetResource ?? "";
+
+        if (!subnetId) {
+          throw new Error(
+            `Subnet ${config.subnetName} not found for ACR ${config.name}`,
+          );
+        }
+
+        // Pass the shared Private DNS Zone to follow the "pass-and-reuse" pattern
+        const acrRes = createAzureDevOpsAcrResources(
+          scope,
+          azureProvider,
+          {
+            ...config,
+            subnetId,
+            virtualNetwork: azureVnetResources.vnet as VirtualNetwork,
+          },
+          sharedAcrPrivateDnsZone,
+        );
+
+        // Capture the first created Private DNS Zone to pass into subsequent iterations
+        if (!sharedAcrPrivateDnsZone && acrRes.privateDnsZone) {
+          sharedAcrPrivateDnsZone = acrRes.privateDnsZone;
+        }
+
+        acrRegistryMap.set(config.name, acrRes.registry);
+
+        // Ensure explicit execution dependency ordering between network layers and resources
+        acrRes.registry.node.addDependency(azureVnetResources.vnet);
+        acrRes.privateEndpoint.node.addDependency(subnetResource);
+
+        // If a new Private DNS Zone was generated or linked inside the construct,
+        // guarantee it completes setup before the Private Endpoint tries to bind to it
+        if (acrRes.privateDnsZone) {
+          acrRes.privateEndpoint.node.addDependency(acrRes.privateDnsZone);
+        }
+      });
+  }
+
+  // ──────────────────────────────────────────────
   // 6. ACA + AppGW  (useContainers)
   // ──────────────────────────────────────────────
   if (useContainers && (awsToAzure || googleToAzure)) {
@@ -274,6 +330,10 @@ export const createAzureResources = (
             { ...config, infrastructureSubnetId: subnet?.id } as any,
             envMap,
           );
+
+          acrRegistryMap.forEach((registry) => {
+            aca.app.node.addDependency(registry);
+          });
 
           if (aca.fqdn) {
             acaFqdnMap.set(config.name, aca.fqdn);
