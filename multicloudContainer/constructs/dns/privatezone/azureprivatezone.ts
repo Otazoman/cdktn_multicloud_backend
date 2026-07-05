@@ -447,3 +447,47 @@ export function createAzureAcaPrivateDnsResources(
 
   return { privateDnsZone, vnetLink, aRecords };
 }
+
+/**
+ * Creates a shared Private DNS Zone for Azure Container Registry (ACR) and links it to the VNet.
+ * This satisfies Step 1 by providing a common placement for the privatelink.azurecr.io zone.
+ */
+export function createSharedAcrPrivateDnsZone(
+  scope: Construct,
+  provider: AzurermProvider,
+  resourceGroupName: string,
+  virtualNetwork: VirtualNetwork,
+): {
+  privateDnsZone: PrivateDnsZone;
+  vnetLink: PrivateDnsZoneVirtualNetworkLink;
+} {
+  // Standard Azure Private Link domain for Container Registry
+  const dnsZoneName = "privatelink.azurecr.io";
+
+  const privateDnsZone = new PrivateDnsZone(
+    scope,
+    "azure-acr-shared-dns-zone",
+    {
+      provider: provider,
+      name: dnsZoneName,
+      resourceGroupName: resourceGroupName,
+    },
+  );
+
+  // Link the shared ACR DNS Zone to the primary Virtual Network
+  const vnetLink = new PrivateDnsZoneVirtualNetworkLink(
+    scope,
+    "azure-acr-shared-dns-vnet-link",
+    {
+      provider: provider,
+      name: "acr-shared-vnet-link",
+      resourceGroupName: resourceGroupName,
+      privateDnsZoneName: privateDnsZone.name,
+      virtualNetworkId: virtualNetwork.id,
+      registrationEnabled: false,
+      dependsOn: [privateDnsZone, virtualNetwork],
+    },
+  );
+
+  return { privateDnsZone, vnetLink };
+}
