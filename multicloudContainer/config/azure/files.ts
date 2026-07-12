@@ -20,7 +20,7 @@ export const azureFilesConfigs = [
     },
     // Private Endpoint configuration (subnet within VNet for private access)
     privateEndpointEnabled: true,
-    subnetKey: "storage-subnet", // Key matching subnets.ts
+    subnetKey: "private-endpoint-subnet", // Key matching subnets.ts
     // Allowed IP ranges for Azure Portal / Storage Explorer access (in addition to Private Endpoint).
     // These IPs bypass the network firewall (defaultAction: Deny).
     // Leave empty [] to restrict access to Private Endpoint only.
@@ -48,7 +48,7 @@ export const azureFilesConfigs = [
     },
     // Private Endpoint configuration (subnet within VNet for private access)
     privateEndpointEnabled: true,
-    subnetKey: "storage-subnet", // Key matching subnets.ts
+    subnetKey: "private-endpoint-subnet", // Key matching subnets.ts
     // Allowed IP ranges for Azure Portal / Storage Explorer access (in addition to Private Endpoint).
     // These IPs bypass the network firewall (defaultAction: Deny).
     // Leave empty [] to restrict access to Private Endpoint only.
