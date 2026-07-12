@@ -26,7 +26,7 @@ export const subnets = [
     // rewrites VNet system routes and breaks reachability to link-local addresses
     // 168.63.129.16 (Azure DNS) and 169.254.169.254 (Azure IMDS) for ALL VMs in the VNet.
     // This causes Bastion, SSH, WALinuxAgent, and sudo hostname resolution to fail across the VNet.
-    name: "storage-subnet",
+    name: "private-endpoint-subnet",
     cidr: "10.2.40.0/24",
     privateEndpointNetworkPoliciesEnabled: false,
     natGatewayEnabled: false,

@@ -7,7 +7,7 @@ export const azureDevOpsAcrConfigs = [
     resourceGroupName: RESOURCE_GROUP,
     location: LOCATION,
     sku: "Premium",
-    subnetName: "aca-subnet",
+    subnetName: "private-endpoint-subnet",
     adminEnabled: true,
   },
 ];
