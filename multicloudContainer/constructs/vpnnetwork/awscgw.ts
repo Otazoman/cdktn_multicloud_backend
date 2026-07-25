@@ -1,4 +1,3 @@
-import { CloudwatchLogGroup } from "@cdktn/provider-aws/lib/cloudwatch-log-group";
 import { CustomerGateway } from "@cdktn/provider-aws/lib/customer-gateway";
 import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
 import { VpnConnection } from "@cdktn/provider-aws/lib/vpn-connection";
@@ -18,7 +17,10 @@ interface CustomerGatewayParams {
     awsGwIpCidr1: string[];
     awsGwIpCidr2: string[];
   };
-  logRetentionDays: number;
+  // ARN of the CloudWatch Log Group created up-front (before this
+  // construct runs) so that the whole stack, including logs, can be
+  // destroyed by CDKTN as a single unit.
+  logGroupArn: string;
   isSingleTunnel: boolean;
   tags?: { [key: string]: string };
 }
@@ -26,19 +28,8 @@ interface CustomerGatewayParams {
 export function createAwsCustomerGateway(
   scope: Construct,
   provider: AwsProvider,
-  params: CustomerGatewayParams
+  params: CustomerGatewayParams,
 ) {
-  // Create CloudWatch Logs loggroup
-  const logGroup = new CloudwatchLogGroup(
-    scope,
-    `${params.customerGatewayName}-log-group`,
-    {
-      provider: provider,
-      name: `${params.customerGatewayName}-log-group`,
-      retentionInDays: params.logRetentionDays,
-    }
-  );
-
   const awscGwVpncons = params.awsVpnGatewayIpAddresses.map(
     (ipAddress, index) => {
       // Create CustomerGateway
@@ -54,7 +45,7 @@ export function createAwsCustomerGateway(
             Name: `${params.customerGatewayName}-${index + 1}`,
             ...(params.tags || {}),
           },
-        }
+        },
       );
 
       // Common Options
@@ -67,14 +58,14 @@ export function createAwsCustomerGateway(
         tunnel1LogOptions: {
           cloudwatchLogOptions: {
             logEnabled: true,
-            logGroupArn: logGroup.arn,
+            logGroupArn: params.logGroupArn,
             logOutputFormat: "text",
           },
         },
         tunnel2LogOptions: {
           cloudwatchLogOptions: {
             logEnabled: true,
-            logGroupArn: logGroup.arn,
+            logGroupArn: params.logGroupArn,
             logOutputFormat: "text",
           },
         },
@@ -92,12 +83,12 @@ export function createAwsCustomerGateway(
           `aws_${params.conneectDestination}_vpn_connection_${index}`,
           {
             ...commonVpnOptions,
-          }
+          },
         );
       } else if (params.conneectDestination === "azure") {
         if (!params.azureVpnProps) {
           throw new Error(
-            "Azure VPN properties are required when connecting to Azure"
+            "Azure VPN properties are required when connecting to Azure",
           );
         }
         vpncon = new VpnConnection(
@@ -107,12 +98,12 @@ export function createAwsCustomerGateway(
             ...commonVpnOptions,
             tunnel1InsideCidr: params.azureVpnProps.awsGwIpCidr1[index],
             tunnel2InsideCidr: params.azureVpnProps.awsGwIpCidr2[index],
-          }
+          },
         );
       }
 
       return { customerGateway: cgw, vpnConnection: vpncon };
-    }
+    },
   );
 
   return awscGwVpncons;

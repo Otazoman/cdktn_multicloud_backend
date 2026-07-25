@@ -36,6 +36,7 @@ import {
   googleToAzure,
 } from "../config/commonsettings";
 import {
+  AwsResourcesOutput,
   AwsVpcResources,
   AzureVnetResources,
   GoogleVpcResources,
@@ -173,6 +174,30 @@ function createAwsVpnRoutes(
     routes: [{ target, cidrBlock }],
     vpnConnectionId,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Helper: resolve a CloudWatch Log Group ARN created up-front by
+// awsResources.ts (see cloudwatchlogs.ts for the naming convention).
+// Throws if the log group is missing so that misconfiguration is caught
+// early instead of silently disabling tunnel logging.
+// ---------------------------------------------------------------------------
+
+function getCgwLogGroupArn(
+  awsResourcesOutput: AwsResourcesOutput | undefined,
+  destination: string,
+): string {
+  const logGroupName = `${awsVpcResourcesparams.vpcName}-aws-${destination}-cgw-log-group`;
+  const logGroup =
+    awsResourcesOutput?.cloudwatchResources?.createdLogGroups[logGroupName];
+
+  if (!logGroup) {
+    throw new Error(
+      `CloudWatch Log Group "${logGroupName}" not found. Make sure it is defined in cloudwatchlogs.ts (cgwLogGroups).`,
+    );
+  }
+
+  return logGroup.arn;
 }
 
 // ---------------------------------------------------------------------------
@@ -315,6 +340,7 @@ function setupAwsToGoogleVpn(
   resources: VpnResources,
   googleVpcResources: GoogleVpcResources,
   isSingleTunnel: boolean,
+  cgwLogGroupArn: string,
 ): void {
   const googleVpnGatewayIpAddresses = isSingleTunnel
     ? [resources.googleVpnGateways?.externalIp?.[0]?.address ?? ""]
@@ -333,6 +359,7 @@ function setupAwsToGoogleVpn(
       resources.awsVpnGateway.id,
       googleVpnGatewayIpAddresses,
       isSingleTunnel,
+      cgwLogGroupArn,
       awsVpnparams.customerGatewayTags,
     ),
   );
@@ -404,6 +431,7 @@ function setupAwsToAzureVpn(
   azureVnetResources: AzureVnetResources,
   azureVng: any,
   isSingleTunnel: boolean,
+  cgwLogGroupArn: string,
 ): void {
   // Create AWS Customer Gateway
   resources.awsAzureCgwVpns = createAwsCustomerGateway(scope, awsProvider, {
@@ -413,6 +441,7 @@ function setupAwsToAzureVpn(
       resources.awsVpnGateway.id,
       azureVng.publicIpData.map((pip: any) => pip.ipAddress),
       isSingleTunnel,
+      cgwLogGroupArn,
       awsVpnparams.customerGatewayTags,
     ),
     azureVpnProps: {
@@ -597,6 +626,9 @@ export function createVpnResources(
   awsVpcResources?: AwsVpcResources,
   googleVpcResources?: GoogleVpcResources,
   azureVnetResources?: AzureVnetResources,
+  // Full AWS orchestrator output, used to look up already-created
+  // CloudWatch Log Group ARNs for Customer Gateway tunnel logging.
+  awsResourcesOutput?: AwsResourcesOutput,
 ): VpnResources {
   const resources: VpnResources = {};
   const isSingleTunnel = env === "dev";
@@ -721,6 +753,7 @@ export function createVpnResources(
           resources,
           googleVpcResources!,
           isSingleTunnel,
+          getCgwLogGroupArn(awsResourcesOutput, DESTINATION.GOOGLE),
         ),
     },
     {
@@ -735,6 +768,7 @@ export function createVpnResources(
           azureVnetResources!,
           resources.azureVng,
           isSingleTunnel,
+          getCgwLogGroupArn(awsResourcesOutput, DESTINATION.AZURE),
         ),
     },
     {

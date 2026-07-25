@@ -7,3 +7,5 @@ export * from "./efs";
 export * from "./privatezone";
 export * from "./vpc/vpc";
 export * from "./vpn";
+export * from "./cloudwatchlogs";
+export * from "./iam";

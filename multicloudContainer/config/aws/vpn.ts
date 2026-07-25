@@ -20,7 +20,10 @@ export const createCustomerGatewayParams = (
   vpnGatewayId: any,
   IpAddresses: string[],
   isSingleTunnel: boolean,
-  tags?: { [key: string]: string }
+  // ARN of the CloudWatch Log Group created up-front for this Customer
+  // Gateway's tunnel logs (see cloudwatchlogs.ts / awsResources.ts).
+  logGroupArn: string,
+  tags?: { [key: string]: string },
 ) => ({
   customerGatewayName: `my-aws-vpc-aws-${conneectDestination}-cgw`,
   vpnConnectionName: `my-aws-vpc-aws-${conneectDestination}-vpn-connection`,
@@ -30,7 +33,7 @@ export const createCustomerGatewayParams = (
     bgpAsn: bgpAsn,
     type: "ipsec.1",
   },
-  logRetentionDays: awsVpnparams.logRetentionDays,
+  logGroupArn: logGroupArn,
   vpnGatewayId: vpnGatewayId,
   awsVpnGatewayIpAddresses: IpAddresses,
   isSingleTunnel: isSingleTunnel,
