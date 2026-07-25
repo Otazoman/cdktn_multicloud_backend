@@ -1,9 +1,6 @@
 import { CodebuildProject } from "@cdktn/provider-aws/lib/codebuild-project";
 import { EcrLifecyclePolicy } from "@cdktn/provider-aws/lib/ecr-lifecycle-policy";
 import { EcrRepository } from "@cdktn/provider-aws/lib/ecr-repository";
-import { IamPolicy } from "@cdktn/provider-aws/lib/iam-policy";
-import { IamRole } from "@cdktn/provider-aws/lib/iam-role";
-import { IamRolePolicyAttachment } from "@cdktn/provider-aws/lib/iam-role-policy-attachment";
 import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
 import { Construct } from "constructs";
 
@@ -23,6 +20,10 @@ export interface CicdConfig {
     repositoryUrl: string;
     environmentVariables?: { name: string; value: string }[];
     buildspec?: string;
+    // IAM Role ARN created externally
+    serviceRoleArn: string;
+    // CloudWatch Log Group Name created externally (optional)
+    cloudwatchLogGroupName?: string;
   };
   tags?: { [key: string]: string };
 }
@@ -66,74 +67,7 @@ export function createAwsCicdResources(
     }),
   });
 
-  // 2. CodeBuild IAM Role
-  const buildRole = new IamRole(scope, `codebuild-role-${config.name}`, {
-    provider,
-    name: `codebuild-${config.name}-role`,
-    assumeRolePolicy: JSON.stringify({
-      Version: "2012-10-17",
-      Statement: [
-        {
-          Action: "sts:AssumeRole",
-          Effect: "Allow",
-          Principal: { Service: "codebuild.amazonaws.com" },
-        },
-      ],
-    }),
-  });
-
-  // Attaching the standard policies required for operation within the VPC
-  new IamRolePolicyAttachment(scope, `codebuild-vpc-policy-${config.name}`, {
-    provider,
-    role: buildRole.name,
-    policyArn: "arn:aws:iam::aws:policy/AmazonVPCFullAccess",
-  });
-
-  // Custom inline policy that allows CodeBuild to perform ECR operations and write to CloudWatch Logs
-  const customPolicy = new IamPolicy(
-    scope,
-    `codebuild-custom-policy-${config.name}`,
-    {
-      provider,
-      name: `codebuild-${config.name}-custom-policy`,
-      policy: JSON.stringify({
-        Version: "2012-10-17",
-        Statement: [
-          {
-            Effect: "Allow",
-            Action: [
-              "ecr:GetAuthorizationToken",
-              "ecr:BatchCheckLayerAvailability",
-              "ecr:GetDownloadUrlForLayer",
-              "ecr:BatchGetImage",
-              "ecr:PutImage",
-              "ecr:InitiateLayerUpload",
-              "ecr:UploadLayerPart",
-              "ecr:CompleteLayerUpload",
-            ],
-            Resource: "*",
-          },
-          {
-            Effect: "Allow",
-            Action: [
-              "logs:CreateLogGroup",
-              "logs:CreateLogStream",
-              "logs:PutLogEvents",
-            ],
-            Resource: "*",
-          },
-        ],
-      }),
-    },
-  );
-
-  new IamRolePolicyAttachment(scope, `codebuild-custom-attach-${config.name}`, {
-    provider,
-    role: buildRole.name,
-    policyArn: customPolicy.arn,
-  });
-
-  // 3. CodeBuild Project
+  // 2. CodeBuild Project Environment Variables
   const envVars =
     config.codebuild.environmentVariables?.map((v) => ({
       name: v.name,
@@ -148,10 +82,12 @@ export function createAwsCicdResources(
     type: "PLAINTEXT",
   });
 
+  // 3. CodeBuild Project
   const codebuild = new CodebuildProject(scope, `codebuild-${config.name}`, {
     provider,
     name: config.name,
-    serviceRole: buildRole.arn,
+    // Use the IAM Role ARN supplied from the external module
+    serviceRole: config.codebuild.serviceRoleArn,
     artifacts: {
       type: "NO_ARTIFACTS",
     },
@@ -163,17 +99,22 @@ export function createAwsCicdResources(
       environmentVariable: envVars,
     },
     source: {
-      type: "GITHUB", // Can be changed to “GITHUB,” “CODEPIPELINE,” etc., depending on the use case, such as for pipeline integration
+      type: "GITHUB",
       location: config.codebuild.repositoryUrl,
-
-      // Instead of the string “buildspec.yml,” we will directly inject the minimal build definition—which AWS recognizes as 100% “valid YAML”—
-      // as text from the CDKTF side.
       buildspec: config.codebuild.buildspec,
     },
     vpcConfig: {
       vpcId: vpcId,
       subnets: config.codebuild.subnetIds,
       securityGroupIds: config.codebuild.securityGroupIds,
+    },
+    // Configuration to control CloudWatch Logs destination
+    logsConfig: {
+      cloudwatchLogs: {
+        status: "ENABLED",
+        // Assign external log group if provided; otherwise CodeBuild defaults to auto-generation
+        groupName: config.codebuild.cloudwatchLogGroupName,
+      },
     },
     tags: config.tags,
   });

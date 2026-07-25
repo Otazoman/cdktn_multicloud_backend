@@ -28,11 +28,14 @@ export const rdsConfigs = [
     // Performance Insights
     enablePerformanceInsights: true,
     performanceInsightsRetentionPeriod: 7,
-    // Enhanced Monitoring with auto-created role
+    // Enhanced Monitoring using an externally created IAM role. Name must
+    // match a role name defined in config/aws/iam.ts (iamRolesConfig).
     enableEnhancedMonitoring: true,
     monitoringInterval: 60,
-    createMonitoringRole: true, // Automatically create monitoring role
-    // Logs
+    monitoringRoleName: "rds-enhanced-monitoring-role",
+    // Logs. Each entry here must have a matching CloudWatch Log Group
+    // defined in config/aws/cloudwatchlogs.ts
+    // (name: /aws/rds/instance/rds-mysql-instance/<export-type>).
     enabledCloudwatchLogsExports: ["audit", "error", "general", "slowquery"],
     // Auto upgrade
     autoMinorVersionUpgrade: true,
@@ -71,7 +74,9 @@ export const rdsConfigs = [
     enablePerformanceInsights: false,
     // Enhanced Monitoring
     enableEnhancedMonitoring: false,
-    // Logs
+    // Logs. Each entry here must have a matching CloudWatch Log Group
+    // defined in config/aws/cloudwatchlogs.ts
+    // (name: /aws/rds/instance/rds-mariadb-instance/<export-type>).
     enabledCloudwatchLogsExports: ["audit", "error", "general", "slowquery"],
     // Auto upgrade
     autoMinorVersionUpgrade: false,
@@ -111,11 +116,14 @@ export const rdsConfigs = [
     // Performance Insights
     enablePerformanceInsights: true,
     performanceInsightsRetentionPeriod: 7,
-    // Enhanced Monitoring with auto-created role
+    // Enhanced Monitoring using an externally created IAM role. Name must
+    // match a role name defined in config/aws/iam.ts (iamRolesConfig).
     enableEnhancedMonitoring: true,
     monitoringInterval: 30,
-    createMonitoringRole: true,
-    // Logs
+    monitoringRoleName: "rds-enhanced-monitoring-role",
+    // Logs. Each entry here must have a matching CloudWatch Log Group
+    // defined in config/aws/cloudwatchlogs.ts
+    // (name: /aws/rds/instance/rds-postgres-instance/<export-type>).
     enabledCloudwatchLogsExports: ["postgresql", "upgrade"],
     // Auto upgrade
     autoMinorVersionUpgrade: true,
@@ -149,14 +157,12 @@ export const auroraConfigs = [
       "my-aws-vpc-db-private-subnet1d",
     ],
     vpcSecurityGroupNames: ["myaws-db-sg"],
-    // dbClusterParameterGroupFamily: "aurora-mysql8.0",
     dbClusterParameterGroupFamily: "aurora-mysql8.4",
     dbClusterParameterGroupParametersFile:
       "config/aws/aurorards/aurora-mysql-cluster-parameters.ts", // Path to cluster parameter file
     skipFinalSnapshot: true,
     instanceClass: "db.t4g.medium",
     instanceCount: 1,
-    // instanceParameterGroupFamily: "aurora-mysql8.0",
     instanceParameterGroupFamily: "aurora-mysql8.4",
     instanceParameterGroupParametersFile:
       "config/aws/aurorards/aurora-mysql-instance-parameters.ts", // Path to instance parameter file
@@ -166,11 +172,15 @@ export const auroraConfigs = [
     // Performance Insights (instance level)
     enablePerformanceInsights: true,
     performanceInsightsRetentionPeriod: 7,
-    // Enhanced Monitoring (instance level) with auto-created role
+    // Enhanced Monitoring (instance level) using an externally created IAM
+    // role. Name must match a role name defined in config/aws/iam.ts
+    // (iamRolesConfig).
     enableEnhancedMonitoring: true,
     monitoringInterval: 60,
-    createMonitoringRole: true, // Automatically create monitoring role
-    // Logs (cluster level)
+    monitoringRoleName: "rds-enhanced-monitoring-role",
+    // Logs (cluster level). Each entry here must have a matching
+    // CloudWatch Log Group defined in config/aws/cloudwatchlogs.ts
+    // (name: /aws/rds/cluster/aurora-mysql-cluster/<export-type>).
     enabledCloudwatchLogsExports: ["audit", "error", "general", "slowquery"],
     // Auto upgrade (instance level)
     autoMinorVersionUpgrade: true,
@@ -211,7 +221,9 @@ export const auroraConfigs = [
     enablePerformanceInsights: false,
     // Enhanced Monitoring
     enableEnhancedMonitoring: false,
-    // Logs
+    // Logs. Each entry here must have a matching CloudWatch Log Group
+    // defined in config/aws/cloudwatchlogs.ts
+    // (name: /aws/rds/cluster/aurora-postgres-cluster/<export-type>).
     enabledCloudwatchLogsExports: ["postgresql"],
     // Auto upgrade
     autoMinorVersionUpgrade: false,

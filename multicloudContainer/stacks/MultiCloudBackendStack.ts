@@ -54,6 +54,9 @@ export class MultiCloudBackendStack extends TerraformStack {
         aws.vpc,
         google.vpc,
         azure.vpc,
+        // Full AWS output, so vpnResources.ts can look up the CloudWatch
+        // Log Groups created up-front for Customer Gateway tunnel logging.
+        aws,
       );
     }
 

@@ -5,6 +5,7 @@
  *
  * Resource creation order (all Construct references available within one file):
  *
+ *   0. CloudWatch (Groups/Filters/Alarms) & IAM Roles/Policies (First-class Foundations)
  *   1. VPC / Subnets / SGs / NAT / Route Tables
  *   2. Public DNS Zone  (useDns)
  *   3. EFS              (useStorage)
@@ -12,6 +13,7 @@
  *   5. EC2              (useVms)
  *   6. ACM Certificate + ALB + ECS  (useContainers)
  *   7. DNS A-records    (useDns + useContainers)
+ *   8. ECR + CodeBuild  (useCicd)
  */
 
 import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
@@ -30,6 +32,11 @@ import {
   ec2Configs,
   efsConfigs,
   rdsConfigs,
+  cloudwatchLogGroupsConfig,
+  cloudwatchMetricFiltersConfig,
+  cloudwatchMetricAlarmsConfig,
+  iamRolesConfig,
+  iamPoliciesConfig,
 } from "../config/aws/awssettings";
 import {
   awsToAzure,
@@ -43,6 +50,8 @@ import {
 import { createAwsCertificate } from "../constructs/certificates/awsacm";
 import { createAwsEcsFargateResources } from "../constructs/container/awsecs";
 import { createAwsAlbResources } from "../constructs/loadbarancer/awsalb";
+import { AwsIamResources } from "../constructs/iam/awsiam";
+import { AwsCloudWatchResources } from "../constructs/observability/awscloudwatch";
 import {
   AwsRelationalDatabaseConfig,
   createAwsRelationalDatabases,
@@ -105,6 +114,40 @@ export const createAwsResources = (
   const output: AwsResourcesOutput = {};
 
   // ──────────────────────────────────────────────
+  // 0. CloudWatch & IAM
+  //
+  // Created first so that every other AWS resource below can simply
+  // reference an already-existing Log Group / IAM Role instead of
+  // auto-creating (and later orphaning on destroy) its own.
+  // ──────────────────────────────────────────────
+  const cloudwatchResources = new AwsCloudWatchResources(
+    scope,
+    "aws-global-cloudwatch",
+    awsProvider,
+    {
+      logGroups: cloudwatchLogGroupsConfig,
+      metricFilters: cloudwatchMetricFiltersConfig,
+      metricAlarms: cloudwatchMetricAlarmsConfig,
+    },
+  );
+
+  const iamResources = new AwsIamResources(
+    scope,
+    "aws-global-iam",
+    awsProvider,
+    {
+      roles: iamRolesConfig,
+      policies: iamPoliciesConfig,
+    },
+  );
+
+  // Store references on the output so cross-cloud orchestrators (e.g.
+  // vpnResources.ts) can look up already-created Log Group / Role ARNs
+  // by name instead of creating their own.
+  output.cloudwatchResources = cloudwatchResources;
+  output.iamResources = iamResources;
+
+  // ──────────────────────────────────────────────
   // 1. VPC
   // ──────────────────────────────────────────────
   if (!awsVpcResourcesparams.isEnabled) {
@@ -139,6 +182,36 @@ export const createAwsResources = (
     }
     console.warn(`No security group found for name: ${name}`);
     return "default-security-group-id";
+  };
+
+  // Helper: resolve an IAM Role ARN by the role name given in a config
+  // file (e.g. ecs.ts / aurorards.ts / cicdsettings.ts). Throws early if
+  // the referenced role name does not exist in iam.ts, so a typo in a
+  // config file is caught immediately instead of silently deploying
+  // without the intended role.
+  const getIamRoleArn = (roleName: string, contextLabel: string): string => {
+    const role = iamResources.createdRoles[roleName];
+    if (!role) {
+      throw new Error(
+        `IAM Role "${roleName}" referenced by ${contextLabel} was not found. ` +
+          `Make sure it is defined in config/aws/iam.ts (iamRolesConfig).`,
+      );
+    }
+    return role.arn;
+  };
+
+  // Helper: resolve a CloudWatch Log Group by the name given in a config
+  // file. Throws early if the referenced name does not exist in
+  // cloudwatchlogs.ts, so a typo is caught immediately.
+  const getLogGroup = (logGroupName: string, contextLabel: string) => {
+    const logGroup = cloudwatchResources.createdLogGroups[logGroupName];
+    if (!logGroup) {
+      throw new Error(
+        `CloudWatch Log Group "${logGroupName}" referenced by ${contextLabel} was not found. ` +
+          `Make sure it is defined in config/aws/cloudwatchlogs.ts (cloudwatchLogGroupsConfig).`,
+      );
+    }
+    return logGroup;
   };
 
   // ──────────────────────────────────────────────
@@ -218,7 +291,25 @@ export const createAwsResources = (
     const combinedConfigs: AwsRelationalDatabaseConfig[] = [
       ...mapRdsConfigs(),
       ...mapAuroraConfigs(),
-    ];
+    ].map((config) => {
+      // Resolve the Enhanced Monitoring IAM role from the role name given
+      // in aurorards.ts (config.monitoringRoleName), instead of a
+      // hardcoded role name.
+      const monitoringRoleName = (config as any).monitoringRoleName as
+        | string
+        | undefined;
+
+      return {
+        ...config,
+        monitoringRoleArn:
+          config.enableEnhancedMonitoring && monitoringRoleName
+            ? getIamRoleArn(
+                monitoringRoleName,
+                `RDS/Aurora "${config.identifier}"`,
+              )
+            : undefined,
+      };
+    });
 
     const awsRelationalDatabases = createAwsRelationalDatabases(
       scope,
@@ -229,6 +320,24 @@ export const createAwsResources = (
         securityGroups: awsVpcResources.securityGroupMapping,
       },
     );
+
+    // Ensure each database's monitoring role (if used) is fully created
+    // before the DB instance/cluster that references it.
+    combinedConfigs
+      .filter((c) => c.build)
+      .forEach((config, index) => {
+        const monitoringRoleName = (config as any).monitoringRoleName as
+          | string
+          | undefined;
+        if (!config.enableEnhancedMonitoring || !monitoringRoleName) return;
+
+        const monitoringRole = iamResources.createdRoles[monitoringRoleName];
+        if (!monitoringRole) return;
+
+        const dbOutput = awsRelationalDatabases[index];
+        dbOutput.rdsCluster?.node.addDependency(monitoringRole);
+        dbOutput.dbInstance?.node.addDependency(monitoringRole);
+      });
 
     const rdsInstances: Array<{
       identifier: string;
@@ -449,6 +558,31 @@ export const createAwsResources = (
             }
           }
 
+          const isBlueGreen = config.deploymentStrategy === "BLUE_GREEN";
+
+          // Resolve IAM roles and CloudWatch Log Group directly from the
+          // names configured in ecs.ts, instead of hardcoded role names.
+          const executionRoleArn = getIamRoleArn(
+            (config as any).executionRoleName,
+            `ECS service "${config.name}" (executionRoleName)`,
+          );
+          const taskRoleArn = getIamRoleArn(
+            (config as any).taskRoleName,
+            `ECS service "${config.name}" (taskRoleName)`,
+          );
+          const infraRoleArn = isBlueGreen
+            ? getIamRoleArn(
+                (config as any).infraRoleName,
+                `ECS service "${config.name}" (infraRoleName)`,
+              )
+            : undefined;
+
+          const logGroupName = (config as any).cloudwatchLogGroupName as string;
+          const logGroup = getLogGroup(
+            logGroupName,
+            `ECS service "${config.name}" (cloudwatchLogGroupName)`,
+          );
+
           const ecs = createAwsEcsFargateResources(scope, awsProvider, {
             ...config,
             securityGroupIds: config.securityGroupNames.map(
@@ -472,9 +606,17 @@ export const createAwsResources = (
             testListenerArn,
             productionListenerRuleArn,
             testListenerRuleArn,
+            // IAM roles resolved from ecs.ts role names above
+            executionRoleArn,
+            taskRoleArn,
+            infraRoleArn,
+            // CloudWatch Log Group resolved from ecs.ts above
+            cloudwatchLogGroupName: logGroupName,
           });
 
           ecs.service.node.addDependency(awsVpcResources.vpc);
+          ecs.taskDefinition.node.addDependency(iamResources);
+          ecs.taskDefinition.node.addDependency(logGroup);
         });
     }
 
@@ -511,6 +653,20 @@ export const createAwsResources = (
       .filter((c) => c.build)
       .forEach((config) => {
         let loadedBuildspec: string | undefined = undefined;
+
+        // Resolve IAM role and CloudWatch Log Group directly from the
+        // names configured in cicdsettings.ts, instead of hardcoded names.
+        const serviceRoleArn = getIamRoleArn(
+          (config.codebuild as any).serviceRoleName,
+          `CodeBuild project "${config.name}" (serviceRoleName)`,
+        );
+        const logGroupName = (config.codebuild as any)
+          .cloudwatchLogGroupName as string;
+        const logGroup = getLogGroup(
+          logGroupName,
+          `CodeBuild project "${config.name}" (cloudwatchLogGroupName)`,
+        );
+
         const cicdRes = createAwsCicdResources(
           scope,
           awsProvider,
@@ -536,6 +692,10 @@ export const createAwsResources = (
               repositoryUrl: config.codebuild.repositoryUrl,
               environmentVariables: config.codebuild.environmentVariables,
               buildspec: loadedBuildspec,
+              // IAM role resolved from cicdsettings.ts above
+              serviceRoleArn,
+              // CloudWatch Log Group resolved from cicdsettings.ts above
+              cloudwatchLogGroupName: logGroupName,
             },
             tags: config.tags,
           },
@@ -544,6 +704,8 @@ export const createAwsResources = (
 
         // Dependency Control for Deploying CI/CD Constructs After the VPC Is Fully Created
         cicdRes.codebuild.node.addDependency(awsVpcResources.vpc);
+        cicdRes.codebuild.node.addDependency(iamResources);
+        cicdRes.codebuild.node.addDependency(logGroup);
       });
   }
 

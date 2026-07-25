@@ -24,6 +24,12 @@ export const awsCicdConfigs = [
       environmentVariables: [{ name: "ENV_NAME", value: "production" }],
       useExternalBuildspec: true,
       buildspecPath: "./config/aws/cicd/custom_buildspec.yml",
+      // IAM role used by this CodeBuild project. Name must match a role
+      // name defined in config/aws/iam.ts (iamRolesConfig).
+      serviceRoleName: "codebuild-service-role",
+      // CloudWatch Log Group used by this CodeBuild project's build logs.
+      // Name must match an entry in config/aws/cloudwatchlogs.ts.
+      cloudwatchLogGroupName: "/aws/codebuild/api-service-cicd",
     },
     tags: {
       ManagedBy: "CDKTN",

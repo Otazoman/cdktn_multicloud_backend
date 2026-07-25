@@ -6,8 +6,6 @@ import {
 import { DbOptionGroup } from "@cdktn/provider-aws/lib/db-option-group";
 import { DbParameterGroup } from "@cdktn/provider-aws/lib/db-parameter-group";
 import { DbSubnetGroup } from "@cdktn/provider-aws/lib/db-subnet-group";
-import { IamRole } from "@cdktn/provider-aws/lib/iam-role";
-import { IamRolePolicyAttachment } from "@cdktn/provider-aws/lib/iam-role-policy-attachment";
 import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
 import { RdsCluster } from "@cdktn/provider-aws/lib/rds-cluster";
 import { RdsClusterInstance } from "@cdktn/provider-aws/lib/rds-cluster-instance";
@@ -15,10 +13,8 @@ import { RdsClusterParameterGroup } from "@cdktn/provider-aws/lib/rds-cluster-pa
 import { Construct } from "constructs";
 import * as path from "path";
 
-// Configuration Types
-
 export function getMasterUserSecretArn(
-  masterUserSecretList: any
+  masterUserSecretList: any,
 ): string | undefined {
   if (masterUserSecretList && masterUserSecretList.get(0)) {
     return masterUserSecretList.get(0).secretArn;
@@ -53,10 +49,6 @@ export interface AwsRelationalDatabaseConfig {
   // Enhanced Monitoring
   enableEnhancedMonitoring?: boolean;
   monitoringInterval?: number;
-  monitoringRoleArn?: string;
-  createMonitoringRole?: boolean; // Auto-create monitoring role
-  // Logs
-  enabledCloudwatchLogsExports?: string[];
   // Auto upgrade
   autoMinorVersionUpgrade?: boolean;
   // Maintenance
@@ -86,6 +78,12 @@ export interface AwsRelationalDatabaseConfig {
   instanceParameterGroupParametersFile?: string; // Path to instance parameter file
   instancePreferredMaintenanceWindow?: string; // For Aurora instance maintenance
   build?: boolean; // Add build flag back for databaseResources.ts to filter
+
+  // --- Externalized Security and Logging Configurations ---
+  // IAM Role ARN for RDS Enhanced Monitoring supplied externally
+  monitoringRoleArn?: string;
+  // CloudWatch Logs export types managed externally (e.g., ["error", "general", "slowquery"])
+  enabledCloudwatchLogsExports?: string[];
 }
 
 export interface AwsRelationalDatabaseOutput {
@@ -98,8 +96,6 @@ interface CreateAwsRelationalDatabasesParams {
   subnets: Record<string, { id: string; name: string }>;
   securityGroups: Record<string, any>;
 }
-
-// Helper Functions for Reusability
 
 /**
  * Loads parameters from a configuration file path.
@@ -114,61 +110,6 @@ function loadParametersFromFile(filePath: string): any {
 }
 
 /**
- * Creates or gets the ARN for the Enhanced Monitoring IAM Role.
- * @param scope The construct scope.
- * @param config The database configuration.
- * @param type The database type ("rds" or "aurora").
- * @param index The index for unique identification.
- * @returns The ARN of the monitoring role.
- */
-function getMonitoringRoleArn(
-  scope: Construct,
-  config: AwsRelationalDatabaseConfig,
-  type: AwsRelationalDatabaseType,
-  index: number
-): string | undefined {
-  if (
-    config.enableEnhancedMonitoring &&
-    config.createMonitoringRole &&
-    !config.monitoringRoleArn
-  ) {
-    const sanitizedIdentifier = config.identifier.replace(/[^a-zA-Z0-9]/g, "-");
-    const monitoringRole = new IamRole(
-      scope,
-      `${type}-monitoring-role-${sanitizedIdentifier}-${index}`,
-      {
-        name: `${sanitizedIdentifier}-monitoring-role`,
-        assumeRolePolicy: JSON.stringify({
-          Version: "2012-10-17",
-          Statement: [
-            {
-              Effect: "Allow",
-              Principal: {
-                Service: "monitoring.rds.amazonaws.com",
-              },
-              Action: "sts:AssumeRole",
-            },
-          ],
-        }),
-        tags: config.tags,
-      }
-    );
-
-    new IamRolePolicyAttachment(
-      scope,
-      `${type}-monitoring-policy-${sanitizedIdentifier}-${index}`,
-      {
-        role: monitoringRole.name,
-        policyArn:
-          "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole",
-      }
-    );
-    return monitoringRole.arn;
-  }
-  return config.monitoringRoleArn;
-}
-
-/**
  * Gets the master password based on configuration (Secret Manager, direct value, or managed).
  * @param scope The construct scope.
  * @param config The database configuration.
@@ -178,37 +119,32 @@ function getMonitoringRoleArn(
 function getMasterPasswordProps(
   scope: Construct,
   config: AwsRelationalDatabaseConfig,
-  type: AwsRelationalDatabaseType
+  type: AwsRelationalDatabaseType,
 ): {
   password?: string;
   masterUserSecretArn?: string;
   manageMasterUserPassword?: boolean;
 } {
   if (config.manageMasterUserPassword) {
-    // Case 1: AWS manages the password. Only return this flag.
     return { manageMasterUserPassword: true };
   } else if (config.masterPasswordSecretKey) {
-    // Case 2: Password from a user-provided secret. Only return the password.
     const dbPasswordSecret = new DataAwsSecretsmanagerSecretVersion(
       scope,
       `${type}-password-secret-${config.identifier}`,
       {
         secretId: config.masterPasswordSecretKey,
-      }
+      },
     );
     return {
       password: dbPasswordSecret.secretString,
       masterUserSecretArn: dbPasswordSecret.secretId,
     };
   } else {
-    // Case 3: Password provided directly. Only return the password.
     return {
       password: config.password,
     };
   }
 }
-
-// Resource Creation Functions
 
 /**
  * Creates an Aurora cluster and its instances.
@@ -219,7 +155,6 @@ function createAuroraCluster(
   config: AwsRelationalDatabaseConfig,
   dbSubnetGroupName: string,
   securityGroupIds: string[],
-  monitoringRoleArn?: string
 ): AwsRelationalDatabaseOutput {
   // 1. Cluster Parameter Group
   let dbClusterParameterGroupName = config.dbClusterParameterGroupName;
@@ -237,7 +172,7 @@ function createAuroraCluster(
         family: config.dbClusterParameterGroupFamily,
         parameter: clusterParameters,
         tags: config.tags,
-      }
+      },
     );
     dbClusterParameterGroupName = clusterPg.name;
   }
@@ -258,7 +193,7 @@ function createAuroraCluster(
         family: config.instanceParameterGroupFamily,
         parameter: instanceParameters,
         tags: config.tags,
-      }
+      },
     );
     instanceParameterGroupName = instancePg.name;
   }
@@ -281,6 +216,7 @@ function createAuroraCluster(
     tags: config.tags,
     backupRetentionPeriod: config.backupRetentionPeriod ?? 7,
     preferredBackupWindow: config.preferredBackupWindow,
+    // Assign logs configuration from config parameters
     enabledCloudwatchLogsExports: config.enabledCloudwatchLogsExports,
     allowMajorVersionUpgrade: false,
     preferredMaintenanceWindow: config.preferredMaintenanceWindow,
@@ -305,8 +241,9 @@ function createAuroraCluster(
       monitoringInterval: config.enableEnhancedMonitoring
         ? config.monitoringInterval ?? 60
         : 0,
+      // Assign monitoring role ARN provided by the user config directly
       monitoringRoleArn: config.enableEnhancedMonitoring
-        ? monitoringRoleArn
+        ? config.monitoringRoleArn
         : undefined,
       autoMinorVersionUpgrade: config.autoMinorVersionUpgrade ?? true,
       preferredMaintenanceWindow: config.instancePreferredMaintenanceWindow,
@@ -325,7 +262,6 @@ function createRdsInstance(
   config: AwsRelationalDatabaseConfig,
   dbSubnetGroupName: string,
   securityGroupIds: string[],
-  monitoringRoleArn?: string
 ): AwsRelationalDatabaseOutput {
   // 1. DB Parameter Group
   let parameterGroupName = config.parameterGroupName;
@@ -342,7 +278,7 @@ function createRdsInstance(
         family: config.parameterGroupFamily,
         parameter: parameters,
         tags: config.tags,
-      }
+      },
     );
     parameterGroupName = paramGroup.name;
   }
@@ -373,7 +309,7 @@ function createRdsInstance(
         majorEngineVersion: majorVersion,
         option: options,
         tags: config.tags,
-      }
+      },
     );
     optionGroupName = optionGroup.name;
   }
@@ -406,9 +342,11 @@ function createRdsInstance(
     monitoringInterval: config.enableEnhancedMonitoring
       ? config.monitoringInterval ?? 60
       : 0,
+    // Assign monitoring role ARN provided by the user config directly
     monitoringRoleArn: config.enableEnhancedMonitoring
-      ? monitoringRoleArn
+      ? config.monitoringRoleArn
       : undefined,
+    // Assign logs configuration from config parameters
     enabledCloudwatchLogsExports: config.enabledCloudwatchLogsExports,
     autoMinorVersionUpgrade: config.autoMinorVersionUpgrade ?? true,
     maintenanceWindow: config.preferredMaintenanceWindow,
@@ -421,17 +359,14 @@ function createRdsInstance(
   const dbInstance = new DbInstance(
     scope,
     `rdsInstance-${config.identifier}`,
-    dbInstanceProps
+    dbInstanceProps,
   );
 
   return { dbInstance: dbInstance };
 }
 
-// Main Exported Function (Simplified)
-
 /**
  * Creates AWS Relational Databases (RDS and Aurora) based on the provided configurations.
- * The core logic is now separated into createAuroraCluster and createRdsInstance functions.
  * @param scope The construct scope.
  * @param provider The AWS provider.
  * @param params Configuration, subnets, and security groups.
@@ -440,17 +375,15 @@ function createRdsInstance(
 export function createAwsRelationalDatabases(
   scope: Construct,
   provider: AwsProvider,
-  params: CreateAwsRelationalDatabasesParams
+  params: CreateAwsRelationalDatabasesParams,
 ): AwsRelationalDatabaseOutput[] {
   return params.databaseConfigs.map((config, index) => {
-    // 1. Common Pre-Checks and Resource Creation
-
     // Validate and get Subnet IDs
     const subnetIds = config.subnetKeys.map((key) => {
       const subnet = params.subnets[key];
       if (!subnet) {
         throw new Error(
-          `Subnet with key ${key} not found for ${config.type} ${config.identifier}`
+          `Subnet with key ${key} not found for ${config.type} ${config.identifier}`,
         );
       }
       return subnet.id;
@@ -461,7 +394,7 @@ export function createAwsRelationalDatabases(
     if (!dbSubnetGroupName) {
       const sanitizedIdentifier = config.identifier.replace(
         /[^a-zA-Z0-9]/g,
-        "-"
+        "-",
       );
       const dbSubnetGroup = new DbSubnetGroup(
         scope,
@@ -471,7 +404,7 @@ export function createAwsRelationalDatabases(
           name: `${sanitizedIdentifier}-sng`,
           subnetIds: subnetIds,
           tags: config.tags,
-        }
+        },
       );
       dbSubnetGroupName = dbSubnetGroup.name;
     }
@@ -481,19 +414,11 @@ export function createAwsRelationalDatabases(
       const sgId = params.securityGroups[name];
       if (!sgId) {
         throw new Error(
-          `Security Group with name ${name} not found for ${config.type} ${config.identifier}`
+          `Security Group with name ${name} not found for ${config.type} ${config.identifier}`,
         );
       }
       return sgId;
     });
-
-    // Create or get Monitoring Role ARN
-    const monitoringRoleArn = getMonitoringRoleArn(
-      scope,
-      config,
-      config.type,
-      index
-    );
 
     // 2. Dispatch to specific creator function
     if (config.type === "aurora") {
@@ -503,7 +428,6 @@ export function createAwsRelationalDatabases(
         config,
         dbSubnetGroupName,
         securityGroupIds,
-        monitoringRoleArn
       );
     } else {
       return createRdsInstance(
@@ -512,7 +436,6 @@ export function createAwsRelationalDatabases(
         config,
         dbSubnetGroupName,
         securityGroupIds,
-        monitoringRoleArn
       );
     }
   });

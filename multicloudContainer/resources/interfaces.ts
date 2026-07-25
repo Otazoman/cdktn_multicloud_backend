@@ -498,6 +498,21 @@ export interface AwsResourcesOutput {
   }>;
   /** ALB resources with DNS info (A-record registration happens inside the orchestrator) */
   lbs?: AwsAlbResourcesWithDns[];
+  /**
+   * CloudWatch Logs construct created up-front, exposed so that
+   * cross-cloud orchestrators (e.g. vpnResources.ts) can look up
+   * already-created Log Group ARNs by name instead of creating their own.
+   */
+  cloudwatchResources?: {
+    createdLogGroups: Record<string, { arn: string; name: string }>;
+  };
+  /**
+   * IAM construct created up-front, exposed so that cross-cloud
+   * orchestrators can look up already-created Role ARNs by name.
+   */
+  iamResources?: {
+    createdRoles: Record<string, { arn: string; name: string }>;
+  };
 }
 
 /**

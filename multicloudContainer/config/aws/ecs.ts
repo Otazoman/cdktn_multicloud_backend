@@ -21,6 +21,15 @@ export const awsEcsConfigs = [
       scaleInCooldown: 300,
       scaleOutCooldown: 60,
     },
+    // IAM roles used by this service. Names must match the role names
+    // defined in config/aws/iam.ts (iamRolesConfig).
+    executionRoleName: "ecs-task-execution-role",
+    taskRoleName: "ecs-task-role",
+    // Only required when deploymentStrategy is "BLUE_GREEN".
+    infraRoleName: "ecs-infrastructure-role",
+    // CloudWatch Log Group used by this service's container logs. Name
+    // must match an entry in config/aws/cloudwatchlogs.ts.
+    cloudwatchLogGroupName: "/aws/ecs/api-service",
     logRetentionInDays: 7,
     containerName: "api-container",
     image: "nginx:latest",
@@ -58,6 +67,13 @@ export const awsEcsConfigs = [
       scaleInCooldown: 300,
       scaleOutCooldown: 60,
     },
+    // IAM roles used by this service. Names must match the role names
+    // defined in config/aws/iam.ts (iamRolesConfig).
+    executionRoleName: "ecs-task-execution-role",
+    taskRoleName: "ecs-task-role",
+    // CloudWatch Log Group used by this service's container logs. Name
+    // must match an entry in config/aws/cloudwatchlogs.ts.
+    cloudwatchLogGroupName: "/aws/ecs/worker-service",
     logRetentionInDays: 14, // Longer retention for background jobs
     containerName: "worker-container",
     image: "postgres:latest",

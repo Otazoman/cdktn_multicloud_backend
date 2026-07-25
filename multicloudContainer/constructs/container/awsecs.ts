@@ -1,11 +1,8 @@
 import { AppautoscalingPolicy } from "@cdktn/provider-aws/lib/appautoscaling-policy";
 import { AppautoscalingTarget } from "@cdktn/provider-aws/lib/appautoscaling-target";
-import { CloudwatchLogGroup } from "@cdktn/provider-aws/lib/cloudwatch-log-group";
 import { EcsCluster } from "@cdktn/provider-aws/lib/ecs-cluster";
 import { EcsService } from "@cdktn/provider-aws/lib/ecs-service";
 import { EcsTaskDefinition } from "@cdktn/provider-aws/lib/ecs-task-definition";
-import { IamRole } from "@cdktn/provider-aws/lib/iam-role";
-import { IamRolePolicyAttachment } from "@cdktn/provider-aws/lib/iam-role-policy-attachment";
 import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
 import { Construct } from "constructs";
 
@@ -46,7 +43,6 @@ export interface EcsConfig {
   desiredCount: number;
   deploymentStrategy?: string; // "ROLLING" | "BLUE_GREEN"
   autoScaling?: AutoScalingConfig;
-  logRetentionInDays?: number; // CloudWatch Logs retention period (e.g., 1, 3, 7, 14, 30...)
   securityGroupIds: string[];
   subnetIds: string[];
   containerConfig: ContainerConfig;
@@ -61,6 +57,16 @@ export interface EcsConfig {
   bakeTime?: number; // Bake time in minutes after deployment before considering stable (0 = disabled)
   enableExec?: boolean;
   tags?: { [key: string]: string };
+
+  // --- Externalized Security and Logging Configurations ---
+  // IAM Execution Role ARN used by the ECS container agent to pull images and publish logs
+  executionRoleArn: string;
+  // IAM Task Role ARN used by the containers themselves to access AWS services
+  taskRoleArn: string;
+  // IAM Infrastructure Role ARN required for ECS Blue/Green deployment
+  infraRoleArn?: string;
+  // CloudWatch Log Group Name managed externally for application container logging
+  cloudwatchLogGroupName: string;
 }
 
 export function createAwsEcsFargateResources(
@@ -81,64 +87,7 @@ export function createAwsEcsFargateResources(
       tags: config.tags,
     });
 
-  // 2. CloudWatch Log Group for Container Logs
-  const logGroup = new CloudwatchLogGroup(scope, `log-group-${config.name}`, {
-    provider,
-    name: `/ecs/${config.name}`,
-    retentionInDays: config.logRetentionInDays ?? 7,
-  });
-
-  // 3. IAM Roles (Execution Role & Task Role)
-  const executionRole = new IamRole(scope, `ecs-exec-role-${config.name}`, {
-    provider,
-    name: `${config.name}-exec-role`,
-    assumeRolePolicy: JSON.stringify({
-      Version: "2012-10-17",
-      Statement: [
-        {
-          Action: "sts:AssumeRole",
-          Effect: "Allow",
-          Principal: { Service: "ecs-tasks.amazonaws.com" },
-        },
-      ],
-    }),
-  });
-
-  // Task Role is required specifically for ECS Exec (different from Execution Role)
-  const taskRole = new IamRole(scope, `ecs-task-role-${config.name}`, {
-    provider,
-    name: `${config.name}-task-role`,
-    assumeRolePolicy: JSON.stringify({
-      Version: "2012-10-17",
-      Statement: [
-        {
-          Action: "sts:AssumeRole",
-          Effect: "Allow",
-          Principal: { Service: "ecs-tasks.amazonaws.com" },
-        },
-      ],
-    }),
-  });
-
-  // Standard execution policy
-  new IamRolePolicyAttachment(scope, `ecs-exec-policy-${config.name}`, {
-    provider,
-    role: executionRole.name,
-    policyArn:
-      "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy",
-  });
-
-  // ECS Exec specific permissions for the Task Role
-  if (config.enableExec) {
-    new IamRolePolicyAttachment(scope, `ecs-exec-ssm-${config.name}`, {
-      provider,
-      role: taskRole.name,
-      // This policy provides permissions for SSMMessages and logs required by ECS Exec
-      policyArn: "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
-    });
-  }
-
-  // 4. Task Definition
+  // 2. Task Definition
   const taskDefinition = new EcsTaskDefinition(
     scope,
     `task-def-${config.name}`,
@@ -149,8 +98,9 @@ export function createAwsEcsFargateResources(
       memory: config.memory,
       networkMode: "awsvpc",
       requiresCompatibilities: ["FARGATE"],
-      executionRoleArn: executionRole.arn,
-      taskRoleArn: taskRole.arn,
+      // Use externally supplied IAM roles
+      executionRoleArn: config.executionRoleArn,
+      taskRoleArn: config.taskRoleArn,
       containerDefinitions: JSON.stringify([
         {
           name: config.containerConfig.name,
@@ -168,7 +118,8 @@ export function createAwsEcsFargateResources(
           logConfiguration: {
             logDriver: "awslogs",
             options: {
-              "awslogs-group": logGroup.name,
+              // Target the externally provided CloudWatch Log Group
+              "awslogs-group": config.cloudwatchLogGroupName,
               "awslogs-region": provider.region,
               "awslogs-stream-prefix": "ecs",
             },
@@ -180,38 +131,8 @@ export function createAwsEcsFargateResources(
     },
   );
 
-  // --- 5. Infrastructure Role & Blue/Green Flag ---
+  // --- 3. Blue/Green Configuration & Flags ---
   const isBlueGreen = config.deploymentStrategy === "BLUE_GREEN";
-
-  const infraRole = new IamRole(scope, `ecs-infra-role-${config.name}`, {
-    provider,
-    name: `${config.name}-infra-role`,
-    assumeRolePolicy: JSON.stringify({
-      Version: "2012-10-17",
-      Statement: [
-        {
-          Action: "sts:AssumeRole",
-          Effect: "Allow",
-          Principal: { Service: "ecs.amazonaws.com" },
-        },
-      ],
-    }),
-  });
-
-  new IamRolePolicyAttachment(scope, `ecs-infra-policy-${config.name}`, {
-    provider,
-    role: infraRole.name,
-    policyArn: "arn:aws:iam::aws:policy/AmazonECS_FullAccess",
-  });
-
-  // ECS Native Blue/Green requires ELB permissions on the infrastructure role
-  // to perform target health checks (DescribeTargetHealth) and traffic shifting
-  // (ModifyListener, ModifyRule, RegisterTargets, DeregisterTargets, etc.)
-  new IamRolePolicyAttachment(scope, `ecs-infra-elb-policy-${config.name}`, {
-    provider,
-    role: infraRole.name,
-    policyArn: "arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess",
-  });
 
   // --- Blue/Green pre-flight validation ---
   if (isBlueGreen) {
@@ -231,9 +152,14 @@ export function createAwsEcsFargateResources(
           `Ensure listenerName in ecs.ts matches a named listener in alb.ts.`,
       );
     }
+    if (!config.infraRoleArn) {
+      throw new Error(
+        `Blue/Green deployment for "${config.name}" requires infraRoleArn.`,
+      );
+    }
   }
 
-  // --- 6. ECS Service ---
+  // --- 4. ECS Service ---
   const service = new EcsService(scope, `service-${config.name}`, {
     provider,
     name: config.name,
@@ -282,7 +208,8 @@ export function createAwsEcsFargateResources(
                   alternateTargetGroupArn: config.targetGroupArnGreen!,
                   productionListenerRule: config.productionListenerRuleArn!,
                   testListenerRule: config.testListenerRuleArn,
-                  roleArn: infraRole.arn,
+                  // Use the externally provided infrastructure role
+                  roleArn: config.infraRoleArn!,
                 }
               : undefined,
           },
@@ -294,8 +221,8 @@ export function createAwsEcsFargateResources(
 
   // Dynamic Lifecycle Management
   // Blue/Green: ECS manages TG switching internally — do NOT ignore load_balancer
-  // Rolling:    ignore load_balancer to prevent forced recreate on TG changes
-  // Always:     ignore task_definition to allow external deployments without Terraform drift
+  // Rolling:     ignore load_balancer to prevent forced recreate on TG changes
+  // Always:      ignore task_definition to allow external deployments without Terraform drift
   const ignoreChanges = ["task_definition"];
   if (!isBlueGreen) {
     ignoreChanges.push("load_balancer");
@@ -308,7 +235,7 @@ export function createAwsEcsFargateResources(
     ignore_changes: ignoreChanges,
   });
 
-  // 7. Application Auto Scaling Setup
+  // 5. Application Auto Scaling Setup
   if (config.autoScaling?.enabled) {
     const target = new AppautoscalingTarget(
       scope,
@@ -364,5 +291,5 @@ export function createAwsEcsFargateResources(
     }
   }
 
-  return { cluster, taskDefinition, service, logGroup };
+  return { cluster, taskDefinition, service };
 }
