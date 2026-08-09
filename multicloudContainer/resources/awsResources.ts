@@ -29,14 +29,14 @@ import {
   awsCicdConfigs,
   awsEcsConfigs,
   awsVpcResourcesparams,
+  cloudwatchLogGroupsConfig,
+  cloudwatchMetricAlarmsConfig,
+  cloudwatchMetricFiltersConfig,
   ec2Configs,
   efsConfigs,
-  rdsConfigs,
-  cloudwatchLogGroupsConfig,
-  cloudwatchMetricFiltersConfig,
-  cloudwatchMetricAlarmsConfig,
-  iamRolesConfig,
   iamPoliciesConfig,
+  iamRolesConfig,
+  rdsConfigs,
 } from "../config/aws/awssettings";
 import {
   awsToAzure,
@@ -49,8 +49,8 @@ import {
 } from "../config/commonsettings";
 import { createAwsCertificate } from "../constructs/certificates/awsacm";
 import { createAwsEcsFargateResources } from "../constructs/container/awsecs";
-import { createAwsAlbResources } from "../constructs/loadbarancer/awsalb";
 import { AwsIamResources } from "../constructs/iam/awsiam";
+import { createAwsAlbResources } from "../constructs/loadbarancer/awsalb";
 import { AwsCloudWatchResources } from "../constructs/observability/awscloudwatch";
 import {
   AwsRelationalDatabaseConfig,
@@ -356,6 +356,18 @@ export const createAwsResources = (
       .filter((c) => c.build)
       .forEach((config, index) => {
         const dbOutput = awsRelationalDatabases[index];
+        const logGroupPrefix = dbOutput.rdsCluster
+          ? `/aws/rds/cluster/${config.identifier}`
+          : `/aws/rds/instance/${config.identifier}`;
+
+        (config.enabledCloudwatchLogsExports || []).forEach((exportType) => {
+          const logGroupName = `${logGroupPrefix}/${exportType}`;
+          const logGroup = cloudwatchResources.createdLogGroups[logGroupName];
+          if (logGroup) {
+            dbOutput.rdsCluster?.node.addDependency(logGroup);
+            dbOutput.dbInstance?.node.addDependency(logGroup);
+          }
+        });
         if (dbOutput.rdsCluster) {
           dbOutput.rdsCluster.node.addDependency(awsVpcResources);
           auroraClusters.push({

@@ -22,10 +22,10 @@ import { ComputeForwardingRule } from "@cdktn/provider-google/lib/compute-forwar
 import { ComputeGlobalAddress } from "@cdktn/provider-google/lib/compute-global-address";
 import { ComputeGlobalForwardingRule } from "@cdktn/provider-google/lib/compute-global-forwarding-rule";
 import { ComputeNetwork as GoogleVpc } from "@cdktn/provider-google/lib/compute-network";
-import { DnsManagedZone } from "@cdktn/provider-google/lib/dns-managed-zone";
 import { ComputeRegionUrlMap } from "@cdktn/provider-google/lib/compute-region-url-map";
 import { ComputeSubnetwork } from "@cdktn/provider-google/lib/compute-subnetwork";
 import { ComputeUrlMap } from "@cdktn/provider-google/lib/compute-url-map";
+import { DnsManagedZone } from "@cdktn/provider-google/lib/dns-managed-zone";
 import { Token } from "cdktf";
 import { ITerraformDependable } from "cdktn";
 
@@ -67,6 +67,12 @@ export interface AzureVnetResources {
   subnetAssociations?: SubnetNetworkSecurityGroupAssociation[];
   params?: any;
   vnetTags?: { [key: string]: string };
+  /**
+   * The last subnet in the serial dependency chain.
+   * Used to ensure VNet-mutating resources (VPN Gateway, DNS Resolver subnets)
+   * are created after all regular subnets to avoid Azure's VNet provisioning state conflicts.
+   */
+  lastSubnet?: AzureSubnet;
 }
 
 // Common VPC resources interface
@@ -91,6 +97,14 @@ export interface VpnResources {
   azureGoogleVpnTunnels?: any;
   awsAzureLocalGateways?: any[];
   googleAzureLocalGateways?: any[];
+  /**
+   * Azure-specific VPN resources for dependency management.
+   * Used to ensure DNS Private Resolver is created after VPN Gateway.
+   */
+  azure?: {
+    /** VPN Gateway's GatewaySubnet - used as dependency anchor for DNS Private Resolver */
+    gatewaySubnet?: any;
+  };
 }
 
 // Azure Virtual WAN resources interface
@@ -542,4 +556,12 @@ export interface AzureResourcesOutput {
   }>;
   /** AppGW resources with DNS info (A-record registration happens inside the orchestrator) */
   lbs?: AzureAppGwResourcesWithDns[];
+  /**
+   * Azure Monitor construct created up-front, exposed so that cross-cloud
+   * orchestrators (e.g. vpnResources.ts) can look up the already-created
+   * Log Analytics Workspace ID by name instead of creating their own.
+   */
+  monitorResources?: {
+    logAnalyticsWorkspace?: any; // LogAnalyticsWorkspace
+  };
 }

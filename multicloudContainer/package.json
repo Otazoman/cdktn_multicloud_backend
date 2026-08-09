@@ -20,16 +20,16 @@
     "node": ">=18.0"
   },
   "dependencies": {
-    "@cdktn/provider-aws": "24.5.0",
-    "@cdktn/provider-azurerm": "16.4.0",
-    "@cdktn/provider-google": "19.4.0",
-    "@cdktn/provider-null": "13.1.0",
-    "cdktn": "^0.23.3",
-    "cdktn-cli": "^0.23.3",
-    "constructs": "^10.4.2",
+    "@cdktn/provider-aws": "25.0.0",
+    "@cdktn/provider-azurerm": "18.0.0",
+    "@cdktn/provider-google": "20.0.0",
+    "@cdktn/provider-null": "15.0.0",
+    "cdktn": "^0.24.0",
+    "cdktn-cli": "^0.24.0",
+    "constructs": "^10.5.1",
     "dotenv": "^17.4.2",
     "js-base64": "^3.7.8",
-    "npm": "^11.11.1"
+    "npm": "^12.0.2"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",

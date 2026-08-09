@@ -34,8 +34,8 @@ export const googlePsaConfig = {
     cloudSql: [
       {
         rangeName: "gcp-psa-cloudsql-range",
-        address: "10.100.10.0",
-        prefixLength: 24,
+        address: "10.100.16.0",
+        prefixLength: 20,
       },
     ],
     /**
@@ -47,13 +47,13 @@ export const googlePsaConfig = {
     filestore: [
       {
         rangeName: "gcp-psa-filestore-range",
-        address: "10.100.1.0",
-        prefixLength: 29,
+        address: "10.100.10.0",
+        prefixLength: 24,
       },
       {
         rangeName: "gcp-psa-filestore002-range",
-        address: "10.100.1.8",
-        prefixLength: 29,
+        address: "10.100.11.0",
+        prefixLength: 24,
       },
     ],
     cloudbuild: [

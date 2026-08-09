@@ -308,5 +308,9 @@ export function createAzureVnetResources(
     subnets,
     subnetAssociations,
     params,
+    // lastSubnet is the end of the serial dependency chain.
+    // VNet-mutating resources (VPN Gateway, DNS Resolver subnets)
+    // should depend on this to avoid Azure provisioning state conflicts.
+    lastSubnet: previousSubnet,
   };
 }

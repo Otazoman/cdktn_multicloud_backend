@@ -17,8 +17,8 @@
 import { DnsARecord } from "@cdktn/provider-azurerm/lib/dns-a-record";
 import { DnsZone } from "@cdktn/provider-azurerm/lib/dns-zone";
 import { PrivateDnsZone } from "@cdktn/provider-azurerm/lib/private-dns-zone";
-import { VirtualNetwork } from "@cdktn/provider-azurerm/lib/virtual-network";
 import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
+import { VirtualNetwork } from "@cdktn/provider-azurerm/lib/virtual-network";
 import { TerraformOutput } from "cdktn";
 import { Construct } from "constructs";
 
@@ -26,27 +26,31 @@ import {
   azureAcaConfigs,
   azureAppGwConfigs,
   azureDatabaseConfig,
+  azureDevOpsAcrConfigs,
   azureFilesConfigs,
+  azureMonitorConfig,
   azureVmsConfigparams,
   azureVnetResourcesparams,
-  azureDevOpsAcrConfigs,
 } from "../config/azure/azuresettings";
 import {
   awsToAzure,
   googleToAzure,
+  useCicd,
   useContainers,
   useDbs,
   useDns,
   useStorage,
   useVms,
-  useCicd,
+  useVpn,
 } from "../config/commonsettings";
+import { createAzureDevOpsAcrResources } from "../constructs/cicd/azuredevopsacr";
 import { createAzureContainerAppResources } from "../constructs/container/azureaca";
 import {
   createAzureAcaPrivateDnsResources,
   createSharedPrivateDnsZones,
 } from "../constructs/dns/privatezone/azureprivatezone";
 import { createAzureAppGwResources } from "../constructs/loadbarancer/azureappgw";
+import { AzureMonitorResources } from "../constructs/observability/azuremonitor";
 import { createAzureDatabases } from "../constructs/relationaldatabase/azuredatabase";
 import {
   AzureFilesOutput,
@@ -54,7 +58,6 @@ import {
 } from "../constructs/storage/azurefiles";
 import { createAzureVms } from "../constructs/vmresources/azurevm";
 import { createAzureVnetResources } from "../constructs/vpcnetwork/azurevnet";
-import { createAzureDevOpsAcrResources } from "../constructs/cicd/azuredevopsacr";
 import {
   AzureAppGwResourcesWithDns,
   AzureResourcesOutput,
@@ -94,9 +97,29 @@ export const createAzureResources = (
     subnets: vnetRaw.subnets,
     subnetAssociations: vnetRaw.subnetAssociations,
     params: vnetRaw.params,
+    lastSubnet: vnetRaw.lastSubnet,
   };
 
   output.vpc = azureVnetResources;
+
+  // ──────────────────────────────────────────────
+  // 1.5. Azure Monitor (Log Analytics Workspace)
+  // ──────────────────────────────────────────────
+  // Created up-front so that cross-cloud orchestrators (e.g., vpnResources.ts)
+  // can reuse the Log Analytics Workspace ID instead of creating their own.
+  let monitorResources: { logAnalyticsWorkspace?: any } | undefined;
+  if (useVpn && azureMonitorConfig.isEnabled) {
+    const azureMonitor = new AzureMonitorResources(
+      scope,
+      "AzureMonitorResources",
+      azureProvider,
+      azureMonitorConfig,
+    );
+    monitorResources = {
+      logAnalyticsWorkspace: azureMonitor.logAnalyticsWorkspace,
+    };
+    output.monitorResources = monitorResources;
+  }
 
   // ──────────────────────────────────────────────
   // 2. Public DNS Zone

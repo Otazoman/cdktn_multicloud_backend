@@ -1,13 +1,13 @@
 import { DataAzurermPublicIp } from "@cdktn/provider-azurerm/lib/data-azurerm-public-ip";
-import { LogAnalyticsWorkspace } from "@cdktn/provider-azurerm/lib/log-analytics-workspace";
 import { MonitorDiagnosticSetting } from "@cdktn/provider-azurerm/lib/monitor-diagnostic-setting";
 import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
 import { PublicIp } from "@cdktn/provider-azurerm/lib/public-ip";
 import { Subnet } from "@cdktn/provider-azurerm/lib/subnet";
 import { VirtualNetworkGateway } from "@cdktn/provider-azurerm/lib/virtual-network-gateway";
 import { Construct } from "constructs";
+import { ITerraformDependable } from "cdktn";
 
-interface VpnGatewayParams {
+export interface VpnGatewayParams {
   resourceGroupName: string;
   virtualNetworkName: string;
   VpnGatewayName: string;
@@ -27,18 +27,20 @@ interface VpnGatewayParams {
     googleGWip1?: string;
     googleGWip2?: string;
   };
-  diagnosticSettings: {
-    retentionInDays: number;
-  };
   isSingleTunnel: boolean;
-  /**
-   * Availability Zones for VPN Gateway Public IPs.
-   * Required for AZ SKUs (VpnGw1AZ, VpnGw2AZ, etc.).
-   * Example: ["1","2","3"] for zone-redundant.
-   * Omit or set to undefined for non-AZ SKUs.
-   */
   publicIpZones?: string[];
   tags?: { [key: string]: string };
+  /**
+   * Optional Log Analytics Workspace ID for diagnostic settings.
+   * If provided, diagnostic settings will be attached to the VPN Gateway.
+   */
+  logAnalyticsWorkspaceId?: string;
+  /**
+   * Optional VNet dependencies (e.g. lastSubnet from azurevnet.ts).
+   * Used to ensure GatewaySubnet is created after all regular subnets
+   * to avoid Azure VNet provisioning state conflicts.
+   */
+  vnetDependencies?: ITerraformDependable[];
 }
 
 export function createAzureVpnGateway(
@@ -47,12 +49,15 @@ export function createAzureVpnGateway(
   params: VpnGatewayParams,
 ) {
   // Create Gateway Subnet for the VPN Gateway
+  // If vnetDependencies is provided, wait for those resources to complete
+  // before creating GatewaySubnet to avoid Azure VNet provisioning state conflicts.
   const gatewaySubnet = new Subnet(scope, "azure_gatewaySubnet", {
     provider: provider,
     resourceGroupName: params.resourceGroupName,
     virtualNetworkName: params.virtualNetworkName,
     name: "GatewaySubnet",
     addressPrefixes: [params.gatewaySubnetCidr],
+    dependsOn: params.vnetDependencies,
   });
 
   // Determine if AZ SKU is used → Public IPs require zones + Standard SKU
@@ -123,7 +128,6 @@ export function createAzureVpnGateway(
         },
     ipConfiguration: params.isSingleTunnel
       ? [
-          // Single SingleIp
           {
             name: "vnetGatewayConfig-1",
             publicIpAddressId: publicIps[0].id,
@@ -132,7 +136,6 @@ export function createAzureVpnGateway(
           },
         ]
       : [
-          // HA MultiIP
           {
             name: "vnetGatewayConfig-1",
             publicIpAddressId: publicIps[0].id,
@@ -167,49 +170,32 @@ export function createAzureVpnGateway(
           }),
       );
 
-  // Create Log Analytics Workspace for diagnostics
-  const logAnalyticsWorkspace = new LogAnalyticsWorkspace(
-    scope,
-    "azure_log_analytics_workspace",
-    {
-      provider: provider,
-      name: `${vng.name}-loganalytics`,
-      location: params.location,
-      resourceGroupName: params.resourceGroupName,
-      retentionInDays: params.diagnosticSettings.retentionInDays,
-    },
-  );
+  // Attach Diagnostic Setting if Log Analytics Workspace ID is provided
+  let diagnosticSetting: MonitorDiagnosticSetting | undefined;
+  if (params.logAnalyticsWorkspaceId) {
+    diagnosticSetting = new MonitorDiagnosticSetting(
+      scope,
+      "azure_vng_diagnostic_setting",
+      {
+        provider: provider,
+        name: `${vng.name}-diagnostic-setting`,
+        targetResourceId: vng.id,
+        logAnalyticsWorkspaceId: params.logAnalyticsWorkspaceId,
+        enabledLog: [
+          { category: "GatewayDiagnosticLog" },
+          { category: "TunnelDiagnosticLog" },
+          { category: "RouteDiagnosticLog" },
+          { category: "IKEDiagnosticLog" },
+        ],
+        enabledMetric: [{ category: "AllMetrics" }],
+      },
+    );
+  }
 
-  // Create Diagnostic Setting for the VPN Gateway
-  const diagnosticSetting = new MonitorDiagnosticSetting(
-    scope,
-    "azure_vng_diagnostic_setting",
-    {
-      provider: provider,
-      name: `${vng.name}-diagnostic-setting`,
-      targetResourceId: vng.id,
-      logAnalyticsWorkspaceId: logAnalyticsWorkspace.id,
-      enabledLog: [
-        {
-          category: "GatewayDiagnosticLog",
-        },
-        {
-          category: "TunnelDiagnosticLog",
-        },
-        {
-          category: "RouteDiagnosticLog",
-        },
-        {
-          category: "IKEDiagnosticLog",
-        },
-      ],
-      enabledMetric: [
-        {
-          category: "AllMetrics",
-        },
-      ],
-    },
-  );
-
-  return { publicIpData, virtualNetworkGateway: vng, diagnosticSetting };
+  return {
+    publicIpData,
+    virtualNetworkGateway: vng,
+    diagnosticSetting,
+    gatewaySubnet, // Exposed for downstream resources (e.g., DNS Private Resolver) to depend on
+  };
 }

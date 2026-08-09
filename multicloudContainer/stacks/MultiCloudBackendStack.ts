@@ -45,20 +45,23 @@ export class MultiCloudBackendStack extends TerraformStack {
     // VPN resources span all three clouds and require VPC references.
     // vpnResources.ts is kept as a cross-cloud orchestrator; it receives the
     // VPC outputs from each per-cloud orchestrator.
-    if (useVpn) {
-      createVpnResources(
-        this,
-        awsProvider,
-        googleProvider,
-        azureProvider,
-        aws.vpc,
-        google.vpc,
-        azure.vpc,
-        // Full AWS output, so vpnResources.ts can look up the CloudWatch
-        // Log Groups created up-front for Customer Gateway tunnel logging.
-        aws,
-      );
-    }
+    const vpn = useVpn
+      ? createVpnResources(
+          this,
+          awsProvider,
+          googleProvider,
+          azureProvider,
+          aws.vpc,
+          google.vpc,
+          azure.vpc,
+          // Full AWS output, so vpnResources.ts can look up the CloudWatch
+          // Log Groups created up-front for Customer Gateway tunnel logging.
+          aws,
+          // Full Azure output, so vpnResources.ts can look up the Log Analytics
+          // Workspace ID and lastSubnet for VPN Gateway dependency management.
+          azure,
+        )
+      : undefined;
 
     // ── Cross-cloud: Private DNS Zones ──────────────────────────────────────
     // Private Zone resources (inbound resolvers, forwarding rules, inner zones)
@@ -81,6 +84,8 @@ export class MultiCloudBackendStack extends TerraformStack {
         aws.efsInstances,
         azure.filesInstances,
         azure.acaInstances,
+        // VPN resources for Azure Private DNS Resolver dependency on GatewaySubnet
+        vpn,
       );
     }
   }
