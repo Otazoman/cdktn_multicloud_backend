@@ -11,6 +11,7 @@ import { PrivateDnsZoneVirtualNetworkLink } from "@cdktn/provider-azurerm/lib/pr
 import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
 import { Subnet } from "@cdktn/provider-azurerm/lib/subnet";
 import { VirtualNetwork } from "@cdktn/provider-azurerm/lib/virtual-network";
+import { ITerraformDependable } from "cdktn";
 import { Construct } from "constructs";
 
 export type AzureDatabaseType = "mysql" | "postgresql";
@@ -46,12 +47,17 @@ export interface AzurePrivateResolverParams {
  * Inbound Endpoint: Allows external clouds (AWS/GCP) to resolve Azure Private DNS Zones.
  * Outbound Endpoint: Required for creating forwarding rules later (not created here)
  * to resolve external DNS from within Azure.
+ *
+ * @param dependsOn Optional array of resources to wait for before creating the resolver.
+ *                  Used to ensure VPN Gateway is fully created before DNS Resolver starts,
+ *                  avoiding Azure "VNet is in Updating state" errors.
  */
 export function createAzurePrivateResolver(
   scope: Construct,
   provider: AzurermProvider,
   virtualNetwork: VirtualNetwork,
   params: AzurePrivateResolverParams,
+  dependsOn?: ITerraformDependable[],
 ) {
   // --- 1. Create dedicated subnets for DNS Private Resolver (Inbound and Outbound) ---
   const dnsResolverInboundSubnet = new Subnet(
@@ -73,6 +79,8 @@ export function createAzurePrivateResolver(
           },
         },
       ],
+      // Wait for VPN Gateway (if provided) to avoid VNet updating conflicts
+      dependsOn,
     },
   );
 
@@ -95,6 +103,8 @@ export function createAzurePrivateResolver(
           },
         },
       ],
+      // Wait for VPN Gateway (if provided) to avoid VNet updating conflicts
+      dependsOn,
     },
   );
 

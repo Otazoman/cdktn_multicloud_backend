@@ -1,18 +1,36 @@
+import { LogAnalyticsWorkspace } from "@cdktn/provider-azurerm/lib/log-analytics-workspace";
 import { MonitorActionGroup } from "@cdktn/provider-azurerm/lib/monitor-action-group";
+import { MonitorDiagnosticSetting } from "@cdktn/provider-azurerm/lib/monitor-diagnostic-setting";
 import { MonitorMetricAlert } from "@cdktn/provider-azurerm/lib/monitor-metric-alert";
 import { MonitorScheduledQueryRulesAlert } from "@cdktn/provider-azurerm/lib/monitor-scheduled-query-rules-alert";
 import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
 import { Construct } from "constructs";
 
 /**
- * Configuration for an Azure Monitor Action Group (Notification channel).
+ * Definition for Log Analytics Workspace.
+ */
+export interface AzureLogAnalyticsWorkspaceDefinition {
+  name: string;
+  retentionInDays: number;
+  sku?: string;
+}
+
+/**
+ * Definition for Diagnostic Settings.
+ */
+export interface AzureDiagnosticSettingDefinition {
+  name: string;
+  targetResourceId: string;
+  enabledLogs?: string[];
+  enabledMetrics?: string[];
+}
+
+/**
+ * Definition for an Action Group.
  */
 export interface AzureActionGroupDefinition {
-  /** The unique name of the action group. */
   name: string;
-  /** The short name of the action group (max 12 characters). */
   shortName: string;
-  /** Array of email receivers configuration. Optional. */
   emailReceivers?: Array<{
     name: string;
     emailAddress: string;
@@ -21,107 +39,70 @@ export interface AzureActionGroupDefinition {
 }
 
 /**
- * Configuration for an Azure Monitor Log-based Alert (Scheduled Query Rules).
+ * Definition for a log alert (Scheduled Query Rules).
  */
 export interface AzureLogAlertDefinition {
-  /** The descriptive name for the log alert rule. */
   name: string;
-  /** The resource ID of the Log Analytics Workspace to target for the query execution. */
   dataSourceId: string;
-  /** The Kusto Query Language (KQL) query block to run (e.g., 'AppRequests | where ResultCode == "500"'). */
   query: string;
-  /** Time window for which data is queried in minutes (e.g., 5, 15). */
   timeWindowInMinutes: number;
-  /** How often the alert query should be executed in minutes. */
   frequencyInMinutes: number;
-  /** The threshold value to check against the results. */
   threshold: number;
-  /** The comparison operator (e.g., "GreaterThan", "LessThan", "Equal"). */
   operator: "GreaterThan" | "LessThan" | "Equal";
-  /** List of Action Group names (local name or full Azure Resource ID) to notify when triggered. */
   actionGroups?: string[];
-  /** Optional description for the alert rule. */
   description?: string;
+  enabled?: boolean;
 }
 
 /**
- * Configuration for an Azure Monitor Metric Alert.
+ * Definition for a metric alert.
  */
 export interface AzureMetricAlertDefinition {
-  /** The descriptive name for the metric alert rule. */
   name: string;
-  /** Array of target resource IDs to monitor (e.g., App Service ID, VM ID). */
   scopes: string[];
-  /** The namespace of the metric (e.g., "Microsoft.Web/sites", "Microsoft.Compute/virtualMachines"). */
   metricNamespace: string;
-  /** The name of the metric to monitor (e.g., "CpuPercentage", "Requests"). */
   metricName: string;
-  /** The statistic aggregation type (e.g., "Average", "Minimum", "Maximum", "Total", "Count"). */
   aggregation: "Average" | "Minimum" | "Maximum" | "Total" | "Count";
-  /** The operator used to compare the metric against the threshold. */
   operator:
     | "GreaterThan"
     | "GreaterThanOrEqualTo"
     | "LessThan"
     | "LessThanOrEqualTo";
-  /** The threshold value that triggers the alert. */
   threshold: number;
-  /** The period of time that's used to monitor alert activity (ISO 8601 duration string, e.g., "PT1M", "PT5M"). */
   frequency: string;
-  /** The period of time over which criteria is evaluated (ISO 8601 duration string, e.g., "PT5M", "PT15M"). */
   windowSize: string;
-  /** List of Action Group names (local name or full Azure Resource ID) to notify when triggered. */
   actionGroups?: string[];
-  /** Optional description for the alert rule. */
   description?: string;
 }
 
 /**
- * Configuration interface for the AzureMonitorResources construct.
+ * Configuration for the AzureMonitorResources construct.
  */
 export interface AzureMonitorResourcesConfig {
-  /** The name of the Resource Group where the monitoring components will reside. */
   resourceGroupName: string;
-  /** The Azure region where resources will be provisioned (e.g., "japaneast"). */
   location: string;
-  /** Array of Action Group definitions. Optional. */
+  logAnalyticsWorkspace?: AzureLogAnalyticsWorkspaceDefinition;
+  diagnosticSettings?: AzureDiagnosticSettingDefinition[];
   actionGroups?: AzureActionGroupDefinition[];
-  /** Array of Log Alert (Scheduled Query Rules) definitions. Optional. */
   logAlerts?: AzureLogAlertDefinition[];
-  /** Array of Metric Alert definitions. Optional. */
   metricAlerts?: AzureMetricAlertDefinition[];
-  /** Optional lifecycle hooks or custom operations to execute during creation. */
-  hooks?: {
-    onActionGroupCreated?: (
-      group: MonitorActionGroup,
-      definition: AzureActionGroupDefinition,
-    ) => void;
-    onLogAlertCreated?: (
-      alert: MonitorScheduledQueryRulesAlert,
-      definition: AzureLogAlertDefinition,
-    ) => void;
-    onMetricAlertCreated?: (
-      alert: MonitorMetricAlert,
-      definition: AzureMetricAlertDefinition,
-    ) => void;
-  };
-  /** Optional tags to apply to all created monitor components. */
   tags?: { [key: string]: string };
 }
 
 /**
- * A flexible construct to manage independent Azure Monitor Action Groups,
- * Scheduled Query Rules (Log Alerts), and Metric Alerts with automatic dependency sorting.
+ * Construct for creating Azure Monitor resources and Diagnostics.
  */
 export class AzureMonitorResources extends Construct {
-  /** Map of created MonitorActionGroup instances, accessible by their configured name. */
+  public readonly logAnalyticsWorkspace?: LogAnalyticsWorkspace;
+  public readonly createdDiagnosticSettings: Record<
+    string,
+    MonitorDiagnosticSetting
+  > = {};
   public readonly createdActionGroups: Record<string, MonitorActionGroup> = {};
-  /** Map of created MonitorScheduledQueryRulesAlert instances, accessible by their configured name. */
   public readonly createdLogAlerts: Record<
     string,
     MonitorScheduledQueryRulesAlert
   > = {};
-  /** Map of created MonitorMetricAlert instances, accessible by their configured name. */
   public readonly createdMetricAlerts: Record<string, MonitorMetricAlert> = {};
 
   constructor(
@@ -132,14 +113,62 @@ export class AzureMonitorResources extends Construct {
   ) {
     super(scope, id);
 
-    // 1. Independent Azure Monitor Action Groups Creation
+    // 1. Create Log Analytics Workspace
+    if (config.logAnalyticsWorkspace) {
+      this.logAnalyticsWorkspace = new LogAnalyticsWorkspace(
+        this,
+        "azure_log_analytics_workspace",
+        {
+          provider: provider,
+          name: config.logAnalyticsWorkspace.name,
+          location: config.location,
+          resourceGroupName: config.resourceGroupName,
+          retentionInDays: config.logAnalyticsWorkspace.retentionInDays,
+          sku: config.logAnalyticsWorkspace.sku ?? "PerGB2018",
+          tags: config.tags,
+        },
+      );
+    }
+
+    // 2. Create Diagnostic Settings
+    if (config.diagnosticSettings && this.logAnalyticsWorkspace) {
+      config.diagnosticSettings.forEach((diagDef, index) => {
+        const sanitizedId = diagDef.name.replace(/[^a-zA-Z0-9]/g, "-");
+
+        const enabledLogs = diagDef.enabledLogs ?? [
+          "GatewayDiagnosticLog",
+          "TunnelDiagnosticLog",
+          "RouteDiagnosticLog",
+          "IKEDiagnosticLog",
+        ];
+
+        const enabledMetrics = diagDef.enabledMetrics ?? ["AllMetrics"];
+
+        const diagSetting = new MonitorDiagnosticSetting(
+          this,
+          `diagnostic-setting-${sanitizedId}-${index}`,
+          {
+            provider: provider,
+            name: diagDef.name,
+            targetResourceId: diagDef.targetResourceId,
+            logAnalyticsWorkspaceId: this.logAnalyticsWorkspace!.id,
+            enabledLog: enabledLogs.map((category) => ({ category })),
+            enabledMetric: enabledMetrics.map((category) => ({ category })),
+          },
+        );
+
+        this.createdDiagnosticSettings[diagDef.name] = diagSetting;
+      });
+    }
+
+    // 3. Create Action Groups
     if (config.actionGroups) {
       config.actionGroups.forEach((groupDef, index) => {
         const sanitizedId = groupDef.name.replace(/[^a-zA-Z0-9]/g, "-");
 
         const actionGroup = new MonitorActionGroup(
           this,
-          `azure-action-group-${sanitizedId}-${index}`,
+          `action-group-${sanitizedId}-${index}`,
           {
             provider: provider,
             resourceGroupName: config.resourceGroupName,
@@ -155,19 +184,14 @@ export class AzureMonitorResources extends Construct {
         );
 
         this.createdActionGroups[groupDef.name] = actionGroup;
-
-        if (config.hooks?.onActionGroupCreated) {
-          config.hooks.onActionGroupCreated(actionGroup, groupDef);
-        }
       });
     }
 
-    // 2. Independent Azure Monitor Log-based Alerts (Scheduled Query Rules) Creation
+    // 4. Create log alerts (Scheduled Query Rules)
     if (config.logAlerts) {
       config.logAlerts.forEach((logDef, index) => {
         const sanitizedId = logDef.name.replace(/[^a-zA-Z0-9]/g, "-");
 
-        // Resolve local Action Group resource IDs if referenced by local name
         const resolvedActionGroupIds: string[] = [];
         if (logDef.actionGroups) {
           logDef.actionGroups.forEach((groupName) => {
@@ -178,7 +202,7 @@ export class AzureMonitorResources extends Construct {
 
         const logAlert = new MonitorScheduledQueryRulesAlert(
           this,
-          `azure-log-alert-${sanitizedId}-${index}`,
+          `log-alert-${sanitizedId}-${index}`,
           {
             provider: provider,
             resourceGroupName: config.resourceGroupName,
@@ -188,6 +212,7 @@ export class AzureMonitorResources extends Construct {
             query: logDef.query,
             timeWindow: logDef.timeWindowInMinutes,
             frequency: logDef.frequencyInMinutes,
+            enabled: logDef.enabled ?? true,
             tags: config.tags,
             description: logDef.description,
             action: {
@@ -200,7 +225,6 @@ export class AzureMonitorResources extends Construct {
           },
         );
 
-        // Safe Dependency Graph Injection for local Action Groups
         if (logDef.actionGroups) {
           logDef.actionGroups.forEach((groupName) => {
             const localGroup = this.createdActionGroups[groupName];
@@ -211,19 +235,14 @@ export class AzureMonitorResources extends Construct {
         }
 
         this.createdLogAlerts[logDef.name] = logAlert;
-
-        if (config.hooks?.onLogAlertCreated) {
-          config.hooks.onLogAlertCreated(logAlert, logDef);
-        }
       });
     }
 
-    // 3. Independent Azure Monitor Metric Alerts Creation
+    // 5. Create metric alerts
     if (config.metricAlerts) {
       config.metricAlerts.forEach((metricDef, index) => {
         const sanitizedId = metricDef.name.replace(/[^a-zA-Z0-9]/g, "-");
 
-        // Resolve local Action Group resource IDs if referenced by local name
         const resolvedActionGroupIds: string[] = [];
         if (metricDef.actionGroups) {
           metricDef.actionGroups.forEach((groupName) => {
@@ -234,7 +253,7 @@ export class AzureMonitorResources extends Construct {
 
         const metricAlert = new MonitorMetricAlert(
           this,
-          `azure-metric-alert-${sanitizedId}-${index}`,
+          `metric-alert-${sanitizedId}-${index}`,
           {
             provider: provider,
             resourceGroupName: config.resourceGroupName,
@@ -244,7 +263,9 @@ export class AzureMonitorResources extends Construct {
             windowSize: metricDef.windowSize,
             tags: config.tags,
             description: metricDef.description,
-            action: resolvedActionGroupIds.map((id) => ({ actionGroupId: id })),
+            action: resolvedActionGroupIds.map((id) => ({
+              actionGroupId: id,
+            })),
             criteria: [
               {
                 metricNamespace: metricDef.metricNamespace,
@@ -257,7 +278,6 @@ export class AzureMonitorResources extends Construct {
           },
         );
 
-        // Safe Dependency Graph Injection for local Action Groups
         if (metricDef.actionGroups) {
           metricDef.actionGroups.forEach((groupName) => {
             const localGroup = this.createdActionGroups[groupName];
@@ -268,10 +288,6 @@ export class AzureMonitorResources extends Construct {
         }
 
         this.createdMetricAlerts[metricDef.name] = metricAlert;
-
-        if (config.hooks?.onMetricAlertCreated) {
-          config.hooks.onMetricAlertCreated(metricAlert, metricDef);
-        }
       });
     }
   }

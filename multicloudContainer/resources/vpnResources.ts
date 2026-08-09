@@ -38,6 +38,7 @@ import {
 import {
   AwsResourcesOutput,
   AwsVpcResources,
+  AzureResourcesOutput,
   AzureVnetResources,
   GoogleVpcResources,
   TunnelConfig,
@@ -286,6 +287,8 @@ function createAzureVpnGatewayConfig(
   isSingleTunnel: boolean,
   awsToAzure: boolean,
   googleToAzure: boolean,
+  logAnalyticsWorkspaceId?: string,
+  vnetDependencies?: any[],
 ) {
   return {
     resourceGroupName: azureCommonparams.resourceGroup,
@@ -326,6 +329,8 @@ function createAzureVpnGatewayConfig(
     googleToAzure,
     publicIpZones: azureVpnparams.publicIpZones,
     tags: azureVpnparams.vpnGwtags,
+    logAnalyticsWorkspaceId,
+    vnetDependencies,
   };
 }
 
@@ -629,6 +634,9 @@ export function createVpnResources(
   // Full AWS orchestrator output, used to look up already-created
   // CloudWatch Log Group ARNs for Customer Gateway tunnel logging.
   awsResourcesOutput?: AwsResourcesOutput,
+  // Full Azure orchestrator output, used to look up already-created
+  // Log Analytics Workspace ID and lastSubnet for VPN Gateway dependencies.
+  azureResourcesOutput?: AzureResourcesOutput,
 ): VpnResources {
   const resources: VpnResources = {};
   const isSingleTunnel = env === "dev";
@@ -700,7 +708,14 @@ export function createVpnResources(
       // anything.
       shouldCreate: () => (awsToAzure || googleToAzure) && !!azureVnetResources,
       create: () => {
-        resources.azureVng = createAzureVpnGateway(
+        // Extract Log Analytics Workspace ID and lastSubnet from Azure orchestrator output
+        const logAnalyticsWorkspaceId =
+          azureResourcesOutput?.monitorResources?.logAnalyticsWorkspace?.id;
+        const vnetDependencies = azureVnetResources!.lastSubnet
+          ? [azureVnetResources!.lastSubnet]
+          : undefined;
+
+        const azureVpnResult = createAzureVpnGateway(
           scope,
           azureProvider,
           createAzureVpnGatewayConfig(
@@ -708,8 +723,17 @@ export function createVpnResources(
             isSingleTunnel,
             awsToAzure,
             googleToAzure,
+            logAnalyticsWorkspaceId,
+            vnetDependencies,
           ),
         );
+
+        resources.azureVng = azureVpnResult;
+
+        // Store gatewaySubnet for DNS Private Resolver dependency
+        resources.azure = {
+          gatewaySubnet: azureVpnResult.gatewaySubnet,
+        };
       },
     },
   ];

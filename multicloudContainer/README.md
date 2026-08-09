@@ -2,6 +2,11 @@
 
 # Description
 
+## Aurura Note:
+
+- Cloudwatch Logs  
+  For the SQL logs and metrics logs of the Aurora cluster, even after destroying the cluster, the CloudWatch Log Group remains, so you'll have to delete it manually.
+
 ## AzureDatabase Note:
 
 - AzureDatabase for MySQL  
@@ -53,7 +58,8 @@ az provider show --namespace Microsoft.App --query registrationState
 - Keep the CloudFireStoreAPI Serverless VPC Access API enabled.
 - You cannot run Cloud Run without enabling the Cloud Run Admin API.
 - `resourceInUseByAnotherResource` error when using `destroy`
-  - Since this error cannot be avoided, the only solution is to wait about 12 hours and then manually delete the VPC.
+  - Since this error cannot be avoided, the only solution is to wait about 12 hours and then manually delete the VPC.  
+    [https://zenn.dev/aishift/articles/9bf0fd504660a4](https://zenn.dev/aishift/articles/9bf0fd504660a4)
 
 ```bash
 PROJECT=Your_Project

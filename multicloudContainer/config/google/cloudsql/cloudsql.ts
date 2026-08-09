@@ -8,7 +8,7 @@ export const cloudSqlConfig = {
     // MySQL Instance
     {
       build: true,
-      name: "cloudsql-mysql-instance-2026-0607-1500",
+      name: "cloudsql-mysql-instance-2026-0809-1400",
       // DNS A record name for google.inner zone (e.g., cloudsql-mysql.google.inner)
       aRecordName: "cloudsql-mysql.google.inner",
       edition: "ENTERPRISE",
@@ -58,7 +58,7 @@ export const cloudSqlConfig = {
     // PostgreSQL Instance
     {
       build: true,
-      name: "cloudsql-postgres-instance-2026-0607-1500",
+      name: "cloudsql-postgres-instance-2026-0809-1400",
       // DNS A record name for google.inner zone (e.g., cloudsql-postgres.google.inner)
       aRecordName: "cloudsql-postgres.google.inner",
       edition: "ENTERPRISE",

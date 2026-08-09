@@ -40,6 +40,7 @@ import {
   AwsVpcResources,
   AzureVnetResources,
   GoogleVpcResources,
+  VpnResources,
 } from "./interfaces";
 
 export interface PrivateZoneResources {
@@ -47,6 +48,23 @@ export interface PrivateZoneResources {
   google?: any;
   azure?: any;
 }
+
+/**
+ * Helper: normalizes a Google inbound IPs value (which may be a plain
+ * array or a Terraform Token-wrapped list) into a boolean indicating
+ * whether it actually contains at least one address.
+ *
+ * IMPORTANT: an empty array ([]) is truthy in JS/TS, so callers must NOT
+ * rely on a plain `if (googleInboundIps)` check - that would incorrectly
+ * treat "Google side not created yet" the same as "Google IPs available",
+ * and go on to create a FORWARD-type Route53 Resolver Rule / Azure
+ * forwarding rule with no target IPs, which the respective cloud provider
+ * rejects at apply time.
+ */
+const hasGoogleInboundIps = (googleInboundIps: any): boolean =>
+  Array.isArray(googleInboundIps)
+    ? googleInboundIps.length > 0
+    : !!googleInboundIps;
 
 /**
  * Helper to get subnet IDs for AWS Route53 Resolver
@@ -96,9 +114,16 @@ const setupAzureResolver = (
   scope: Construct,
   azureProvider: AzurermProvider,
   azureVnetResources: AzureVnetResources,
+  vpnResources?: VpnResources,
 ) => {
   console.log("Setting up Azure Private Resolver");
   const virtualNetwork = azureVnetResources.vnet as any;
+
+  // Build dependency array: wait for VPN Gateway subnet if available
+  const dependsOn = vpnResources?.azure?.gatewaySubnet
+    ? [vpnResources.azure.gatewaySubnet]
+    : undefined;
+
   const resolver = createAzurePrivateResolver(
     scope,
     azureProvider,
@@ -119,6 +144,7 @@ const setupAzureResolver = (
       outboundEndpointName: azurePrivateZoneParams.outboundEndpointName,
       tags: azurePrivateZoneParams.tags,
     },
+    dependsOn,
   );
 
   const ip = resolver.inboundEndpoint?.ipConfigurations?.privateIpAddress;
@@ -214,7 +240,10 @@ const setupAwsResources = (
       // Prepare forwarding rules
       const forwardingRules: ForwardingRule[] = [];
 
-      if (awsToGoogle && useVpn) {
+      // See hasGoogleInboundIps() doc comment: googleInboundIps may be an
+      // empty array when the Google side hasn't been created yet, and an
+      // empty array is truthy, so a length-aware check is required here.
+      if (awsToGoogle && useVpn && hasGoogleInboundIps(googleInboundIps)) {
         const googleIpsList = Token.asList(googleInboundIps);
         const iterator = TerraformIterator.fromList(googleIpsList);
         const googleTargetIps = iterator.dynamic({
@@ -236,7 +265,7 @@ const setupAwsResources = (
           });
       }
 
-      if (awsToAzure && useVpn) {
+      if (awsToAzure && useVpn && azureDnsResolverIps.length > 0) {
         const azureTargetIps = azureDnsResolverIps.map((ip) => ({
           ip,
           port: 53,
@@ -549,7 +578,8 @@ const setupAzureForwardingAndInner = (
 
   // 1. Forwarding Ruleset
   const shouldCreateAwsRule = awsToAzure && awsInboundEndpointIps.length > 0;
-  const shouldCreateGoogleRule = googleToAzure && googleInboundIps;
+  const shouldCreateGoogleRule =
+    googleToAzure && hasGoogleInboundIps(googleInboundIps);
 
   if (shouldCreateAwsRule || shouldCreateGoogleRule) {
     const forwardingRules =
@@ -582,7 +612,8 @@ const setupAzureForwardingAndInner = (
             enabled: rule.enabled,
             targetDnsServers: targetDnsServers,
           };
-        }) || [];
+        })
+        .filter((rule) => rule.targetDnsServers !== undefined) || [];
 
     if (
       forwardingRules.length > 0 &&
@@ -693,6 +724,7 @@ export const createPrivateZoneResources = (
   awsEfsInstances?: Array<{ cnameRecordName: string; dnsFqdn: string }>,
   azureFilesInstances?: Array<{ cnameRecordName: string; fqdn: string }>,
   azureAcaInstances?: Array<{ cnameRecordName: string; fqdn: string }>,
+  vpnResources?: VpnResources,
 ): PrivateZoneResources => {
   const output: PrivateZoneResources = {};
 
@@ -709,6 +741,7 @@ export const createPrivateZoneResources = (
       scope,
       azureProvider,
       azureVnetResources,
+      vpnResources,
     );
     azureResolverTemp = resolver;
     if (ip) azureDnsResolverIps = [ip];
