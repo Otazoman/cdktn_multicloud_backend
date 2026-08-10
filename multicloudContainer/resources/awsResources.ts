@@ -113,6 +113,10 @@ export const createAwsResources = (
 ): AwsResourcesOutput => {
   const output: AwsResourcesOutput = {};
 
+  if (!awsVpcResourcesparams.isEnabled) {
+    return output;
+  }
+
   // ──────────────────────────────────────────────
   // 0. CloudWatch & IAM
   //
@@ -150,10 +154,6 @@ export const createAwsResources = (
   // ──────────────────────────────────────────────
   // 1. VPC
   // ──────────────────────────────────────────────
-  if (!awsVpcResourcesparams.isEnabled) {
-    return output;
-  }
-
   const vpcRaw = createAwsVpcResources(
     scope,
     awsProvider,

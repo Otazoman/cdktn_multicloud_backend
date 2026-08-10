@@ -182,8 +182,7 @@ export function createAzureFilesResources(
         {
           provider,
           name: "files-privatelink-vnet-link",
-          resourceGroupName: config.resourceGroupName,
-          privateDnsZoneName: privateDnsZone.name,
+          privateDnsZoneId: privateDnsZone.id,
           virtualNetworkId: virtualNetworkId,
           registrationEnabled: false,
           dependsOn: [privateDnsZone],

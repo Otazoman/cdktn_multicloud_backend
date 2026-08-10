@@ -668,7 +668,6 @@ const setupAzureForwardingAndInner = (
       azureOutput.azureInnerCnameRecords = createAzureInnerCnameRecords(
         scope,
         azureProvider,
-        azurePrivateZoneParams.resourceGroup,
         azureInnerZone.privateDnsZone,
         cnameRecordsToCreate,
       );
@@ -679,7 +678,6 @@ const setupAzureForwardingAndInner = (
       azureOutput.azureFilesCnameRecords = createAzureFilesInnerCnameRecords(
         scope,
         azureProvider,
-        azurePrivateZoneParams.resourceGroup,
         azureInnerZone.privateDnsZone,
         azureFilesInstances.map((i) => ({
           name: i.cnameRecordName,
@@ -693,7 +691,6 @@ const setupAzureForwardingAndInner = (
       azureOutput.azureAcaCnameRecords = createAzureInnerCnameRecords(
         scope,
         azureProvider,
-        azurePrivateZoneParams.resourceGroup,
         azureInnerZone.privateDnsZone,
         azureAcaInstances.map((i) => ({
           name: i.cnameRecordName,

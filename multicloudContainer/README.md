@@ -205,3 +205,16 @@ You must first attach the following built-in policies and the IAMFullAccess poli
   ]
 }
 ```
+
+## Cloudwatch Note:
+
+Since Aurora's CloudWatch Logs are regenerated during the “destroy” operation, you must delete the following after the “destroy” operation is complete:
+
+```
+RDSOSMetrics
+/aws/rds/cluster/your-cluster-name/audit
+/aws/rds/cluster/your-cluster-name/error
+/aws/rds/cluster/your-cluster-name/slowquery
+/aws/rds/instance/your-instance/audit
+/aws/rds/instance/your-instance/postgresql
+```

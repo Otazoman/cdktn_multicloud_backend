@@ -291,8 +291,7 @@ export function createSharedPrivateDnsZones(
       {
         provider: provider,
         name: `${dbType}-shared-vnet-link`,
-        resourceGroupName: resourceGroupName,
-        privateDnsZoneName: privateDnsZone.name,
+        privateDnsZoneId: privateDnsZone.id,
         virtualNetworkId: virtualNetwork.id,
         registrationEnabled: false,
         dependsOn: [privateDnsZone, virtualNetwork],
@@ -328,8 +327,7 @@ export function createAzureInnerPrivateDnsZone(
     {
       provider: provider,
       name: "azure-inner-vnet-link",
-      resourceGroupName: resourceGroupName,
-      privateDnsZoneName: privateDnsZone.name,
+      privateDnsZoneId: privateDnsZone.id,
       virtualNetworkId: virtualNetwork.id,
       registrationEnabled: false,
       dependsOn: [privateDnsZone, virtualNetwork],
@@ -347,7 +345,6 @@ export function createAzureInnerPrivateDnsZone(
 export function createAzureFilesInnerCnameRecords(
   scope: Construct,
   provider: AzurermProvider,
-  resourceGroupName: string,
   privateDnsZone: PrivateDnsZone,
   records: Array<{
     name: string; // short name, e.g. "files-shared"
@@ -362,8 +359,7 @@ export function createAzureFilesInnerCnameRecords(
       {
         provider: provider,
         name: record.name,
-        resourceGroupName: resourceGroupName,
-        zoneName: privateDnsZone.name,
+        privateDnsZoneId: privateDnsZone.id,
         record: record.fqdn.endsWith(".") ? record.fqdn : record.fqdn + ".",
         ttl: record.ttl ?? 300,
         dependsOn: [privateDnsZone],
@@ -378,7 +374,6 @@ export function createAzureFilesInnerCnameRecords(
 export function createAzureInnerCnameRecords(
   scope: Construct,
   provider: AzurermProvider,
-  resourceGroupName: string,
   privateDnsZone: any,
   cnameRecords: Array<{
     name: string; // e.g., "mysql-prod"
@@ -392,8 +387,7 @@ export function createAzureInnerCnameRecords(
       {
         provider: provider,
         name: record.name,
-        resourceGroupName: resourceGroupName,
-        zoneName: privateDnsZone.name,
+        privateDnsZoneId: privateDnsZone.id,
         record: record.target,
         ttl: 300,
         dependsOn: [privateDnsZone],
@@ -434,8 +428,7 @@ export function createAzureAcaPrivateDnsResources(
     {
       provider: provider,
       name: "aca-vnet-link",
-      resourceGroupName: params.resourceGroupName,
-      privateDnsZoneName: privateDnsZone.name,
+      privateDnsZoneId: privateDnsZone.id,
       virtualNetworkId: params.virtualNetworkId,
       registrationEnabled: false,
       dependsOn: [privateDnsZone],
@@ -447,8 +440,7 @@ export function createAzureAcaPrivateDnsResources(
     return new PrivateDnsARecord(scope, `aca-a-record-${appName}`, {
       provider: provider,
       name: appName, // The subdomain part, e.g. "backend-api-service"
-      zoneName: privateDnsZone.name,
-      resourceGroupName: params.resourceGroupName,
+      privateDnsZoneId: privateDnsZone.id,
       ttl: 300,
       records: [params.staticIpAddress],
       dependsOn: [privateDnsZone],
@@ -491,8 +483,7 @@ export function createSharedAcrPrivateDnsZone(
     {
       provider: provider,
       name: "acr-shared-vnet-link",
-      resourceGroupName: resourceGroupName,
-      privateDnsZoneName: privateDnsZone.name,
+      privateDnsZoneId: privateDnsZone.id,
       virtualNetworkId: virtualNetwork.id,
       registrationEnabled: false,
       dependsOn: [privateDnsZone, virtualNetwork],
