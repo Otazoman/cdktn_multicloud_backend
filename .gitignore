@@ -1,0 +1,11 @@
+.git
+.terraform
+.terraform.d
+terraform.tfstate
+terraform.tfstate.backup
+.terraform.lock.hcl
+.terraform.tfstate.lock.info
+.env
+ssh_private_key.pem
+outputs.json
+authfiles

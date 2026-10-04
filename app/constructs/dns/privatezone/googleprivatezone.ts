@@ -1,0 +1,345 @@
+import { DataGoogleComputeAddresses } from "@cdktn/provider-google/lib/data-google-compute-addresses";
+import { DnsManagedZone } from "@cdktn/provider-google/lib/dns-managed-zone";
+import { DnsPolicy } from "@cdktn/provider-google/lib/dns-policy";
+import { DnsRecordSet } from "@cdktn/provider-google/lib/dns-record-set";
+import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
+import { Construct } from "constructs";
+import { resourceName } from "../../../utils/naming";
+
+/**
+ * Retrieves Google Cloud DNS Inbound Resolver IP addresses
+ * These are automatically assigned when DNS Policy with inbound forwarding is created
+ */
+export function getGoogleDnsInboundIps(
+  scope: Construct,
+  provider: GoogleProvider,
+  params: {
+    project: string;
+    networkName: string;
+    region?: string;
+    dependsOn?: any[];
+  },
+): DataGoogleComputeAddresses {
+  const filter = `purpose="DNS_RESOLVER"`;
+  const dataSource = new DataGoogleComputeAddresses(
+    scope,
+    "google-dns-resolver-ips",
+    {
+      provider: provider,
+      project: params.project,
+      filter: filter,
+      region: params.region,
+      dependsOn: params.dependsOn,
+    },
+  );
+
+  return dataSource;
+}
+
+export interface GooglePrivateZoneParams {
+  project: string;
+  networkSelfLink: string; // network selfLink or network id to bind private zone
+  zoneNames?: string[]; // e.g. ["privatelink.mysql.database.azure.com"]
+  // Optional: For DNS forwarding to Azure DNS
+  azureDnsResolverIp?: string; // Azure DNS Private Resolver inbound endpoint IP
+
+  // Optional: For DNS forwarding to AWS Route53 Resolver
+  awsInboundEndpointIps?: string[]; // AWS Route53 Resolver inbound endpoint IPs
+
+  // New: Inbound DNS policy configuration
+  createInboundPolicy?: boolean;
+  inboundPolicyName?: string;
+
+  // New: Cloud SQL instances for A record registration
+  cloudSqlInstances?: Array<{
+    name: string;
+    privateIpAddress: string;
+  }>;
+}
+
+export function createGooglePrivateDnsZones(
+  scope: Construct,
+  provider: GoogleProvider,
+  params: GooglePrivateZoneParams,
+  config: {
+    enableForwarding: boolean;
+    forwardingDomains: string[];
+    labels: { [key: string]: string };
+    /** Zone name per domain. Default: <project>-google-forwarding-zone-<domain> */
+    forwardingZoneNames?: Record<string, string>;
+    forwardingZoneDescription?: string;
+    /** Zone name per domain. Default: <project>-google-private-zone-<domain> */
+    privateZoneNames?: Record<string, string>;
+    privateZoneDescription?: string;
+  },
+) {
+  const zones: { [name: string]: DnsManagedZone } = {};
+
+  const names = params.zoneNames || config.forwardingDomains;
+
+  // If DNS resolver IPs are provided, create forwarding zones
+  // Otherwise, create standard private zones
+  if (
+    config.enableForwarding &&
+    (params.azureDnsResolverIp || params.awsInboundEndpointIps?.length)
+  ) {
+    names.forEach((zoneName, idx) => {
+      const zoneSafeName = zoneName.replace(/\./g, "-");
+      let description = config.forwardingZoneDescription;
+      let targetNameServers: Array<{ ipv4Address: string }> = [];
+
+      // Determine target DNS resolver based on domain and available IPs
+      if (zoneName === "aws.inner") {
+        if (params.awsInboundEndpointIps?.length) {
+          // HA VPN case: Forward to AWS Route53 Resolver inbound endpoints
+          description =
+            description ||
+            `Forwarding zone for ${zoneName} to AWS Route53 Resolver`;
+          // Use all AWS inbound endpoint IPs for high availability
+          params.awsInboundEndpointIps.forEach((awsIp) => {
+            // Extract IP from Terraform expression if needed
+            const cleanIp = awsIp.includes("${") ? awsIp : awsIp;
+            targetNameServers.push({ ipv4Address: cleanIp });
+          });
+        } else {
+          // Single VPN case: Use Google's default DNS for VPN routing
+          // Google DNS will resolve through VPN connection using static routes
+          description =
+            description ||
+            `Forwarding zone for ${zoneName} via VPN routing (Single VPN)`;
+          // Use Google's public DNS as target for VPN-routed resolution
+          targetNameServers.push({ ipv4Address: "8.8.8.8" });
+        }
+      } else if (
+        (zoneName.includes("azure") || zoneName === "azure.inner") &&
+        params.azureDnsResolverIp
+      ) {
+        // For Azure domains, forward to Azure DNS Private Resolver
+        description =
+          description ||
+          `Forwarding zone for ${zoneName} to Azure DNS Private Resolver`;
+        targetNameServers.push({ ipv4Address: params.azureDnsResolverIp });
+      } else if (params.azureDnsResolverIp) {
+        // Default fallback to Azure (for backward compatibility)
+        description =
+          description ||
+          `Forwarding zone for ${zoneName} to Azure DNS Private Resolver`;
+        targetNameServers.push({ ipv4Address: params.azureDnsResolverIp });
+      }
+
+      // Only create forwarding zone if we have target name servers
+      if (targetNameServers.length > 0) {
+        const mz = new DnsManagedZone(scope, `gcp-forwarding-zone-${idx}`, {
+          provider: provider,
+          name: resourceName(
+            config.forwardingZoneNames?.[zoneName],
+            "google",
+            "forwarding-zone",
+            zoneSafeName,
+          ),
+          dnsName: zoneName + ".",
+          project: params.project,
+          visibility: "private",
+          description: description,
+          labels: config.labels,
+          privateVisibilityConfig: {
+            networks: [{ networkUrl: params.networkSelfLink }],
+          },
+          forwardingConfig: {
+            targetNameServers: targetNameServers,
+          },
+        });
+        zones[zoneName] = mz;
+      } else {
+        console.warn(
+          `No target DNS resolver found for zone: ${zoneName}, creating private zone instead`,
+        );
+        // Fall back to creating a private zone
+        const mz = new DnsManagedZone(scope, `gcp-private-zone-${idx}`, {
+          provider: provider,
+          name: resourceName(
+            config.privateZoneNames?.[zoneName],
+            "google",
+            "private-zone",
+            zoneSafeName,
+          ),
+          dnsName: zoneName + ".",
+          project: params.project,
+          visibility: "private",
+          description: `Private DNS zone for ${zoneName}`,
+          labels: config.labels,
+          privateVisibilityConfig: {
+            networks: [{ networkUrl: params.networkSelfLink }],
+          },
+        });
+        zones[zoneName] = mz;
+      }
+    });
+  } else {
+    // Fallback: Create standard private zones (original behavior)
+    names.forEach((zoneName, idx) => {
+      const zoneSafeName = zoneName.replace(/\./g, "-");
+      const description =
+        config.privateZoneDescription || `Private DNS zone for ${zoneName}`;
+
+      const mz = new DnsManagedZone(scope, `gcp-private-zone-${idx}`, {
+        provider: provider,
+        name: resourceName(
+          config.privateZoneNames?.[zoneName],
+          "google",
+          "private-zone",
+          zoneSafeName,
+        ),
+        dnsName: zoneName + ".",
+        project: params.project,
+        visibility: "private",
+        description: description,
+        labels: config.labels,
+        privateVisibilityConfig: {
+          networks: [{ networkUrl: params.networkSelfLink }],
+        },
+      });
+      zones[zoneName] = mz;
+    });
+  }
+
+  return { zones };
+}
+
+/**
+ * Creates a google.inner private DNS zone and A records for GCP-internal services
+ * (Cloud SQL, Filestore, etc.) to provide short, easy-to-remember names.
+ *
+ * Renamed from createGoogleCloudSqlARecords to reflect its general-purpose usage.
+ */
+export function createGoogleInnerZoneWithARecords(
+  scope: Construct,
+  provider: GoogleProvider,
+  params: {
+    project: string;
+    networkSelfLink: string;
+    internalZoneName: string;
+    /** Default: <project>-google-inner-zone-<zone> */
+    zoneResourceName?: string;
+    zoneDescription: string;
+    instances: Array<{
+      name: string;
+      privateIpAddress: string;
+    }>;
+    recordIdPrefix?: string; // Construct ID prefix for A records (default: "gcp-inner-a-record")
+    labels?: { [key: string]: string };
+  },
+) {
+  const records: DnsRecordSet[] = [];
+
+  if (!params.instances || params.instances.length === 0) {
+    return { internalZone: null, records };
+  }
+
+  const recordIdPrefix = params.recordIdPrefix ?? "gcp-inner-a-record";
+
+  // Create a private DNS zone for GCP-internal service DNS names (google.inner)
+  const internalZone = new DnsManagedZone(scope, "gcp-inner-zone", {
+    provider: provider,
+    name: resourceName(
+      params.zoneResourceName,
+      "google",
+      "inner-zone",
+      params.internalZoneName.replace(/\./g, "-"),
+    ),
+    dnsName: params.internalZoneName.endsWith(".")
+      ? params.internalZoneName
+      : params.internalZoneName + ".",
+    project: params.project,
+    visibility: "private",
+    description: params.zoneDescription,
+    labels: params.labels,
+    privateVisibilityConfig: {
+      networks: [{ networkUrl: params.networkSelfLink }],
+    },
+  });
+
+  // Create A records for each instance
+  params.instances.forEach((instance, idx) => {
+    const aRecord = new DnsRecordSet(scope, `${recordIdPrefix}-${idx}`, {
+      provider: provider,
+      name: instance.name.endsWith(".") ? instance.name : instance.name + ".",
+      managedZone: internalZone.name,
+      type: "A",
+      ttl: 300,
+      rrdatas: [instance.privateIpAddress],
+    });
+    records.push(aRecord);
+  });
+
+  return { internalZone, records };
+}
+
+/**
+ * Adds A records to an already-created google.inner private DNS zone.
+ * Use this when the zone was created by createGoogleInnerZoneWithARecords
+ * and additional records (e.g. Filestore) need to be registered in the same zone.
+ */
+export function addGoogleInnerZoneARecords(
+  scope: Construct,
+  provider: GoogleProvider,
+  internalZone: DnsManagedZone,
+  instances: Array<{
+    name: string;
+    privateIpAddress: string;
+  }>,
+  recordIdPrefix: string = "gcp-inner-a-record-extra",
+): DnsRecordSet[] {
+  return instances.map((instance, idx) => {
+    return new DnsRecordSet(scope, `${recordIdPrefix}-${idx}`, {
+      provider: provider,
+      name: instance.name.endsWith(".") ? instance.name : instance.name + ".",
+      managedZone: internalZone.name,
+      type: "A",
+      ttl: 300,
+      rrdatas: [instance.privateIpAddress],
+    });
+  });
+}
+
+/**
+ * Creates a Google Cloud DNS Inbound Server Policy to allow external networks
+ * to query Google Cloud private DNS zones.
+ * Returns the policy and related information needed for IP address retrieval
+ */
+export function createGoogleCloudDnsInboundPolicy(
+  scope: Construct,
+  provider: GoogleProvider,
+  params: {
+    project: string;
+    networkSelfLink: string;
+    policyName?: string;
+    labels?: { [key: string]: string };
+  },
+) {
+  const policyName = resourceName(
+    params.policyName,
+    "google",
+    "dns-inbound-policy",
+  );
+
+  const inboundPolicy = new DnsPolicy(scope, "gcp-inbound-dns-policy", {
+    provider: provider,
+    project: params.project,
+    name: policyName,
+    description: "Inbound DNS policy for cross-cloud DNS resolution",
+    networks: [
+      {
+        networkUrl: params.networkSelfLink,
+      },
+    ],
+    enableInboundForwarding: true,
+  });
+
+  // Return policy along with parameters needed for IP retrieval
+  return {
+    policy: inboundPolicy,
+    project: params.project,
+    networkSelfLink: params.networkSelfLink,
+  };
+}

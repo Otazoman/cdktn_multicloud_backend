@@ -1,0 +1,31 @@
+*.d.ts
+*.js
+node_modules
+cdktf.out
+cdktf.log
+*terraform.*.tfstate*
+.gen
+.terraform
+tsconfig.tsbuildinfo
+!jest.config.js
+!setup.js
+# Secrets and environment-specific files (never commit; see README)
+.env
+config/.env
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+sslcerts/**/*
+!sslcerts/**/
+!sslcerts/openssl/openssl.cnf
+pubkey/*.pub
+authfiles/
+
+# Jest snapshots contain synthesized values, including secrets from .env
+__tests__/__snapshots__/
+
+# Terraform artifacts
+*.tfplan
+crash.log
