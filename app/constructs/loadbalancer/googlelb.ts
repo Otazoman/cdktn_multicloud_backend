@@ -1,0 +1,479 @@
+import { ComputeAddress } from "@cdktn/provider-google/lib/compute-address";
+import { ComputeBackendService } from "@cdktn/provider-google/lib/compute-backend-service";
+import { ComputeForwardingRule } from "@cdktn/provider-google/lib/compute-forwarding-rule";
+import { ComputeGlobalAddress } from "@cdktn/provider-google/lib/compute-global-address";
+import { ComputeGlobalForwardingRule } from "@cdktn/provider-google/lib/compute-global-forwarding-rule";
+import { ComputeHealthCheck } from "@cdktn/provider-google/lib/compute-health-check";
+import { ComputeNetwork as GoogleVpc } from "@cdktn/provider-google/lib/compute-network";
+import { ComputeRegionBackendService } from "@cdktn/provider-google/lib/compute-region-backend-service";
+import { ComputeRegionHealthCheck } from "@cdktn/provider-google/lib/compute-region-health-check";
+import { ComputeRegionNetworkEndpointGroup } from "@cdktn/provider-google/lib/compute-region-network-endpoint-group";
+import { ComputeRegionTargetHttpProxy } from "@cdktn/provider-google/lib/compute-region-target-http-proxy";
+import { ComputeRegionTargetHttpsProxy } from "@cdktn/provider-google/lib/compute-region-target-https-proxy";
+import { ComputeRegionUrlMap } from "@cdktn/provider-google/lib/compute-region-url-map";
+import { ComputeTargetHttpProxy } from "@cdktn/provider-google/lib/compute-target-http-proxy";
+import { ComputeTargetHttpsProxy } from "@cdktn/provider-google/lib/compute-target-https-proxy";
+import { ComputeUrlMap } from "@cdktn/provider-google/lib/compute-url-map";
+import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
+import { Construct } from "constructs";
+import { resourceName } from "../../utils/naming";
+
+/* -------------------- Interfaces -------------------- */
+
+export interface GcpBackendConfig {
+  /**
+   * Construct ID key (Terraform address). Defaults to `name`. To rename
+   * the resource without replacing it in state, set this to the old value.
+   */
+  key?: string;
+  name: string;
+  /** Default: <project>-google-serverless-neg-<name> / -health-check-<name> */
+  names?: { serverlessNeg?: string; healthCheck?: string };
+  protocol: string;
+  loadBalancingScheme: string;
+  timeoutSec?: number;
+  cloudRunServiceName?: string;
+  healthCheck?: {
+    requestPath: string;
+    port: number;
+  };
+}
+
+export interface GcpPathRule {
+  paths: string[];
+  backendName: string;
+}
+
+export interface GcpHostRule {
+  hosts: string[];
+  pathMatcher: string;
+}
+
+export interface GcpPathMatcher {
+  name: string;
+  defaultBackendName: string;
+  pathRules: GcpPathRule[];
+}
+
+export interface GcpLbConfig {
+  /**
+   * Construct ID key (Terraform address). Defaults to `name`. To rename
+   * the resource without replacing it in state, set this to the old value.
+   */
+  key?: string;
+  name: string;
+  /**
+   * Default: <project>-google-lb-ip-<name> / -<http|https>-proxy-<name> /
+   * -lb-forwarding-rule-<name>
+   */
+  names?: { staticIp?: string; proxy?: string; forwardingRule?: string };
+  project: string;
+  loadBalancerType: "GLOBAL" | "REGIONAL";
+  region?: string;
+  backends: GcpBackendConfig[];
+  defaultBackendName: string;
+  hostRules?: GcpHostRule[];
+  pathMatchers?: GcpPathMatcher[];
+  reserveStaticIp: boolean;
+  protocol: "HTTP" | "HTTPS";
+  port: number;
+  sslCertificateNames?: string[];
+  networkTier?: string;
+  loadBalancingScheme?: string;
+  cloudRunResources?: Record<string, any>;
+}
+
+/* -------------------- Factory -------------------- */
+
+export function createGoogleLbResources(
+  scope: Construct,
+  provider: GoogleProvider,
+  config: GcpLbConfig,
+  vpc: GoogleVpc,
+  proxySubnet?: any,
+) {
+  if (config.loadBalancerType === "GLOBAL") {
+    return createGlobalLb(scope, provider, config);
+  }
+
+  return createRegionalLb(scope, provider, config, vpc, proxySubnet);
+}
+
+/* =====================================================
+   GLOBAL LB
+===================================================== */
+
+function createGlobalLb(
+  scope: Construct,
+  provider: GoogleProvider,
+  config: GcpLbConfig,
+) {
+  /* ---------- Static IP ---------- */
+
+  const staticIp = config.reserveStaticIp
+    ? new ComputeGlobalAddress(scope, `ip-${config.key ?? config.name}`, {
+        provider,
+        name: resourceName(
+          config.names?.staticIp,
+          "google",
+          "lb-ip",
+          config.name,
+        ),
+      })
+    : undefined;
+
+  /* ---------- Backend ---------- */
+
+  const backendServices: Record<string, ComputeBackendService> = {};
+
+  config.backends.forEach((be) => {
+    let healthCheckIds: string[] = [];
+    let backendData: any[] = [];
+
+    // Support for Cloud Run (Serverless NEG) in Global LB
+    if (be.cloudRunServiceName) {
+      // Serverless NEG itself is a regional resource even for Global LB
+      const sneg = new ComputeRegionNetworkEndpointGroup(
+        scope,
+        `sneg-${be.key ?? be.name}`,
+        {
+          provider,
+          name: resourceName(
+            be.names?.serverlessNeg,
+            "google",
+            "serverless-neg",
+            be.name,
+          ),
+          region: config.region ?? "asia-northeast1", // Serverless NEG requires a specific region (Default to us-central1 or adjust as needed)
+          networkEndpointType: "SERVERLESS",
+          cloudRun: {
+            service: be.cloudRunServiceName,
+          },
+        },
+      );
+      backendData = [
+        {
+          group: sneg.id,
+        },
+      ];
+    } else {
+      // Standard backend with Health Check (Only created if not Cloud Run)
+      const hc = new ComputeHealthCheck(scope, `hc-${be.key ?? be.name}`, {
+        provider,
+        name: resourceName(
+          be.names?.healthCheck,
+          "google",
+          "health-check",
+          be.name,
+        ),
+        httpHealthCheck: {
+          port: be.healthCheck?.port ?? 80,
+          requestPath: be.healthCheck?.requestPath ?? "/",
+        },
+      });
+      healthCheckIds = [hc.id];
+    }
+
+    const backendServiceArgs: any = {
+      provider,
+      name: be.name,
+      protocol: be.protocol,
+      loadBalancingScheme: be.loadBalancingScheme,
+      backend: backendData,
+      timeoutSec: be.timeoutSec ?? 30,
+    };
+
+    // Pass health checks only if the backend is not Cloud Run
+    if (!be.cloudRunServiceName && healthCheckIds.length > 0) {
+      backendServiceArgs.healthChecks = healthCheckIds;
+    }
+
+    backendServices[be.name] = new ComputeBackendService(
+      scope,
+      `be-${be.key ?? be.name}`,
+      backendServiceArgs,
+    );
+  });
+
+  /* ---------- UrlMap ---------- */
+
+  const urlMap = new ComputeUrlMap(scope, `urlmap-${config.key ?? config.name}`, {
+    provider,
+    name: config.name,
+    defaultService: backendServices[config.defaultBackendName].id,
+    hostRule: config.hostRules?.map((h) => ({
+      hosts: h.hosts,
+      pathMatcher: h.pathMatcher,
+    })),
+    pathMatcher: config.pathMatchers?.map((pm) => ({
+      name: pm.name,
+      defaultService: backendServices[pm.defaultBackendName].id,
+      pathRule: pm.pathRules.map((r) => ({
+        paths: r.paths,
+        service: backendServices[r.backendName].id,
+      })),
+    })),
+  });
+
+  /* ---------- Proxy + Forwarding ---------- */
+
+  let forwardingRule;
+
+  if (config.protocol === "HTTPS") {
+    const proxy = new ComputeTargetHttpsProxy(scope, `proxy-${config.key ?? config.name}`, {
+      provider,
+      name: resourceName(
+        config.names?.proxy,
+        "google",
+        "https-proxy",
+        config.name,
+      ),
+      urlMap: urlMap.id,
+      sslCertificates: config.sslCertificateNames || [],
+    });
+
+    forwardingRule = new ComputeGlobalForwardingRule(
+      scope,
+      `fw-${config.key ?? config.name}`,
+      {
+        provider,
+        name: lbForwardingRuleName(config),
+        target: proxy.id,
+        portRange: config.port.toString(),
+        ipAddress: staticIp?.address,
+        loadBalancingScheme: config.loadBalancingScheme,
+      },
+    );
+  } else {
+    const proxy = new ComputeTargetHttpProxy(scope, `proxy-${config.key ?? config.name}`, {
+      provider,
+      name: resourceName(
+        config.names?.proxy,
+        "google",
+        "http-proxy",
+        config.name,
+      ),
+      urlMap: urlMap.id,
+    });
+
+    forwardingRule = new ComputeGlobalForwardingRule(
+      scope,
+      `fw-${config.key ?? config.name}`,
+      {
+        provider,
+        name: lbForwardingRuleName(config),
+        target: proxy.id,
+        portRange: config.port.toString(),
+        ipAddress: staticIp?.address,
+        loadBalancingScheme: config.loadBalancingScheme,
+      },
+    );
+  }
+
+  return {
+    forwardingRule,
+    backendServices,
+    urlMap,
+    staticIp,
+  };
+}
+
+/* =====================================================
+   REGIONAL LB
+===================================================== */
+
+function createRegionalLb(
+  scope: Construct,
+  provider: GoogleProvider,
+  config: GcpLbConfig,
+  vpc: GoogleVpc,
+  proxySubnet?: any,
+) {
+  if (!config.region) {
+    throw new Error("Regional LB requires region");
+  }
+
+  /* ---------- Static IP ---------- */
+
+  const staticIp = config.reserveStaticIp
+    ? new ComputeAddress(scope, `ip-${config.key ?? config.name}`, {
+        provider,
+        name: resourceName(
+          config.names?.staticIp,
+          "google",
+          "lb-ip",
+          config.name,
+        ),
+        region: config.region,
+      })
+    : undefined;
+
+  /* ---------- Backend ---------- */
+
+  const backendServices: Record<string, ComputeRegionBackendService> = {};
+
+  config.backends.forEach((be) => {
+    let healthCheckIds: string[] = [];
+    let backendData: any[] = [];
+
+    // Check if cloudRunServiceName is defined (replaces isCloudRun flag)
+    if (be.cloudRunServiceName) {
+      const sneg = new ComputeRegionNetworkEndpointGroup(
+        scope,
+        `sneg-${be.key ?? be.name}`,
+        {
+          provider,
+          name: resourceName(
+            be.names?.serverlessNeg,
+            "google",
+            "serverless-neg",
+            be.name,
+          ),
+          region: config.region!,
+          networkEndpointType: "SERVERLESS",
+          cloudRun: {
+            service: be.cloudRunServiceName,
+          },
+        },
+      );
+      backendData = [
+        {
+          group: sneg.id,
+          capacityScaler: 1.0,
+        },
+      ];
+    } else {
+      // Standard backend with Health Check
+      const hc = new ComputeRegionHealthCheck(scope, `hc-${be.key ?? be.name}`, {
+        provider,
+        name: resourceName(
+          be.names?.healthCheck,
+          "google",
+          "health-check",
+          be.name,
+        ),
+        region: config.region!,
+        httpHealthCheck: {
+          port: be.healthCheck?.port,
+          requestPath: be.healthCheck?.requestPath,
+        },
+      });
+      healthCheckIds = [hc.id];
+    }
+
+    const backendServiceArgs: any = {
+      provider,
+      name: be.name,
+      protocol: be.protocol,
+      loadBalancingScheme: be.loadBalancingScheme,
+      backend: backendData,
+      region: config.region!,
+      timeoutSec: be.timeoutSec ?? 30,
+    };
+
+    // healthCheckIds is only set for non-Cloud Run backends, as Cloud Run backends use NEG which doesn't require explicit health checks in the backend service configuration
+    if (!be.cloudRunServiceName && healthCheckIds.length > 0) {
+      backendServiceArgs.healthChecks = healthCheckIds;
+    }
+
+    backendServices[be.name] = new ComputeRegionBackendService(
+      scope,
+      `be-${be.key ?? be.name}`,
+      backendServiceArgs,
+    );
+  });
+
+  /* ---------- UrlMap ---------- */
+
+  const urlMap = new ComputeRegionUrlMap(scope, `urlmap-${config.key ?? config.name}`, {
+    provider,
+    name: config.name,
+    region: config.region,
+    defaultService: backendServices[config.defaultBackendName].id,
+  });
+
+  /* ---------- Proxy + Forwarding ---------- */
+
+  let forwardingRule;
+  // The proxy-only subnet is used only for ordering (it is not attribute-linked
+  // to the forwarding rule). It must not be set as `subnetwork`: proxy-only
+  // subnets cannot host a forwarding rule IP.
+  const fwDependsOn = proxySubnet ? [proxySubnet] : [];
+
+  if (config.protocol === "HTTPS") {
+    const proxy = new ComputeRegionTargetHttpsProxy(
+      scope,
+      `proxy-${config.key ?? config.name}`,
+      {
+        provider,
+        name: resourceName(
+          config.names?.proxy,
+          "google",
+          "https-proxy",
+          config.name,
+        ),
+        urlMap: urlMap.id,
+        sslCertificates: config.sslCertificateNames || [],
+        region: config.region,
+      },
+    );
+
+    forwardingRule = new ComputeForwardingRule(scope, `fw-${config.key ?? config.name}`, {
+      provider,
+      name: lbForwardingRuleName(config),
+      target: proxy.id,
+      portRange: config.port.toString(),
+      ipAddress: staticIp?.address,
+      region: config.region,
+      networkTier: config.networkTier,
+      loadBalancingScheme: config.loadBalancingScheme,
+      network: vpc.id,
+      dependsOn: fwDependsOn,
+    });
+  } else {
+    const proxy = new ComputeRegionTargetHttpProxy(
+      scope,
+      `proxy-${config.key ?? config.name}`,
+      {
+        provider,
+        name: resourceName(
+          config.names?.proxy,
+          "google",
+          "http-proxy",
+          config.name,
+        ),
+        urlMap: urlMap.id,
+        region: config.region,
+      },
+    );
+
+    forwardingRule = new ComputeForwardingRule(scope, `fw-${config.key ?? config.name}`, {
+      provider,
+      name: lbForwardingRuleName(config),
+      target: proxy.id,
+      portRange: config.port.toString(),
+      ipAddress: staticIp?.address,
+      region: config.region,
+      networkTier: config.networkTier,
+      loadBalancingScheme: config.loadBalancingScheme,
+      network: vpc.id,
+      dependsOn: fwDependsOn,
+    });
+  }
+
+  return {
+    forwardingRule,
+    backendServices,
+    urlMap,
+    staticIp,
+  };
+}
+
+function lbForwardingRuleName(config: GcpLbConfig): string {
+  return resourceName(
+    config.names?.forwardingRule,
+    "google",
+    "lb-forwarding-rule",
+    config.name,
+  );
+}

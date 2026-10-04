@@ -1,58 +1,52 @@
 # Multi-Cloud Backend
 
-Sample placement for building a backend in multiple clouds
+Infrastructure as code for a backend that spans **AWS, Google Cloud and Azure**,
+built with [CDK Terrain (cdktn)](https://github.com/open-constructs/cdk-terrain) and TypeScript.
 
-# Description
+- Site-to-site VPN between the clouds (full mesh, or hub-and-spoke through one cloud)
+- Per-cloud networking, VMs, managed databases, file storage, managed containers,
+  load balancers, public/private DNS and CI/CD — each switchable by a flag
+- Development (single tunnel) and production (HA VPN with BGP) modes
 
-Create a VPN connection between AWS, Google and Azure with a backend integration with CDKTF
+## Repository layout
 
-# Operating environment
+| Path | Description |
+|---|---|
+| `app/` | The cdktn application (source of truth). See [app/README.md](app/README.md) |
+| `Dockerfile`, `compose.yaml` | Container with Node.js, cdktn CLI, Terraform and OpenTofu |
+| `.env.sample` | Template for cloud credentials and tool versions |
+| `multicloudContainer/` | Legacy copy of the application, kept as a backup. Do not edit |
 
-Ubuntu 24.04.3 LTS  
-Docker version 28.5.1  
-Docker Compose v2.40.1
+## Quick start
 
-# Usage
+Requirements: Docker and Docker Compose, plus accounts for the clouds you deploy to.
 
-## Preparation of environment variables
+```bash
+git clone https://github.com/Otazoman/cdktn_multicloud_backend.git
+cd cdktn_multicloud_backend
 
-1.Get AWS authentication information  
-2.Get GoogleCloud serviceaccount information  
-3.Get Azure Authentication Information  
-4.Save the .env.sample file as .env after editing 5.Launch docker and run terraform in a container
-
-## Docker startup for CDKTN
-
-```
-git clone https://github.com/Otazoman/cdktf_multicloud_backend.git
-cd cdktn_multicloudbackend
-docker build --build-arg NODE_VERSION=22 --build-arg TERRAFORM_VERSION=1.13.4 -t cdktn-docker .
-docker compose up -d
+cp .env.sample .env            # fill in credentials and tool versions
+docker compose up -d --build
 docker compose exec cdktn-backend bash
-```
 
-## If you want to initialize
-
-```
-cdktf init --template=typescript --local
-npm install @cdktn/provider-aws@latest
-npm install @cdktn/provider-google@latest
-npm install @cdktn/provider-azurerm@latest
-npm install @cdktn/provider-tls@latest
-```
-
-## When you want to run a minute that has already been created
-
-Volume of compose.yaml - ./app:/app in place of ./workdir:/app and replace it with
-
-```
+# inside the container (working directory: /app)
 npm install
-cdktn plan
-cdktn deploy
+cdktn diff                     # review the plan
+cdktn deploy                   # create resources
 ```
 
-If you want to delete a resource
+Before the first deploy, complete the cloud-side preparation (required APIs,
+IAM permissions, certificates and keys) described in
+[app/docs/getting-started.md](app/docs/getting-started.md).
 
-```
-cdktn destroy
-```
+To delete everything, run `cdktn destroy`. Some services need extra steps or a
+second run; see [app/docs/operations.md](app/docs/operations.md).
+
+## Documentation
+
+- [Getting started](app/docs/getting-started.md) — prerequisites, credentials, configuration, first deploy
+- [Operations](app/docs/operations.md) — deploy / destroy procedures and known issues per service
+- [Architecture](app/docs/architecture.md) — layers, flow, design rules
+- [VPN](app/docs/networking/vpn.md) — topologies, BGP / APIPA design
+- [Adding a cloud](app/docs/adding-a-cloud.md) — step-by-step guide
+- [Application overview](app/README.md) — directory structure and development commands
