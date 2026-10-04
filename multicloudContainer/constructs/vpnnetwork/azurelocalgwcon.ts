@@ -17,6 +17,13 @@ interface TunnelConfig {
     asn: number;
     bgpPeeringAddress: string;
   };
+  // Azure APIPA BGP addresses to use for this connection (primary: instance 1,
+  // secondary: instance 2). Required when the VNG has multiple custom APIPA
+  // addresses; otherwise Azure uses the first APIPA address for every connection.
+  customBgpAddresses?: {
+    primary: string;
+    secondary?: string;
+  };
 }
 
 interface VpnGatewayParams {
@@ -109,6 +116,9 @@ function createBatch(
         localNetworkGatewayId: localGateways[index].id,
         sharedKey: tunnel.sharedKey,
         bgpEnabled: !params.isSingleTunnel,
+        ...(!params.isSingleTunnel && tunnel.customBgpAddresses
+          ? { customBgpAddresses: tunnel.customBgpAddresses }
+          : {}),
         tags: params.tags,
       },
     );

@@ -26,7 +26,7 @@ import { ComputeRegionUrlMap } from "@cdktn/provider-google/lib/compute-region-u
 import { ComputeSubnetwork } from "@cdktn/provider-google/lib/compute-subnetwork";
 import { ComputeUrlMap } from "@cdktn/provider-google/lib/compute-url-map";
 import { DnsManagedZone } from "@cdktn/provider-google/lib/dns-managed-zone";
-import { Token } from "cdktf";
+import { Token } from "cdktn";
 import { ITerraformDependable } from "cdktn";
 
 // AWS VPC resources interface

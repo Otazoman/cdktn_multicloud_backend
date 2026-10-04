@@ -65,11 +65,20 @@ import {
  *      `setupAwsToGoogleVpn` / `setupAwsToAzureVpn` / `setupGoogleToAzureVpn`
  *      functions as templates. Reuse the shared helpers below
  *      (getCloudRouter, getForwardingRuleResources, getVpnGatewayIpAddresses,
- *      extractAwsVpnTunnels, setupGoogleVpnTunnels) wherever the new cloud's
- *      SDK shape matches - most of the AWS- and Google-side plumbing is
- *      already generic.
+ *      extractAwsVpnTunnels, setupGoogleVpnTunnels, getCgwLogGroupArn)
+ *      wherever the new cloud's SDK shape matches - most of the AWS- and
+ *      Google-side plumbing is already generic.
  *   3. Register the new function as one entry in the `pairwiseConnectionSteps`
  *      array inside createVpnResources(), with its own enable condition.
+ *
+ * Design rule for cross-cutting data (e.g. a CloudWatch Log Group ARN, a Log
+ * Analytics Workspace ID): pass the *whole* orchestrator output object
+ * (`awsResourcesOutput` / `azureResourcesOutput`) down to the function that
+ * actually needs a field from it, and extract the field there. Don't extract
+ * it at the call site and pass the derived value down - that pattern grows
+ * the parameter list of every step in `createVpnResources` every time a new
+ * piece of cross-cutting data is needed, even though only one function two
+ * levels down actually cares about it.
  *
  * Nothing outside `hubGatewaySteps` / `pairwiseConnectionSteps` should need to
  * change to add a new pair.
@@ -182,6 +191,10 @@ function createAwsVpnRoutes(
 // awsResources.ts (see cloudwatchlogs.ts for the naming convention).
 // Throws if the log group is missing so that misconfiguration is caught
 // early instead of silently disabling tunnel logging.
+//
+// Takes the full orchestrator output rather than a pre-extracted value, so
+// callers only need to pass `awsResourcesOutput` through, not compute this
+// themselves.
 // ---------------------------------------------------------------------------
 
 function getCgwLogGroupArn(
@@ -191,13 +204,11 @@ function getCgwLogGroupArn(
   const logGroupName = `${awsVpcResourcesparams.vpcName}-aws-${destination}-cgw-log-group`;
   const logGroup =
     awsResourcesOutput?.cloudwatchResources?.createdLogGroups[logGroupName];
-
   if (!logGroup) {
     throw new Error(
       `CloudWatch Log Group "${logGroupName}" not found. Make sure it is defined in cloudwatchlogs.ts (cgwLogGroups).`,
     );
   }
-
   return logGroup.arn;
 }
 
@@ -280,6 +291,13 @@ function setupGoogleVpnTunnels(
 
 // ---------------------------------------------------------------------------
 // Azure VPN Gateway config
+//
+// Takes the full Azure orchestrator output (rather than pre-extracted
+// values) and derives everything it needs from it and from
+// `azureVnetResources` internally. This keeps the call site in
+// createVpnResources() from having to know about
+// `monitorResources.logAnalyticsWorkspace.id` or `lastSubnet` - those are
+// this function's concern, not the orchestrator's.
 // ---------------------------------------------------------------------------
 
 function createAzureVpnGatewayConfig(
@@ -287,9 +305,14 @@ function createAzureVpnGatewayConfig(
   isSingleTunnel: boolean,
   awsToAzure: boolean,
   googleToAzure: boolean,
-  logAnalyticsWorkspaceId?: string,
-  vnetDependencies?: any[],
+  azureResourcesOutput: AzureResourcesOutput | undefined,
 ) {
+  const logAnalyticsWorkspaceId =
+    azureResourcesOutput?.monitorResources?.logAnalyticsWorkspace?.id;
+  const vnetDependencies = azureVnetResources.lastSubnet
+    ? [azureVnetResources.lastSubnet]
+    : undefined;
+
   return {
     resourceGroupName: azureCommonparams.resourceGroup,
     virtualNetworkName: azureVnetResources.vnet.name,
@@ -345,7 +368,7 @@ function setupAwsToGoogleVpn(
   resources: VpnResources,
   googleVpcResources: GoogleVpcResources,
   isSingleTunnel: boolean,
-  cgwLogGroupArn: string,
+  awsResourcesOutput: AwsResourcesOutput | undefined,
 ): void {
   const googleVpnGatewayIpAddresses = isSingleTunnel
     ? [resources.googleVpnGateways?.externalIp?.[0]?.address ?? ""]
@@ -364,7 +387,7 @@ function setupAwsToGoogleVpn(
       resources.awsVpnGateway.id,
       googleVpnGatewayIpAddresses,
       isSingleTunnel,
-      cgwLogGroupArn,
+      getCgwLogGroupArn(awsResourcesOutput, DESTINATION.GOOGLE),
       awsVpnparams.customerGatewayTags,
     ),
   );
@@ -436,7 +459,7 @@ function setupAwsToAzureVpn(
   azureVnetResources: AzureVnetResources,
   azureVng: any,
   isSingleTunnel: boolean,
-  cgwLogGroupArn: string,
+  awsResourcesOutput: AwsResourcesOutput | undefined,
 ): void {
   // Create AWS Customer Gateway
   resources.awsAzureCgwVpns = createAwsCustomerGateway(scope, awsProvider, {
@@ -446,7 +469,7 @@ function setupAwsToAzureVpn(
       resources.awsVpnGateway.id,
       azureVng.publicIpData.map((pip: any) => pip.ipAddress),
       isSingleTunnel,
-      cgwLogGroupArn,
+      getCgwLogGroupArn(awsResourcesOutput, DESTINATION.AZURE),
       awsVpnparams.customerGatewayTags,
     ),
     azureVpnProps: {
@@ -480,6 +503,12 @@ function setupAwsToAzureVpn(
             bgpPeeringAddress: (azureAwsVpnparams as any)[
               `azureAwsGwIp${tunnelIndex}ip${n}`
             ],
+          },
+          // Azure APIPA for AWS tunnel n on each VNG instance
+          // (instance 1: awsGwIp1ip{n}, instance 2: awsGwIp2ip{n}).
+          customBgpAddresses: {
+            primary: (azureAwsVpnparams as any)[`awsGwIp1ip${n}`],
+            secondary: (azureAwsVpnparams as any)[`awsGwIp2ip${n}`],
           },
         }));
       }),
@@ -538,31 +567,30 @@ function setupGoogleToAzureVpn(
       peerAsn: azureVpnparams.azureAsn,
       destination: DESTINATION.AZURE,
       vpnParams: googleVpnParams,
-      vpnConnections: azureVng.publicIpData.flatMap((pip: any) =>
-        isSingleTunnel
-          ? [
-              {
-                address: pip.ipAddress,
-                ipAddress: azureVpnGatewayParams.vpnProps.googlePeerIp1,
-                preshared_key: azureGoogleVpnparams.presharedKey,
-                peerAddress: azureVng.publicIpData[0].ipAddress,
-              },
-            ]
-          : [
-              {
-                address: pip.ipAddress,
-                ipAddress: azureVpnGatewayParams.vpnProps.googlePeerIp1,
-                preshared_key: azureGoogleVpnparams.presharedKey,
-                peerAddress: azureVpnGatewayParams.vpnProps.googleGWip1,
-              },
-              {
-                address: pip.ipAddress,
-                ipAddress: azureVpnGatewayParams.vpnProps.googlePeerIp2,
-                preshared_key: azureGoogleVpnparams.presharedKey,
-                peerAddress: azureVpnGatewayParams.vpnProps.googleGWip2,
-              },
-            ],
-      ),
+      // HA: tunnel i <-> Azure VNG instance i (publicIpData[i]).
+      // BGP peer IPs must be on the same Azure instance as the tunnel endpoint
+      // (googleGWip1 on vnetGatewayConfig-1, googleGWip2 on vnetGatewayConfig-2).
+      vpnConnections: isSingleTunnel
+        ? [
+            {
+              address: azureVng.publicIpData[0].ipAddress,
+              ipAddress: azureVpnGatewayParams.vpnProps.googlePeerIp1,
+              preshared_key: azureGoogleVpnparams.presharedKey,
+              peerAddress: azureVng.publicIpData[0].ipAddress,
+            },
+          ]
+        : azureVng.publicIpData.map((pip: any, index: number) => ({
+            address: pip.ipAddress,
+            ipAddress:
+              index === 0
+                ? azureVpnGatewayParams.vpnProps.googlePeerIp1
+                : azureVpnGatewayParams.vpnProps.googlePeerIp2,
+            preshared_key: azureGoogleVpnparams.presharedKey,
+            peerAddress:
+              index === 0
+                ? azureVpnGatewayParams.vpnProps.googleGWip1
+                : azureVpnGatewayParams.vpnProps.googleGWip2,
+          })),
       isSingleTunnel,
       localCidr: googleVpcResourcesparams.vpcCidrblock,
       peerCidr: azureVnetResourcesparams.vnetAddressSpace,
@@ -606,6 +634,12 @@ function setupGoogleToAzureVpn(
                 ? azureGoogleVpnparams.googlePeerIp1
                 : azureGoogleVpnparams.googlePeerIp2,
           },
+          // Azure APIPA for Google on each VNG instance
+          // (instance 1: googleGwIp1, instance 2: googleGwIp2).
+          customBgpAddresses: {
+            primary: azureGoogleVpnparams.googleGwIp1,
+            secondary: azureGoogleVpnparams.googleGwIp2,
+          },
         }),
       ),
       isSingleTunnel,
@@ -631,11 +665,13 @@ export function createVpnResources(
   awsVpcResources?: AwsVpcResources,
   googleVpcResources?: GoogleVpcResources,
   azureVnetResources?: AzureVnetResources,
-  // Full AWS orchestrator output, used to look up already-created
-  // CloudWatch Log Group ARNs for Customer Gateway tunnel logging.
+  // Full AWS orchestrator output. Passed through as-is to whichever function
+  // needs a field from it (currently: CloudWatch Log Group ARNs for
+  // Customer Gateway tunnel logging - see getCgwLogGroupArn).
   awsResourcesOutput?: AwsResourcesOutput,
-  // Full Azure orchestrator output, used to look up already-created
-  // Log Analytics Workspace ID and lastSubnet for VPN Gateway dependencies.
+  // Full Azure orchestrator output. Passed through as-is to whichever
+  // function needs a field from it (currently: Log Analytics Workspace ID
+  // and lastSubnet, both used by createAzureVpnGatewayConfig).
   azureResourcesOutput?: AzureResourcesOutput,
 ): VpnResources {
   const resources: VpnResources = {};
@@ -708,13 +744,6 @@ export function createVpnResources(
       // anything.
       shouldCreate: () => (awsToAzure || googleToAzure) && !!azureVnetResources,
       create: () => {
-        // Extract Log Analytics Workspace ID and lastSubnet from Azure orchestrator output
-        const logAnalyticsWorkspaceId =
-          azureResourcesOutput?.monitorResources?.logAnalyticsWorkspace?.id;
-        const vnetDependencies = azureVnetResources!.lastSubnet
-          ? [azureVnetResources!.lastSubnet]
-          : undefined;
-
         const azureVpnResult = createAzureVpnGateway(
           scope,
           azureProvider,
@@ -723,17 +752,12 @@ export function createVpnResources(
             isSingleTunnel,
             awsToAzure,
             googleToAzure,
-            logAnalyticsWorkspaceId,
-            vnetDependencies,
+            azureResourcesOutput,
           ),
         );
-
         resources.azureVng = azureVpnResult;
-
-        // Store gatewaySubnet for DNS Private Resolver dependency
-        resources.azure = {
-          gatewaySubnet: azureVpnResult.gatewaySubnet,
-        };
+        // Expose the gateway subnet for the DNS Private Resolver dependency.
+        resources.azure = { gatewaySubnet: azureVpnResult.gatewaySubnet };
       },
     },
   ];
@@ -759,16 +783,8 @@ export function createVpnResources(
     run: () => void;
   }> = [
     {
-      shouldRun: () => {
-        const isGoogleToAzureHaEnabled =
-          awsToAzure &&
-          googleToAzure &&
-          !isSingleTunnel &&
-          !!googleVpcResources;
-        return Boolean(
-          isGoogleToAzureHaEnabled || (awsToGoogle && googleVpcResources),
-        );
-      },
+      shouldRun: () =>
+        Boolean(awsToGoogle && awsVpcResources && googleVpcResources),
       run: () =>
         setupAwsToGoogleVpn(
           scope,
@@ -777,7 +793,7 @@ export function createVpnResources(
           resources,
           googleVpcResources!,
           isSingleTunnel,
-          getCgwLogGroupArn(awsResourcesOutput, DESTINATION.GOOGLE),
+          awsResourcesOutput,
         ),
     },
     {
@@ -792,7 +808,7 @@ export function createVpnResources(
           azureVnetResources!,
           resources.azureVng,
           isSingleTunnel,
-          getCgwLogGroupArn(awsResourcesOutput, DESTINATION.AZURE),
+          awsResourcesOutput,
         ),
     },
     {
