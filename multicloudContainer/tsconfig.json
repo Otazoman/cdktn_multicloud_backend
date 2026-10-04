@@ -26,7 +26,8 @@
     "incremental": true,
     "skipLibCheck": true,
     "types": [
-      "node"
+      "node",
+      "jest"
     ],
     "moduleResolution": "nodenext",
     "esModuleInterop": true
