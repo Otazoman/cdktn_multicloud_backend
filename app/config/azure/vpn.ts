@@ -7,6 +7,10 @@ export const azureVpnparams = {
   publicIpNames: ["vpn-gateway-ip-1", "vpn-gateway-ip-2"],
   // VPN gateway IP configurations (sub-resources), one per instance
   ipConfigurationNames: ["vnetGatewayConfig-1", "vnetGatewayConfig-2"],
+  // Gateway logs to the Log Analytics Workspace (azuremonitor.ts) via a
+  // diagnostic setting. They go to the shared AzureDiagnostics table, whose
+  // retention is azureMonitorConfig.tableRetention.AzureDiagnostics.
+  logs: true,
   diagnosticSettingName: "my-azure-vnet-vng-diagnostic-setting",
   // Local network gateways / connections per peer cloud, in tunnel order.
   // Omitted names default to <project>-azure-lng-<peer>-<n> /

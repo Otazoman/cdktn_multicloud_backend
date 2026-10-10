@@ -31,6 +31,11 @@ export interface CloudRunConfig {
   allowUnauthenticated?: boolean;
   minInstances?: number;
   maxInstances?: number;
+  /**
+   * Maximum concurrent requests per instance (default: 80). Cloud Run scales
+   * on CPU utilization and on this concurrency.
+   */
+  maxInstanceRequestConcurrency?: number;
   useLb?: boolean;
   cpuAlwaysAllocated?: boolean;
   vpcSubnetId?: string;
@@ -71,6 +76,7 @@ export function createGoogleCloudRunResources(
         minInstanceCount: config.minInstances ?? 0,
         maxInstanceCount: config.maxInstances ?? 3,
       },
+      maxInstanceRequestConcurrency: config.maxInstanceRequestConcurrency,
       containers: [
         {
           image: config.container.image,

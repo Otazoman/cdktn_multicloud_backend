@@ -28,11 +28,16 @@ export const azureAppGwConfigs: AzureAppGwSettings[] = [
     location: LOCATION,
     resourceGroupName: RESOURCE_GROUP,
     build: true,
+    // false: fixed `capacity` instances. true: autoscale between
+    // minCapacity (0-100) and maxCapacity (2-125); capacity is then ignored.
     useAutoscale: false,
     sku: {
       name: "Standard_v2",
       tier: "Standard_v2",
       capacity: 1,
+      // Used only when useAutoscale is true
+      minCapacity: 1,
+      maxCapacity: 2,
     },
     // DNS configuration
     dnsConfig: {

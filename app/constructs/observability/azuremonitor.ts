@@ -1,8 +1,9 @@
 import { LogAnalyticsWorkspace } from "@cdktn/provider-azurerm/lib/log-analytics-workspace";
+import { LogAnalyticsWorkspaceTable } from "@cdktn/provider-azurerm/lib/log-analytics-workspace-table";
 import { MonitorActionGroup } from "@cdktn/provider-azurerm/lib/monitor-action-group";
 import { MonitorDiagnosticSetting } from "@cdktn/provider-azurerm/lib/monitor-diagnostic-setting";
 import { MonitorMetricAlert } from "@cdktn/provider-azurerm/lib/monitor-metric-alert";
-import { MonitorScheduledQueryRulesAlert } from "@cdktn/provider-azurerm/lib/monitor-scheduled-query-rules-alert";
+import { MonitorScheduledQueryRulesAlertV2 } from "@cdktn/provider-azurerm/lib/monitor-scheduled-query-rules-alert-v2";
 import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
 import { Construct } from "constructs";
 import { addTerraformDependency } from "../../utils/terraformDependency";
@@ -40,16 +41,34 @@ export interface AzureActionGroupDefinition {
 }
 
 /**
- * Definition for a log alert (Scheduled Query Rules).
+ * Definition for a log alert (Scheduled Query Rules, v2 API).
  */
 export interface AzureLogAlertDefinition {
   name: string;
-  dataSourceId: string;
+  /** Resources the query runs against (e.g. a Log Analytics Workspace ID). */
+  scopes: string[];
+  /** KQL query (e.g. 'ContainerAppConsoleLogs | where Log has "ERROR"'). */
   query: string;
-  timeWindowInMinutes: number;
-  frequencyInMinutes: number;
+  /** Severity from 0 (critical) to 4 (verbose). */
+  severity: number;
+  /** How often the query runs, ISO 8601 (e.g. "PT5M"). */
+  evaluationFrequency: string;
+  /** Time range the query covers, ISO 8601 (e.g. "PT5M"). */
+  windowDuration: string;
+  timeAggregationMethod: "Average" | "Count" | "Maximum" | "Minimum" | "Total";
+  operator:
+    | "Equal"
+    | "GreaterThan"
+    | "GreaterThanOrEqual"
+    | "LessThan"
+    | "LessThanOrEqual";
   threshold: number;
-  operator: "GreaterThan" | "LessThan" | "Equal";
+  /** Column to aggregate (required unless timeAggregationMethod is "Count"). */
+  metricMeasureColumn?: string;
+  failingPeriods?: {
+    minimumFailingPeriodsToTriggerAlert: number;
+    numberOfEvaluationPeriods: number;
+  };
   actionGroups?: string[];
   description?: string;
   enabled?: boolean;
@@ -83,6 +102,12 @@ export interface AzureMonitorResourcesConfig {
   resourceGroupName: string;
   location: string;
   logAnalyticsWorkspace?: AzureLogAnalyticsWorkspaceDefinition;
+  /**
+   * Retention in days per table of the workspace (e.g. { AzureDiagnostics: 30 }).
+   * Tables not listed use the workspace retention. Removing an entry resets
+   * the table to the workspace retention (the table itself is not deleted).
+   */
+  tableRetention?: Record<string, number>;
   diagnosticSettings?: AzureDiagnosticSettingDefinition[];
   actionGroups?: AzureActionGroupDefinition[];
   logAlerts?: AzureLogAlertDefinition[];
@@ -102,7 +127,7 @@ export class AzureMonitorResources extends Construct {
   public readonly createdActionGroups: Record<string, MonitorActionGroup> = {};
   public readonly createdLogAlerts: Record<
     string,
-    MonitorScheduledQueryRulesAlert
+    MonitorScheduledQueryRulesAlertV2
   > = {};
   public readonly createdMetricAlerts: Record<string, MonitorMetricAlert> = {};
 
@@ -127,6 +152,17 @@ export class AzureMonitorResources extends Construct {
           retentionInDays: config.logAnalyticsWorkspace.retentionInDays,
           sku: config.logAnalyticsWorkspace.sku ?? "PerGB2018",
           tags: config.tags,
+        },
+      );
+
+      Object.entries(config.tableRetention ?? {}).forEach(
+        ([tableName, retentionInDays]) => {
+          new LogAnalyticsWorkspaceTable(this, `table-retention-${tableName}`, {
+            provider: provider,
+            workspaceId: this.logAnalyticsWorkspace!.id,
+            name: tableName,
+            retentionInDays,
+          });
         },
       );
     }
@@ -188,7 +224,7 @@ export class AzureMonitorResources extends Construct {
       });
     }
 
-    // 4. Create log alerts (Scheduled Query Rules)
+    // 4. Create log alerts (Scheduled Query Rules, v2 API)
     if (config.logAlerts) {
       config.logAlerts.forEach((logDef, index) => {
         const sanitizedId = logDef.name.replace(/[^a-zA-Z0-9]/g, "-");
@@ -201,7 +237,7 @@ export class AzureMonitorResources extends Construct {
           });
         }
 
-        const logAlert = new MonitorScheduledQueryRulesAlert(
+        const logAlert = new MonitorScheduledQueryRulesAlertV2(
           this,
           `log-alert-${sanitizedId}-${index}`,
           {
@@ -209,20 +245,27 @@ export class AzureMonitorResources extends Construct {
             resourceGroupName: config.resourceGroupName,
             location: config.location,
             name: logDef.name,
-            dataSourceId: logDef.dataSourceId,
-            query: logDef.query,
-            timeWindow: logDef.timeWindowInMinutes,
-            frequency: logDef.frequencyInMinutes,
+            scopes: logDef.scopes,
+            severity: logDef.severity,
+            evaluationFrequency: logDef.evaluationFrequency,
+            windowDuration: logDef.windowDuration,
             enabled: logDef.enabled ?? true,
             tags: config.tags,
             description: logDef.description,
-            action: {
-              actionGroup: resolvedActionGroupIds,
-            },
-            trigger: {
-              operator: logDef.operator,
-              threshold: logDef.threshold,
-            },
+            criteria: [
+              {
+                query: logDef.query,
+                timeAggregationMethod: logDef.timeAggregationMethod,
+                metricMeasureColumn: logDef.metricMeasureColumn,
+                operator: logDef.operator,
+                threshold: logDef.threshold,
+                failingPeriods: logDef.failingPeriods,
+              },
+            ],
+            action:
+              resolvedActionGroupIds.length > 0
+                ? { actionGroups: resolvedActionGroupIds }
+                : undefined,
           },
         );
 

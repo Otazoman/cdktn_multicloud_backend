@@ -171,7 +171,8 @@ export function createAwsVpnRoutes(
 // Helper: resolve a CloudWatch Log Group ARN created up-front by
 // clouds/aws/index.ts (see cloudwatchlogs.ts for the naming convention).
 // Throws if the log group is missing so that misconfiguration is caught
-// early instead of silently disabling tunnel logging.
+// early instead of silently disabling tunnel logging. Returns undefined when
+// tunnel logs are disabled (customerGateways.<destination>.logs = false).
 //
 // Takes the full orchestrator output rather than a pre-extracted value, so
 // callers only need to pass `awsResourcesOutput` through, not compute this
@@ -181,7 +182,10 @@ export function createAwsVpnRoutes(
 export function getCgwLogGroupArn(
   awsResourcesOutput: AwsResourcesOutput | undefined,
   destination: string,
-): string {
+): string | undefined {
+  if (awsVpnparams.customerGateways[destination]?.logs === false) {
+    return undefined;
+  }
   const logGroupName = awsVpnparams.customerGateways[destination]?.logGroupName;
   const logGroup =
     awsResourcesOutput?.cloudwatchResources?.createdLogGroups[logGroupName];

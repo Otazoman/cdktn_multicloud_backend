@@ -25,9 +25,10 @@ app.ts
 2. `createCloudResources()` runs each entry of `clouds/registry.ts` and
    collects the outputs into `CloudOutputs` (keyed by cloud id).
 3. Each cloud module creates its foundations in `index.ts` (VPC / VNet; on
-   AWS also CloudWatch and IAM, on Azure also Azure Monitor), then calls one
-   function per feature. Values shared between feature modules are passed in
-   `<Cloud>BuildContext` (`context.ts`).
+   AWS also CloudWatch Log Groups and IAM, on Azure also Azure Monitor), then
+   calls one function per feature. Alerting (`monitoring.ts`) runs last so
+   that alarms can target the resources created before it. Values shared
+   between feature modules are passed in `<Cloud>BuildContext` (`context.ts`).
 4. The stack builds a `CloudContext` (`scope`, `providers`, `outputs`) and
    passes it to the cross-cloud modules:
    - VPN, when `useVpn` is enabled — see [networking/vpn.md](networking/vpn.md)

@@ -1,5 +1,27 @@
 /**
+ * Per-cluster settings, keyed by clusterName (optional).
+ * containerInsights: "enhanced" (recommended by AWS, adds metric charges) /
+ * "enabled" / "disabled". Omitted: the account setting.
+ */
+export const awsEcsClusterSettings: Record<
+  string,
+  { containerInsights?: "enhanced" | "enabled" | "disabled" }
+> = {
+  // "main-cluster": { containerInsights: "enhanced" },
+};
+
+/**
  * AWS ECS Multiple Service Configurations
+ *
+ * autoScaling: target tracking on CPU (cpuThreshold, %), memory
+ * (memoryThreshold, %) and, for ROLLING deployments behind an ALB, requests
+ * per task (requestCountPerTarget, ALBRequestCountPerTarget on
+ * targetGroupName). Omitted metrics are not used.
+ *
+ * Optional log settings per service: logMode ("blocking" / "non-blocking";
+ * omitted: the account setting, non-blocking since 2025-06-25) and
+ * logMaxBufferSize (non-blocking buffer, e.g. "25m"; default 10m). Log
+ * retention is set on the log group in cloudwatchlogs.ts.
  */
 export const awsEcsConfigs = [
   {
@@ -32,7 +54,6 @@ export const awsEcsConfigs = [
     // CloudWatch Log Group used by this service's container logs. Name
     // must match an entry in config/aws/cloudwatchlogs.ts.
     cloudwatchLogGroupName: "/aws/ecs/api-service",
-    logRetentionInDays: 7,
     containerName: "api-container",
     image: "nginx:latest",
     port: 80,
@@ -78,7 +99,6 @@ export const awsEcsConfigs = [
     // CloudWatch Log Group used by this service's container logs. Name
     // must match an entry in config/aws/cloudwatchlogs.ts.
     cloudwatchLogGroupName: "/aws/ecs/worker-service",
-    logRetentionInDays: 14, // Longer retention for background jobs
     containerName: "worker-container",
     image: "postgres:latest",
     port: 5432,

@@ -24,6 +24,8 @@ const allFeaturesOn = {
     containers: true,
     cicd: true,
     dns: true,
+    alerting: true,
+    logArchive: false,
   },
 };
 

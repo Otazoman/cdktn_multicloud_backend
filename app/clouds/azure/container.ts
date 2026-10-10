@@ -2,6 +2,8 @@ import { DnsARecord } from "@cdktn/provider-azurerm/lib/dns-a-record";
 
 import {
   azureAcaConfigs,
+  azureAcaEnvironmentDefaults,
+  azureAcaEnvironmentSettings,
   azureAppGwConfigs,
 } from "../../config/azure/azuresettings";
 import { isFeatureEnabled } from "../../config/features";
@@ -12,13 +14,14 @@ import {
 import { createAzureAppGwResources } from "../../constructs/loadbalancer/azureappgw";
 import { AzureAppGwResourcesWithDns } from "./types";
 import { LoadBalancerDnsInfo } from "../common";
+import { resourceName } from "../../utils/naming";
 import { addTerraformDependency } from "../../utils/terraformDependency";
 import { AzureBuildContext } from "./context";
 import { ContainerAppEnvironment } from "@cdktn/provider-azurerm/lib/container-app-environment";
 
 /** 6-7. Container Apps, Application Gateway and DNS A-records (feature: containers) */
 export function createAzureContainers(ctx: AzureBuildContext): void {
-  const { scope, azureProvider, output, azureVnetResources, publicZones, acrRegistryMap } = ctx;
+  const { scope, azureProvider, output, azureVnetResources, publicZones, acrRegistryMap, containerApps, azureMonitor, logArchive } = ctx;
 
   // ──────────────────────────────────────────────
   // 6. ACA + AppGW  (features.containers)
@@ -44,16 +47,51 @@ export function createAzureContainers(ctx: AzureBuildContext): void {
             ? azureVnetResources.subnets[config.subnetName]
             : undefined;
 
+          const envSettings = {
+            ...azureAcaEnvironmentDefaults,
+            ...azureAcaEnvironmentSettings[config.environmentName],
+          };
+          const workspaceId = azureMonitor?.logAnalyticsWorkspace?.id;
+          if (envSettings.logs && !workspaceId) {
+            throw new Error(
+              `Container Apps environment "${config.environmentName}" logs need the ` +
+                `Log Analytics Workspace: set azureMonitorConfig.isEnabled to true, or logs ` +
+                `to false (azureAcaEnvironmentSettings in config/azure/containerapps.ts).`,
+            );
+          }
+
           const aca = createAzureContainerAppResources(
             scope,
             azureProvider,
-            { ...config, infrastructureSubnetId: subnet?.id },
+            {
+              ...config,
+              infrastructureSubnetId: subnet?.id,
+              environmentLogs:
+                envSettings.logs && workspaceId
+                  ? {
+                      logAnalyticsWorkspaceId: workspaceId,
+                      diagnosticSettingName: resourceName(
+                        envSettings.diagnosticSettingName,
+                        "azure",
+                        "aca-env-diagnostic-setting",
+                        config.environmentName,
+                      ),
+                      archiveStorageAccountId: logArchive?.environments.includes(
+                        config.environmentName,
+                      )
+                        ? logArchive.storageAccount.id
+                        : undefined,
+                    }
+                  : undefined,
+            },
             envMap,
           );
 
           acrRegistryMap.forEach((registry) => {
             addTerraformDependency(aca.app, registry);
           });
+
+          containerApps.set(config.name, aca.app);
 
           if (aca.fqdn) {
             acaFqdnMap.set(config.name, aca.fqdn);

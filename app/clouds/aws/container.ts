@@ -1,10 +1,17 @@
 import { Route53Record } from "@cdktn/provider-aws/lib/route53-record";
 import * as fs from "fs";
 
-import { albConfigs, awsEcsConfigs } from "../../config/aws/awssettings";
+import {
+  albConfigs,
+  awsEcsClusterSettings,
+  awsEcsConfigs,
+} from "../../config/aws/awssettings";
 import { isFeatureEnabled } from "../../config/features";
 import { createAwsCertificate } from "../../constructs/certificates/awsacm";
-import { createAwsEcsFargateResources } from "../../constructs/container/awsecs";
+import {
+  AutoScalingConfig,
+  createAwsEcsFargateResources,
+} from "../../constructs/container/awsecs";
 import { createAwsAlbResources } from "../../constructs/loadbalancer/awsalb";
 import { AwsAlbResourcesWithDns } from "./types";
 import { LoadBalancerDnsInfo } from "../common";
@@ -192,6 +199,30 @@ export function createAwsContainers(ctx: AwsBuildContext): void {
               )
             : undefined;
 
+          // ALBRequestCountPerTarget needs "<ALB ARN suffix>/<TG ARN suffix>".
+          // Blue/green switches traffic between two target groups, so the
+          // metric of one group drops to zero after each deployment.
+          const autoScaling: AutoScalingConfig | undefined = config.autoScaling;
+          let requestCountResourceLabel: string | undefined;
+          if (autoScaling?.enabled && autoScaling.requestCountPerTarget) {
+            if (isBlueGreen) {
+              throw new Error(
+                `ECS service "${config.name}": autoScaling.requestCountPerTarget is only ` +
+                  `supported with the ROLLING deployment strategy.`,
+              );
+            }
+            const albRes = awsAlbs.find(
+              (res) => config.targetGroupName && res.targetGroups[config.targetGroupName],
+            );
+            if (!albRes || !config.targetGroupName) {
+              throw new Error(
+                `ECS service "${config.name}": autoScaling.requestCountPerTarget needs the ` +
+                  `target group "${config.targetGroupName}" of an ALB in config/aws/alb.ts.`,
+              );
+            }
+            requestCountResourceLabel = `${albRes.alb.arnSuffix}/${albRes.targetGroups[config.targetGroupName].arnSuffix}`;
+          }
+
           const logGroupName = config.cloudwatchLogGroupName as string;
           const logGroup = getLogGroup(
             logGroupName,
@@ -227,6 +258,9 @@ export function createAwsContainers(ctx: AwsBuildContext): void {
             infraRoleArn,
             // CloudWatch Log Group resolved from ecs.ts above
             cloudwatchLogGroupName: logGroupName,
+            containerInsights:
+              awsEcsClusterSettings[config.clusterName]?.containerInsights,
+            requestCountResourceLabel,
           });
 
           addTerraformDependency(ecs.service, awsVpcResources.vpc);

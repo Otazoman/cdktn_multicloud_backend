@@ -3,7 +3,7 @@
  *
  * Resource creation order:
  *
- *   0. CloudWatch (Groups/Filters/Alarms) & IAM Roles/Policies   index.ts
+ *   0. CloudWatch Log Groups & IAM Roles/Policies                index.ts
  *   1. VPC / Subnets / SGs / NAT / Route Tables                   index.ts
  *   2. Public DNS Zone          (features.dns)                    dns.ts
  *   3. EFS                      (features.storage)                storage.ts
@@ -12,6 +12,8 @@
  *   6. ACM Certificate + ALB + ECS, 7. DNS A-records
  *                               (features.containers [+ dns])     container.ts
  *   8. ECR + CodeBuild          (features.cicd)                   cicd.ts
+ *   9. Metric Filters / Alarms  (features.alerting)               monitoring.ts
+ *  10. Log archive to S3        (features.logArchive)             logarchive.ts
  *
  * Values shared between the modules are passed as AwsBuildContext
  * (context.ts).
@@ -25,8 +27,6 @@ import { Construct } from "constructs";
 import {
   awsVpcResourcesparams,
   cloudwatchLogGroupsConfig,
-  cloudwatchMetricAlarmsConfig,
-  cloudwatchMetricFiltersConfig,
   iamPoliciesConfig,
   iamRolesConfig,
 } from "../../config/aws/awssettings";
@@ -43,6 +43,8 @@ import { createAwsDatabases } from "./database";
 import { createAwsVms } from "./compute";
 import { createAwsContainers } from "./container";
 import { createAwsCicd } from "./cicd";
+import { createAwsMonitoring } from "./monitoring";
+import { createAwsLogArchiveResources } from "./logarchive";
 
 /**
  * Creates all AWS resources in dependency order: the foundations
@@ -61,7 +63,7 @@ export const createAwsResources = (
   }
 
   // ──────────────────────────────────────────────
-  // 0. CloudWatch & IAM
+  // 0. CloudWatch Log Groups & IAM
   //
   // Created first so that every other AWS resource below can simply
   // reference an already-existing Log Group / IAM Role instead of
@@ -73,8 +75,6 @@ export const createAwsResources = (
     awsProvider,
     {
       logGroups: cloudwatchLogGroupsConfig,
-      metricFilters: cloudwatchMetricFiltersConfig,
-      metricAlarms: cloudwatchMetricAlarmsConfig,
     },
   );
 
@@ -184,6 +184,8 @@ export const createAwsResources = (
   createAwsVms(ctx);
   createAwsContainers(ctx);
   createAwsCicd(ctx);
+  createAwsMonitoring(ctx);
+  createAwsLogArchiveResources(ctx);
 
   return output;
 };

@@ -21,8 +21,10 @@ interface CustomerGatewayParams {
   };
   // ARN of the CloudWatch Log Group created up-front (before this
   // construct runs) so that the whole stack, including logs, can be
-  // destroyed by CDKTN as a single unit.
-  logGroupArn: string;
+  // destroyed by CDKTN as a single unit. Undefined disables tunnel logs.
+  logGroupArn?: string;
+  /** Tunnel log format. Default: "text" */
+  logOutputFormat?: "text" | "json";
   isSingleTunnel: boolean;
   tags?: { [key: string]: string };
 }
@@ -55,6 +57,16 @@ export function createAwsCustomerGateway(
         },
       );
 
+      const tunnelLogOptions = {
+        cloudwatchLogOptions: params.logGroupArn
+          ? {
+              logEnabled: true,
+              logGroupArn: params.logGroupArn,
+              logOutputFormat: params.logOutputFormat ?? "text",
+            }
+          : { logEnabled: false },
+      };
+
       // Common Options
       const commonVpnOptions = {
         provider: provider,
@@ -62,20 +74,8 @@ export function createAwsCustomerGateway(
         customerGatewayId: cgw.id,
         type: params.awsVpnCgwProps.type,
         staticRoutesOnly: params.isSingleTunnel,
-        tunnel1LogOptions: {
-          cloudwatchLogOptions: {
-            logEnabled: true,
-            logGroupArn: params.logGroupArn,
-            logOutputFormat: "text",
-          },
-        },
-        tunnel2LogOptions: {
-          cloudwatchLogOptions: {
-            logEnabled: true,
-            logGroupArn: params.logGroupArn,
-            logOutputFormat: "text",
-          },
-        },
+        tunnel1LogOptions: tunnelLogOptions,
+        tunnel2LogOptions: tunnelLogOptions,
         tags: {
           Name: resourceName(
             params.vpnConnectionNames[index],
