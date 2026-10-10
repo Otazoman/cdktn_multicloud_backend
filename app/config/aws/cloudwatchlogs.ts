@@ -109,16 +109,3 @@ export const cloudwatchLogGroupsConfig = [
     tags: { Component: "Network", ManagedBy: "CDKTN" },
   },
 ];
-
-/**
- * CloudWatch Log Metric Filters. Empty for now - add entries here to
- * extract custom metrics (e.g. error counts) from the log groups above.
- */
-export const cloudwatchMetricFiltersConfig = [];
-
-/**
- * CloudWatch Metric Alarms. Empty for now - add entries here to alarm on
- * metrics produced above (either built-in AWS metrics or custom metric
- * filters defined in cloudwatchMetricFiltersConfig).
- */
-export const cloudwatchMetricAlarmsConfig = [];

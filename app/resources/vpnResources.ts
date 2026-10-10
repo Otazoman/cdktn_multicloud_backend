@@ -93,8 +93,15 @@ function createAzureVpnGatewayConfig(
   isSingleTunnel: boolean,
   azureResourcesOutput: AzureResourcesOutput | undefined,
 ) {
-  const logAnalyticsWorkspaceId =
+  const workspaceId =
     azureResourcesOutput?.monitorResources?.logAnalyticsWorkspace?.id;
+  if (azureVpnparams.logs && !workspaceId) {
+    throw new Error(
+      "Azure VPN gateway logs (azureVpnparams.logs in config/azure/vpn.ts) need the " +
+        "Log Analytics Workspace: set azureMonitorConfig.isEnabled to true, or logs to false.",
+    );
+  }
+  const logAnalyticsWorkspaceId = azureVpnparams.logs ? workspaceId : undefined;
   const vnetDependencies = azureVnetResources.lastSubnet
     ? [azureVnetResources.lastSubnet]
     : undefined;

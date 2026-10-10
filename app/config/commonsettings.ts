@@ -16,7 +16,7 @@ export const useVpn: boolean = true;
 // Direct VPN connection per cloud pair. When two pairs share a cloud
 // (e.g. awsToAzure + googleToAzure), that cloud acts as a hub and routes
 // between the other two via BGP (prod only).
-export const awsToGoogle: boolean = false;
+export const awsToGoogle: boolean = true;
 export const awsToAzure: boolean = true;
 export const googleToAzure: boolean = true;
 
@@ -42,6 +42,10 @@ export interface CloudFeatures {
   cicd: boolean;
   /** Public DNS zones and records */
   dns: boolean;
+  /** Notification targets and alarms / alert policies */
+  alerting: boolean;
+  /** Archive container logs to object storage (S3 / GCS / Azure Storage) */
+  logArchive: boolean;
 }
 
 export interface CloudSettings {
@@ -60,6 +64,8 @@ export const clouds: Record<CloudId, CloudSettings> = {
       containers: false,
       cicd: false,
       dns: false,
+      alerting: false,
+      logArchive: false,
     },
   },
   google: {
@@ -71,6 +77,8 @@ export const clouds: Record<CloudId, CloudSettings> = {
       containers: false,
       cicd: false,
       dns: false,
+      alerting: false,
+      logArchive: false,
     },
   },
   azure: {
@@ -82,6 +90,8 @@ export const clouds: Record<CloudId, CloudSettings> = {
       containers: false,
       cicd: false,
       dns: false,
+      alerting: true,
+      logArchive: false,
     },
   },
 };

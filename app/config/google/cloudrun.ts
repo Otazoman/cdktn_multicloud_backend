@@ -1,5 +1,13 @@
 import { LOCATION, PROJECT_NAME } from "./common";
 
+/**
+ * Cloud Run services.
+ *
+ * Scaling: minInstances / maxInstances, and optionally
+ * maxInstanceRequestConcurrency (max concurrent requests per instance,
+ * default 80). Cloud Run scales automatically on CPU utilization and request
+ * concurrency; the CPU target cannot be configured.
+ */
 export const gcpRunConfigs = [
   {
     name: "web-service-with-lb",
@@ -16,6 +24,9 @@ export const gcpRunConfigs = [
     allowUnauthenticated: true,
     useLb: true,
     subnetworkName: "multicloud-gcp-vpc-app-subnet",
+    // Logs: routed to logBucket (cloudlogging.ts); false only excludes them from _Default
+    logs: true,
+    logBucket: "cloudrun",
   },
   {
     name: "web-service-standalone",
@@ -32,5 +43,8 @@ export const gcpRunConfigs = [
     allowUnauthenticated: true,
     useLb: false,
     subnetworkName: "multicloud-gcp-vpc-app-subnet",
+    // Logs: routed to logBucket (cloudlogging.ts); false only excludes them from _Default
+    logs: true,
+    logBucket: "cloudrun",
   },
 ];

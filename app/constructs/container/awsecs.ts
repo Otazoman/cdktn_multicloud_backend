@@ -22,6 +22,10 @@ export interface AutoScalingConfig {
   cpuPolicyName?: string;
   /** Default: <project>-aws-ecs-mem-scaling-<service name> */
   memoryPolicyName?: string;
+  /** Target ALB requests per task (ALBRequestCountPerTarget). Rolling deployments only */
+  requestCountPerTarget?: number;
+  /** Default: <project>-aws-ecs-req-scaling-<service name> */
+  requestPolicyName?: string;
 }
 
 /**
@@ -77,6 +81,20 @@ export interface EcsConfig {
   infraRoleArn?: string;
   // CloudWatch Log Group Name managed externally for application container logging
   cloudwatchLogGroupName: string;
+  /**
+   * "<load balancer ARN suffix>/<target group ARN suffix>", required by
+   * autoScaling.requestCountPerTarget
+   */
+  requestCountResourceLabel?: string;
+  /** awslogs delivery mode. Default: the account setting (non-blocking since 2025-06-25) */
+  logMode?: "blocking" | "non-blocking";
+  /** Buffer size for non-blocking mode (e.g. "25m"). Default: 10m */
+  logMaxBufferSize?: string;
+  /**
+   * Container Insights of the cluster, applied when the cluster is created
+   * (first service of the cluster). Default: the account setting.
+   */
+  containerInsights?: "enhanced" | "enabled" | "disabled";
 }
 
 export function createAwsEcsFargateResources(
@@ -94,6 +112,9 @@ export function createAwsEcsFargateResources(
     new EcsCluster(scope, clusterId, {
       provider,
       name: config.clusterName,
+      setting: config.containerInsights
+        ? [{ name: "containerInsights", value: config.containerInsights }]
+        : undefined,
       tags: config.tags,
     });
 
@@ -132,6 +153,10 @@ export function createAwsEcsFargateResources(
               "awslogs-group": config.cloudwatchLogGroupName,
               "awslogs-region": provider.region,
               "awslogs-stream-prefix": "ecs",
+              ...(config.logMode ? { mode: config.logMode } : {}),
+              ...(config.logMaxBufferSize
+                ? { "max-buffer-size": config.logMaxBufferSize }
+                : {}),
             },
           },
           environment: config.containerConfig.environment,
@@ -304,6 +329,32 @@ export function createAwsEcsFargateResources(
             predefinedMetricType: "ECSServiceAverageMemoryUtilization",
           },
           targetValue: config.autoScaling.memoryThreshold,
+          scaleInCooldown: config.autoScaling.scaleInCooldown,
+          scaleOutCooldown: config.autoScaling.scaleOutCooldown,
+        },
+      });
+    }
+
+    // Target Tracking Scaling Policy: ALB requests per target
+    if (config.autoScaling.requestCountPerTarget) {
+      new AppautoscalingPolicy(scope, `asg-policy-req-${config.key ?? config.name}`, {
+        provider,
+        name: resourceName(
+          config.autoScaling.requestPolicyName,
+          "aws",
+          "ecs-req-scaling",
+          config.name,
+        ),
+        policyType: "TargetTrackingScaling",
+        resourceId: target.resourceId,
+        scalableDimension: target.scalableDimension,
+        serviceNamespace: target.serviceNamespace,
+        targetTrackingScalingPolicyConfiguration: {
+          predefinedMetricSpecification: {
+            predefinedMetricType: "ALBRequestCountPerTarget",
+            resourceLabel: config.requestCountResourceLabel,
+          },
+          targetValue: config.autoScaling.requestCountPerTarget,
           scaleInCooldown: config.autoScaling.scaleInCooldown,
           scaleOutCooldown: config.autoScaling.scaleOutCooldown,
         },

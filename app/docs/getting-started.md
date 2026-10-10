@@ -235,7 +235,7 @@ Global switches are in `config/commonsettings.ts`:
 | `awsToGoogle`, `awsToAzure`, `googleToAzure` | Create a **direct** VPN connection between the pair. With two of them enabled (e.g. AWS–Azure and Google–Azure), the shared cloud acts as a hub and routes between the other two via BGP (`prod` only) |
 | `hostZones` | Create private DNS zones and cross-cloud DNS forwarding |
 | `clouds.<cloud>.enabled` | Create the cloud's network and everything on it (`<cloud>`: `aws`, `google`, `azure`) |
-| `clouds.<cloud>.features` | Per-cloud features: `vms`, `dbs` (managed databases), `storage` (file storage), `containers` (managed containers and their load balancers), `cicd`, `dns` (public DNS zones and records) |
+| `clouds.<cloud>.features` | Per-cloud features: `vms`, `dbs` (managed databases), `storage` (file storage), `containers` (managed containers and their load balancers), `cicd`, `dns` (public DNS zones and records), `alerting` (notification targets and alarms), `logArchive` (archive container logs to object storage) |
 
 BGP inside addresses (APIPA) of each VPN pair, used in `prod`, are set in
 `config/vpn/addressPlan.ts`; `npx jest __tests__/addressPlan.test.ts` checks

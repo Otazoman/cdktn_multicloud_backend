@@ -9,4 +9,5 @@ export * from "./privatezone";
 export * from "./vpc/vpc";
 export * from "./vpn";
 export * from "./cloudwatchlogs";
+export * from "./monitoring";
 export * from "./iam";

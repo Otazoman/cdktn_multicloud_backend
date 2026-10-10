@@ -6,7 +6,10 @@ export const awsVpnparams = {
   // created per peer gateway IP (single tunnel: 1, HA: 2); names are used in
   // order. Omitted names default to <project>-aws-cgw-<destination>-<n> /
   // <project>-aws-vpn-connection-<destination>-<n>.
-  // logGroupName must match a log group in cloudwatchlogs.ts.
+  // logGroupName must match a log group in cloudwatchlogs.ts (retention is
+  // set there). logs: tunnel activity logs on/off. logOutputFormat: "text" or
+  // "json" - changing it on existing tunnels interrupts each tunnel for
+  // several minutes.
   customerGateways: {
     google: {
       customerGatewayNames: [
@@ -18,6 +21,8 @@ export const awsVpnparams = {
         "my-aws-vpc-aws-google-vpn-connection-2",
       ],
       logGroupName: "my-aws-vpc-aws-google-cgw-log-group",
+      logs: true,
+      logOutputFormat: "text",
     },
     azure: {
       customerGatewayNames: [
@@ -29,6 +34,8 @@ export const awsVpnparams = {
         "my-aws-vpc-aws-azure-vpn-connection-2",
       ],
       logGroupName: "my-aws-vpc-aws-azure-cgw-log-group",
+      logs: true,
+      logOutputFormat: "text",
     },
   } as Record<
     string,
@@ -36,9 +43,10 @@ export const awsVpnparams = {
       customerGatewayNames?: string[];
       vpnConnectionNames?: string[];
       logGroupName: string;
+      logs: boolean;
+      logOutputFormat?: "text" | "json";
     }
   >,
-  logRetentionDays: 14,
   propagateRouteTableNames: [
     "my-aws-vpc-private-routetable",
     "my-aws-vpc-public-routetable",
@@ -59,7 +67,8 @@ export const createCustomerGatewayParams = (
   isSingleTunnel: boolean,
   // ARN of the CloudWatch Log Group created up-front for this Customer
   // Gateway's tunnel logs (see cloudwatchlogs.ts / clouds/aws/index.ts).
-  logGroupArn: string,
+  // Undefined when tunnel logs are disabled (customerGateways.<dest>.logs).
+  logGroupArn: string | undefined,
   tags?: { [key: string]: string },
 ) => ({
   customerGatewayNames:
@@ -75,6 +84,8 @@ export const createCustomerGatewayParams = (
     type: "ipsec.1",
   },
   logGroupArn: logGroupArn,
+  logOutputFormat:
+    awsVpnparams.customerGateways[connectDestination]?.logOutputFormat,
   vpnGatewayId: vpnGatewayId,
   awsVpnGatewayIpAddresses: IpAddresses,
   isSingleTunnel: isSingleTunnel,

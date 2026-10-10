@@ -11,6 +11,11 @@
  *   6. Cloud Run + Load Balancer, 7. DNS A-records
  *                               (features.containers [+ dns])    container.ts
  *   8. Artifact Registry + Cloud Build (features.cicd)           cicd.ts
+ *   9. Log Buckets / Sinks / _Default exclusions
+ *                               (VPN, features.containers)       logging.ts
+ *  10. Notification Channels / Alert Policies
+ *                               (features.alerting)              monitoring.ts
+ *  11. Log archive to Cloud Storage (features.logArchive)        logarchive.ts
  *
  * Subnet Construct references are passed directly so Terraform destroys
  * dependent resources before the subnets (fix for the subnet zombie-deletion
@@ -35,6 +40,9 @@ import { createGoogleDatabases } from "./database";
 import { createGoogleVms } from "./compute";
 import { createGoogleContainers } from "./container";
 import { createGoogleCicd } from "./cicd";
+import { createGoogleLogging } from "./logging";
+import { createGoogleMonitoring } from "./monitoring";
+import { createGoogleLogArchiveResources } from "./logarchive";
 
 export const createGoogleResources = (
   scope: Construct,
@@ -107,6 +115,9 @@ export const createGoogleResources = (
   createGoogleVms(ctx);
   createGoogleContainers(ctx);
   createGoogleCicd(ctx);
+  createGoogleLogging(ctx);
+  createGoogleMonitoring(ctx);
+  createGoogleLogArchiveResources(ctx);
 
   return output;
 };

@@ -55,6 +55,17 @@ export interface GcpAlertPolicyDefinition {
     | "COMPARISON_NE";
   /** The value to compare the time series against. */
   thresholdValue: number;
+  /** How the time series are aligned / reduced. Default: ALIGN_RATE over 60s. */
+  aggregation?: {
+    /** Alignment period (e.g. "60s"). Default: "60s" */
+    alignmentPeriod?: string;
+    /** Per-series aligner (e.g. "ALIGN_MEAN", "ALIGN_RATE"). Default: "ALIGN_RATE" */
+    perSeriesAligner?: string;
+    /** Cross-series reducer (e.g. "REDUCE_MEAN"). Default: none */
+    crossSeriesReducer?: string;
+    /** Labels to group by when reducing (e.g. ["resource.label.service_name"]) */
+    groupByFields?: string[];
+  };
   /** List of notification channel displayNames (local or full resource names) to bind to this policy. */
   notificationChannels?: string[];
   /** Optional documentation block appended to the alert notification text. */
@@ -209,8 +220,13 @@ export class GcpMonitoringResources extends Construct {
                   trigger: { count: 1 },
                   aggregations: [
                     {
-                      alignmentPeriod: "60s",
-                      perSeriesAligner: "ALIGN_RATE",
+                      alignmentPeriod:
+                        policyDef.aggregation?.alignmentPeriod ?? "60s",
+                      perSeriesAligner:
+                        policyDef.aggregation?.perSeriesAligner ?? "ALIGN_RATE",
+                      crossSeriesReducer:
+                        policyDef.aggregation?.crossSeriesReducer,
+                      groupByFields: policyDef.aggregation?.groupByFields,
                     },
                   ],
                 },

@@ -1,5 +1,9 @@
 /* VPN configuration parameters */
 export const googleVpnParams = {
+  // VPN gateway and Cloud Router (BGP) logs: logs routes them to the
+  // logBucket of cloudlogging.ts; false only excludes them from _Default.
+  logs: true,
+  logBucket: "vpn",
   connectDestination: "common",
   vpnGatewayName: "google-vpn-gateway",
   // Single tunnel: gateway IP and forwarding rules
