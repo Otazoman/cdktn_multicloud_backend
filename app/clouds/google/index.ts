@@ -7,6 +7,7 @@
  *   2. Public DNS Zone          (features.dns)                   dns.ts
  *   3. Filestore                (features.storage)               storage.ts
  *   4. Cloud SQL                (features.dbs)                   database.ts
+ *   4.5. Secret Manager         (features.dbs)                   secrets.ts
  *   5. GCE                      (features.vms)                   compute.ts
  *   6. Cloud Run + Load Balancer, 7. DNS A-records
  *                               (features.containers [+ dns])    container.ts
@@ -37,6 +38,7 @@ import { GoogleBuildContext } from "./context";
 import { createGooglePublicDns } from "./dns";
 import { createGoogleStorage } from "./storage";
 import { createGoogleDatabases } from "./database";
+import { createGoogleSecretResources } from "./secrets";
 import { createGoogleVms } from "./compute";
 import { createGoogleContainers } from "./container";
 import { createGoogleCicd } from "./cicd";
@@ -107,11 +109,13 @@ export const createGoogleResources = (
     // Private Service Access dependencies, set by the first of
     // storage / dbs / cicd that creates the PSA connection
     psaDependencies: undefined,
+    cloudRunServices: {},
   };
 
   createGooglePublicDns(ctx);
   createGoogleStorage(ctx);
   createGoogleDatabases(ctx);
+  createGoogleSecretResources(ctx);
   createGoogleVms(ctx);
   createGoogleContainers(ctx);
   createGoogleCicd(ctx);

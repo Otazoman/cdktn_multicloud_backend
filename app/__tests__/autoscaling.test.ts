@@ -15,7 +15,7 @@ const synthAllOn = () =>
     name: "autoscaling",
     overrides: {
       ...FEATURE_SETS.allOn,
-      env: "prod",
+      vpnMode: "haBgp",
       awsToGoogle: true,
       awsToAzure: true,
       googleToAzure: true,

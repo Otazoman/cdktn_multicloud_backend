@@ -8,7 +8,7 @@ import { createAwsVpnGateway } from "../constructs/vpnnetwork/awsvpngw";
 import { createAzureVpnGateway } from "../constructs/vpnnetwork/azurevpngw";
 import { createGoogleVpnGateway } from "../constructs/vpnnetwork/googlevpngw";
 
-import { env } from "../config/commonsettings";
+import { vpnMode } from "../config/commonsettings";
 import { isCloudConnected, isConnected } from "../config/connections";
 import { CloudContext } from "../clouds/types";
 import { resourceName } from "../utils/naming";
@@ -152,7 +152,7 @@ export function createVpnResources(ctx: CloudContext): VpnResources {
   const azureResourcesOutput = ctx.outputs.azure;
 
   const resources: VpnResources = { gateways: {}, connections: {} };
-  const isSingleTunnel = env === "dev";
+  const isSingleTunnel = vpnMode === "singleTunnel";
 
   // ---------------------------------------------------------------------
   // Step 1: create each cloud's "hub" gateway resource, if that cloud

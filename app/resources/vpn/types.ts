@@ -22,7 +22,7 @@ export interface VpnResources {
   /** VPN gateway per cloud (created when the cloud takes part in a pair) */
   gateways: {
     aws?: VpnGateway;
-    /** Single tunnel (Classic VPN) or HA VPN gateway, depending on env */
+    /** Single tunnel (Classic VPN) or HA VPN gateway, depending on vpnMode */
     google?: ReturnType<typeof createGoogleVpnGateway>;
     azure?: ReturnType<typeof createAzureVpnGateway>;
   };

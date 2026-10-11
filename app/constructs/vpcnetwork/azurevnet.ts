@@ -10,7 +10,7 @@ import { SubnetNatGatewayAssociation } from "@cdktn/provider-azurerm/lib/subnet-
 import { SubnetNetworkSecurityGroupAssociation } from "@cdktn/provider-azurerm/lib/subnet-network-security-group-association";
 import { VirtualNetwork } from "@cdktn/provider-azurerm/lib/virtual-network";
 import { Construct } from "constructs";
-import { resourceName } from "../../utils/naming";
+import { resourceName, idPart } from "../../utils/naming";
 
 // --- Interface Definitions ---
 
@@ -20,6 +20,11 @@ interface SubnetDelegation {
 }
 
 interface SubnetConfig {
+  /**
+   * Construct ID key (Terraform address). Defaults to `name`. To rename
+   * the resource without replacing it in state, set this to the old value.
+   */
+  key?: string;
   name: string;
   /** Actual name. Default: <project>-azure-subnet-<name> */
   resourceName?: string;
@@ -151,7 +156,7 @@ export function createAzureVnetResources(
 
     const subnetResource: Subnet = new Subnet(
       scope,
-      `myAzureSubnet-${subnetConfig.name}`,
+      `myAzureSubnet-${subnetConfig.key ?? subnetConfig.name}`,
       {
         provider: provider,
         resourceGroupName: params.resourceGroupName,
@@ -237,9 +242,11 @@ export function createAzureVnetResources(
     for (const subnetKey of nsgConfig.subnetKeys) {
       const subnetResource = subnets[subnetKey];
       if (subnetResource) {
+        // Follows the subnet's construct ID key (subnetKeys are subnet names)
+        const subnetConfig = params.subnets.find((s) => s.name === subnetKey);
         const association = new SubnetNetworkSecurityGroupAssociation(
           scope,
-          `nsgAssoc-${subnetKey}`,
+          `nsgAssoc-${subnetConfig?.key ?? subnetKey}`,
           {
             provider: provider,
             subnetId: subnetResource.id,
@@ -293,19 +300,17 @@ export function createAzureVnetResources(
     //    169.254.169.254 (Azure IMDS) for ALL VMs in the VNet.
     //  - db-*-subnet (delegated): Azure does not support NAT Gateway on delegated subnets.
     // Subnets without a natGatewayEnabled field default to true (associated).
-    let natAssocIndex = 0;
     for (const subnetConfig of params.subnets) {
       if (subnetConfig.natGatewayEnabled === false) {
         continue;
       }
       const subnet = subnets[subnetConfig.name];
       if (!subnet) continue;
-      new SubnetNatGatewayAssociation(scope, `AzureNatAssoc-${natAssocIndex}`, {
+      new SubnetNatGatewayAssociation(scope, `AzureNatAssoc-${idPart(subnetConfig.key ?? subnetConfig.name)}`, {
         provider,
         subnetId: subnet.id,
         natGatewayId: natGateway.id,
       });
-      natAssocIndex++;
     }
   }
 

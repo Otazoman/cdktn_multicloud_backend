@@ -11,3 +11,4 @@ export * from "./vpn";
 export * from "./cicdsettings";
 export * from "./monitoring";
 export * from "./cloudlogging";
+export * from "./secrets";

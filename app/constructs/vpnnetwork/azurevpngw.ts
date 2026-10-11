@@ -74,7 +74,7 @@ export function createAzureVpnGateway(
     : undefined;
 
   // Create Public IPs, the Virtual Network Gateway and Public IP data
-  // sources. Single tunnel (dev) and HA (prod) are built by separate functions.
+  // sources. Single tunnel (vpnMode "singleTunnel") and HA ("haBgp") are built by separate functions.
   const { virtualNetworkGateway: vng, publicIpData } = params.isSingleTunnel
     ? createSingleTunnelVpnGateway(
         scope,
@@ -119,7 +119,7 @@ export function createAzureVpnGateway(
   };
 }
 
-// Single tunnel (dev): one Public IP, active-standby, no BGP
+// Single tunnel ("singleTunnel"): one Public IP, active-standby, no BGP
 function createSingleTunnelVpnGateway(
   scope: Construct,
   provider: AzurermProvider,
@@ -156,7 +156,7 @@ function createSingleTunnelVpnGateway(
   };
 }
 
-// HA (prod): two Public IPs, active-active, BGP with custom APIPA addresses
+// HA ("haBgp"): two Public IPs, active-active, BGP with custom APIPA addresses
 function createHaVpnGateway(
   scope: Construct,
   provider: AzurermProvider,

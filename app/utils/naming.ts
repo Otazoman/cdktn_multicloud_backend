@@ -60,3 +60,13 @@ export function resourceName(
 ): string {
   return name ?? defaultResourceName(cloud, type, key, rule);
 }
+
+/**
+ * Construct ID part built from a name (NAM-05): characters other than
+ * letters, digits, "-" and "_" become "-". Construct IDs are built from
+ * names, not from list positions, so that adding or removing a config entry
+ * does not change the Terraform addresses of the other entries.
+ */
+export function idPart(name: string): string {
+  return name.replace(/[^A-Za-z0-9_-]/g, "-");
+}

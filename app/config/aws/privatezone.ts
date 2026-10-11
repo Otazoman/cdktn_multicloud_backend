@@ -4,11 +4,9 @@ export const awsPrivateZoneParams = {
   resolverSecurityGroupIds: [], // Will be populated at runtime from VPC resources
   resolverSecurityGroupName: "route53-resolver-sg", // Security group name for Route53 Resolver
   forwardingDomains: [
-    // Parent domains for Azure Database for MySQL/PostgreSQL Flexible Server
-    "mysql.database.azure.com",
+    // Parent domain for Azure Database for PostgreSQL Flexible Server
     "postgres.database.azure.com",
     // Private Link domains for Azure Private Endpoints
-    "privatelink.mysql.database.azure.com",
     "privatelink.postgres.database.azure.com",
     // Private Link domain for Azure Files (NFS mount from AWS/GCP)
     "privatelink.file.core.windows.net",
@@ -23,9 +21,7 @@ export const awsPrivateZoneParams = {
   // Route 53 Resolver forwarding rule name per forwarding domain
   // (omitted: <project>-aws-resolver-rule-<domain>)
   resolverRuleNames: {
-    "mysql.database.azure.com": "forward-mysql-database-azure-com",
     "postgres.database.azure.com": "forward-postgres-database-azure-com",
-    "privatelink.mysql.database.azure.com": "forward-privatelink-mysql-database-azure-com",
     "privatelink.postgres.database.azure.com": "forward-privatelink-postgres-database-azure-com",
     "privatelink.file.core.windows.net": "forward-privatelink-file-core-windows-net",
     "azure.inner": "forward-azure-inner",
@@ -35,11 +31,8 @@ export const awsPrivateZoneParams = {
 
   // Optional: Custom comments for private zones (when not forwarding)
   privateZoneComments: {
-    "mysql.database.azure.com": "Private zone for Azure MySQL Flexible Server",
     "postgres.database.azure.com":
       "Private zone for Azure PostgreSQL Flexible Server",
-    "privatelink.mysql.database.azure.com":
-      "Private zone for Azure MySQL Private Link",
     "privatelink.postgres.database.azure.com":
       "Private zone for Azure PostgreSQL Private Link",
   },
@@ -66,19 +59,9 @@ export const awsPrivateZoneParams = {
   // These identifiers match the ones defined in aurorards.ts
   rdsCnameRecords: [
     {
-      shortName: "rds-mysql",
-      dbIdentifier: "rds-mysql-instance", // RDS MySQL identifier from aurorards.ts
-      type: "rds", // rds or aurora
-    },
-    {
       shortName: "rds-postgres",
       dbIdentifier: "rds-postgres-instance", // RDS PostgreSQL identifier from aurorards.ts
-      type: "rds",
-    },
-    {
-      shortName: "aurora-mysql",
-      dbIdentifier: "aurora-mysql-cluster", // Aurora MySQL cluster identifier from aurorards.ts
-      type: "aurora",
+      type: "rds", // rds or aurora
     },
     {
       shortName: "aurora-postgres",

@@ -44,7 +44,7 @@ export const AWS_TUNNEL_INDEXES = [1, 2] as const;
 // Gateway-shape helpers
 //
 // A cloud's VPN gateway resource can look different depending on whether
-// it's a single-tunnel (dev) or HA (prod) setup. These helpers normalize
+// it's a single-tunnel (vpnMode "singleTunnel") or HA ("haBgp") setup. These helpers normalize
 // that difference so the rest of the file doesn't need to branch on it.
 // ---------------------------------------------------------------------------
 
@@ -68,7 +68,7 @@ export function requireGateway<T>(gateway: T | undefined, name: string): T {
   return gateway;
 }
 
-/** Google VPN gateway (single tunnel or HA, depending on env) */
+/** Google VPN gateway (single tunnel or HA, depending on vpnMode) */
 export type GoogleVpnGateway = ReturnType<typeof createGoogleVpnGateway>;
 
 export function getVpnGatewayIpAddresses(

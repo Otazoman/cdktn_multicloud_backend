@@ -14,7 +14,7 @@ import {
 import { createAzureAppGwResources } from "../../constructs/loadbalancer/azureappgw";
 import { AzureAppGwResourcesWithDns } from "./types";
 import { LoadBalancerDnsInfo } from "../common";
-import { resourceName } from "../../utils/naming";
+import { resourceName, idPart } from "../../utils/naming";
 import { addTerraformDependency } from "../../utils/terraformDependency";
 import { AzureBuildContext } from "./context";
 import { ContainerAppEnvironment } from "@cdktn/provider-azurerm/lib/container-app-environment";
@@ -228,10 +228,10 @@ export function createAzureContainers(ctx: AzureBuildContext): void {
             return f.split(".")[0];
           };
 
-          azureAppGws.forEach((appGw, index) => {
+          azureAppGws.forEach((appGw) => {
             const zone = publicZones[appGw.dnsInfo.subdomain];
             if (zone) {
-              new DnsARecord(scope, `azure-a-rec-${index}`, {
+              new DnsARecord(scope, `azure-a-rec-${idPart(appGw.dnsInfo.fqdn || appGw.dnsInfo.subdomain)}`, {
                 provider: azureProvider,
                 name: extractHostName(appGw.dnsInfo.fqdn, zone.name),
                 resourceGroupName: zone.resourceGroupName,

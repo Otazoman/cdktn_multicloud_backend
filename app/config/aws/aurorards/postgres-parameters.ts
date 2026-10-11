@@ -33,4 +33,10 @@ export const postgresParameters = [
     value: "4096",
     applyMethod: "immediate",
   },
+  // Logical replication (FEAT-01 active/active). Remove to disable.
+  {
+    name: "rds.logical_replication",
+    value: "1",
+    applyMethod: "pending-reboot",
+  },
 ];

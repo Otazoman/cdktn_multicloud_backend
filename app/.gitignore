@@ -11,7 +11,11 @@ tsconfig.tsbuildinfo
 !setup.js
 # Secrets and environment-specific files (never commit; see README)
 .env
+.env.*
+!.env*.sample
 config/.env
+# Terraform state per environment (FEAT-04): state/<env>/terraform.tfstate
+state/
 *.pem
 *.key
 *.crt

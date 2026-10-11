@@ -1,106 +1,5 @@
-// RDS Instance Configurations
+// RDS Instance Configurations (PostgreSQL only)
 export const rdsConfigs = [
-  // MySQL (Transitioning to AWS-managed password)
-  {
-    build: true,
-    identifier: "rds-mysql-instance",
-    // Names of resources created for this database (omitted: default name)
-    names: {
-      subnetGroup: "rds-mysql-instance-sng",
-      parameterGroup: "rds-mysql-instance-pg",
-      optionGroup: "rds-mysql-instance-og",
-    },
-    instanceClass: "db.t3.medium",
-    engine: "mysql",
-    engineVersion: "8.4.6",
-    allocatedStorage: 20,
-    storageType: "gp3",
-    username: process.env.AWSDB_ROOT_USER!,
-    password: process.env.AWSDB_ROOT_PASSWORD!, // Removed for AWS-managed password
-    manageMasterUserPassword: false,
-    // suppressSecretOutput: true, // Temporarily suppress output during migration
-    subnetKeys: [
-      "my-aws-vpc-db-private-subnet1a",
-      "my-aws-vpc-db-private-subnet1c",
-    ],
-    vpcSecurityGroupNames: ["myaws-db-sg"],
-    parameterGroupFamily: "mysql8.4",
-    parameterGroupParametersFile: "config/aws/aurorards/mysql-parameters.ts", // Path to parameter file
-    optionGroupOptionsFile: "config/aws/aurorards/mysql-options.ts", // Path to option file
-    skipFinalSnapshot: true,
-    // Backup
-    backupRetentionPeriod: 7,
-    preferredBackupWindow: "02:00-03:00",
-    // Performance Insights
-    enablePerformanceInsights: true,
-    performanceInsightsRetentionPeriod: 7,
-    // Enhanced Monitoring using an externally created IAM role. Name must
-    // match a role name defined in config/aws/iam.ts (iamRolesConfig).
-    enableEnhancedMonitoring: true,
-    monitoringInterval: 60,
-    monitoringRoleName: "rds-enhanced-monitoring-role",
-    // Logs. Each entry here must have a matching CloudWatch Log Group
-    // defined in config/aws/cloudwatchlogs.ts
-    // (name: /aws/rds/instance/rds-mysql-instance/<export-type>).
-    enabledCloudwatchLogsExports: ["audit", "error", "general", "slowquery"],
-    // Auto upgrade
-    autoMinorVersionUpgrade: true,
-    // Maintenance
-    preferredMaintenanceWindow: "sun:03:00-sun:04:00",
-    // Multi-AZ
-    multiAz: false,
-    storageEncrypted: true,
-    tags: {
-      Name: "MyRdsMysqlInstance",
-      Owner: "team-A",
-    },
-  },
-  // MariaDB (RDS-managed password with Secrets Manager)
-  {
-    build: false,
-    identifier: "rds-mariadb-instance",
-    // Names of resources created for this database (omitted: default name)
-    names: {
-      subnetGroup: "rds-mariadb-instance-sng",
-      parameterGroup: "rds-mariadb-instance-pg",
-      optionGroup: "rds-mariadb-instance-og",
-    },
-    instanceClass: "db.t3.micro",
-    engine: "mariadb",
-    engineVersion: "11.8",
-    allocatedStorage: 20,
-    storageType: "gp3",
-    username: process.env.AWSDB_ROOT_USER!,
-    manageMasterUserPassword: true,
-    subnetKeys: [
-      "my-aws-vpc-db-private-subnet1a",
-      "my-aws-vpc-db-private-subnet1c",
-    ],
-    vpcSecurityGroupNames: ["myaws-db-sg"],
-    parameterGroupFamily: "mariadb11.8",
-    skipFinalSnapshot: true,
-    // Backup
-    backupRetentionPeriod: 14,
-    preferredBackupWindow: "02:00-03:00",
-    // Performance Insights
-    enablePerformanceInsights: false,
-    // Enhanced Monitoring
-    enableEnhancedMonitoring: false,
-    // Logs. Each entry here must have a matching CloudWatch Log Group
-    // defined in config/aws/cloudwatchlogs.ts
-    // (name: /aws/rds/instance/rds-mariadb-instance/<export-type>).
-    enabledCloudwatchLogsExports: ["audit", "error", "general", "slowquery"],
-    // Auto upgrade
-    autoMinorVersionUpgrade: false,
-    // Maintenance
-    preferredMaintenanceWindow: "mon:03:00-mon:04:00",
-    // Multi-AZ
-    multiAz: false,
-    tags: {
-      Name: "MyRdsMariadbInstance",
-      Owner: "team-A",
-    },
-  },
   // PostgreSQL (parameter file path)
   {
     build: true,
@@ -157,69 +56,8 @@ export const rdsConfigs = [
   },
 ];
 
-// Aurora Cluster Configurations
+// Aurora Cluster Configurations (PostgreSQL only)
 export const auroraConfigs = [
-  // Aurora MySQL (RDS-managed password with advanced features)
-  {
-    build: true,
-    clusterIdentifier: "aurora-mysql-cluster",
-    // Names of resources created for this cluster (omitted: default name).
-    // instances: one name per instance (instanceCount), in order.
-    names: {
-      subnetGroup: "aurora-mysql-cluster-sng",
-      clusterParameterGroup: "aurora-mysql-cluster-cpg",
-      instanceParameterGroup: "aurora-mysql-cluster-ipg",
-      instances: ["aurora-mysql-cluster-instance-1"],
-    },
-    engine: "aurora-mysql",
-    // engineVersion: "8.0.mysql_aurora.3.10.2",
-    engineVersion: "8.4.mysql_aurora.8.4.7",
-    masterUsername: process.env.AWSDB_ROOT_USER!,
-    password: process.env.AWSDB_ROOT_PASSWORD!,
-    manageMasterUserPassword: false,
-    subnetKeys: [
-      "my-aws-vpc-db-private-subnet1a",
-      "my-aws-vpc-db-private-subnet1c",
-      "my-aws-vpc-db-private-subnet1d",
-    ],
-    vpcSecurityGroupNames: ["myaws-db-sg"],
-    dbClusterParameterGroupFamily: "aurora-mysql8.4",
-    dbClusterParameterGroupParametersFile:
-      "config/aws/aurorards/aurora-mysql-cluster-parameters.ts", // Path to cluster parameter file
-    skipFinalSnapshot: true,
-    instanceClass: "db.t4g.medium",
-    instanceCount: 1,
-    instanceParameterGroupFamily: "aurora-mysql8.4",
-    instanceParameterGroupParametersFile:
-      "config/aws/aurorards/aurora-mysql-instance-parameters.ts", // Path to instance parameter file
-    // Backup
-    backupRetentionPeriod: 7,
-    preferredBackupWindow: "02:00-03:00",
-    // Performance Insights (instance level)
-    enablePerformanceInsights: true,
-    performanceInsightsRetentionPeriod: 7,
-    // Enhanced Monitoring (instance level) using an externally created IAM
-    // role. Name must match a role name defined in config/aws/iam.ts
-    // (iamRolesConfig).
-    enableEnhancedMonitoring: true,
-    monitoringInterval: 60,
-    monitoringRoleName: "rds-enhanced-monitoring-role",
-    // Logs (cluster level). Each entry here must have a matching
-    // CloudWatch Log Group defined in config/aws/cloudwatchlogs.ts
-    // (name: /aws/rds/cluster/aurora-mysql-cluster/<export-type>).
-    enabledCloudwatchLogsExports: ["audit", "error", "general", "slowquery"],
-    // Auto upgrade (instance level)
-    autoMinorVersionUpgrade: true,
-    // Maintenance (cluster level)
-    preferredMaintenanceWindow: "sun:04:00-sun:05:00",
-    // Instance maintenance
-    instancePreferredMaintenanceWindow: "sun:05:00-sun:06:00",
-    storageEncrypted: true, // 暗号化を有効化
-    tags: {
-      Name: "MyAuroraMysqlCluster",
-      Owner: "team-A",
-    },
-  },
   // Aurora PostgreSQL (Self-managed password)
   {
     build: true,
@@ -244,6 +82,8 @@ export const auroraConfigs = [
     ],
     vpcSecurityGroupNames: ["myaws-db-sg"],
     dbClusterParameterGroupFamily: "aurora-postgresql18",
+    dbClusterParameterGroupParametersFile:
+      "config/aws/aurorards/aurora-postgres-cluster-parameters.ts", // Path to cluster parameter file
     skipFinalSnapshot: true,
     instanceClass: "db.t4g.medium",
     instanceCount: 1,

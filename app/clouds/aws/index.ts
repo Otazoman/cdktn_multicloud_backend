@@ -8,6 +8,7 @@
  *   2. Public DNS Zone          (features.dns)                    dns.ts
  *   3. EFS                      (features.storage)                storage.ts
  *   4. RDS / Aurora             (features.dbs)                    database.ts
+ *   4.5. Secrets Manager        (features.dbs)                    secrets.ts
  *   5. EC2                      (features.vms)                    compute.ts
  *   6. ACM Certificate + ALB + ECS, 7. DNS A-records
  *                               (features.containers [+ dns])     container.ts
@@ -40,6 +41,7 @@ import { AwsBuildContext } from "./context";
 import { createAwsPublicDns } from "./dns";
 import { createAwsStorage } from "./storage";
 import { createAwsDatabases } from "./database";
+import { createAwsSecretResources } from "./secrets";
 import { createAwsVms } from "./compute";
 import { createAwsContainers } from "./container";
 import { createAwsCicd } from "./cicd";
@@ -181,6 +183,7 @@ export const createAwsResources = (
   createAwsPublicDns(ctx);
   createAwsStorage(ctx);
   createAwsDatabases(ctx);
+  createAwsSecretResources(ctx);
   createAwsVms(ctx);
   createAwsContainers(ctx);
   createAwsCicd(ctx);

@@ -177,47 +177,6 @@ export const nsgConfigs = [
       },
     ],
   },
-  // NSG for DB MySQL Subnet
-  {
-    name: "azure-db-mysql-nsg",
-    subnetKeys: ["db-mysql-subnet"],
-    tags: { Purpose: "DatabaseSecurity" },
-    rules: [
-      {
-        name: "AllowVnetInBound",
-        priority: 100,
-        direction: "Inbound",
-        access: "Allow",
-        protocol: "*",
-        sourcePortRange: "*",
-        destinationPortRange: "*",
-        sourceAddressPrefix: "VirtualNetwork",
-        destinationAddressPrefix: "VirtualNetwork",
-      },
-      // {
-      //   name: "AllowMysqlFromApp",
-      //   priority: 160,
-      //   direction: "Inbound",
-      //   access: "Allow",
-      //   protocol: "Tcp",
-      //   sourcePortRange: "*",
-      //   destinationPortRange: "3306",
-      //   sourceAddressPrefix: "10.2.20.0/24", // App Subnet CIDR
-      //   destinationAddressPrefix: "*",
-      // },
-      {
-        name: "DenyAllInbound",
-        priority: 4096,
-        direction: "Inbound",
-        access: "Deny",
-        protocol: "*",
-        sourcePortRange: "*",
-        destinationPortRange: "*",
-        sourceAddressPrefix: "*",
-        destinationAddressPrefix: "*",
-      },
-    ],
-  },
   // NSG for DB PostgreSQL Subnet
   {
     name: "azure-db-postgres-nsg",

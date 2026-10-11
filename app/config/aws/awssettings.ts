@@ -11,3 +11,4 @@ export * from "./vpn";
 export * from "./cloudwatchlogs";
 export * from "./monitoring";
 export * from "./iam";
+export * from "./secrets";

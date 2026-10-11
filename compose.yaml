@@ -6,8 +6,13 @@ services:
         NODE_VERSION: ${NODE_VERSION}
         TERRAFORM_VERSION: ${TERRAFORM_VERSION}
         OPENTOFU_VERSION: ${OPENTOFU_VERSION}
+    # One container per environment (FEAT-04):
+    #   DEPLOY_ENV=dev docker compose -p cdktn-dev up -d
+    # loads the credentials and secrets of that environment from .env.<env>.
     env_file:
-      - .env
+      - .env.${DEPLOY_ENV:?Set DEPLOY_ENV (dev, stg or prod)}
+    environment:
+      DEPLOY_ENV: ${DEPLOY_ENV}
     volumes:
       - ~/dev_data/multicloud_dev/.secrets/gcloud:/root/.secret:ro
       - ./.terraform.d:/root/.terraform.d

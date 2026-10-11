@@ -1,8 +1,5 @@
-import * as dotenv from "dotenv";
-import * as path from "path";
-
-dotenv.config({ path: path.resolve(__dirname, "config/.env") });
-
+// Credentials and secrets come from the container environment: compose.yaml
+// loads .env.<DEPLOY_ENV> (FEAT-04). config/.env is no longer read.
 import { App } from "cdktn";
 import { MultiCloudBackendStack } from "./stacks/MultiCloudBackendStack";
 

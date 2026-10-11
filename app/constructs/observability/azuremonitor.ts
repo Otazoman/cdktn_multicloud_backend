@@ -44,6 +44,11 @@ export interface AzureActionGroupDefinition {
  * Definition for a log alert (Scheduled Query Rules, v2 API).
  */
 export interface AzureLogAlertDefinition {
+  /**
+   * Construct ID key (Terraform address). Defaults to `name`. To rename
+   * the resource without replacing it in state, set this to the old value.
+   */
+  key?: string;
   name: string;
   /** Resources the query runs against (e.g. a Log Analytics Workspace ID). */
   scopes: string[];
@@ -78,6 +83,11 @@ export interface AzureLogAlertDefinition {
  * Definition for a metric alert.
  */
 export interface AzureMetricAlertDefinition {
+  /**
+   * Construct ID key (Terraform address). Defaults to `name`. To rename
+   * the resource without replacing it in state, set this to the old value.
+   */
+  key?: string;
   name: string;
   scopes: string[];
   metricNamespace: string;
@@ -169,7 +179,7 @@ export class AzureMonitorResources extends Construct {
 
     // 2. Create Diagnostic Settings
     if (config.diagnosticSettings && this.logAnalyticsWorkspace) {
-      config.diagnosticSettings.forEach((diagDef, index) => {
+      config.diagnosticSettings.forEach((diagDef) => {
         const sanitizedId = diagDef.name.replace(/[^a-zA-Z0-9]/g, "-");
 
         const enabledLogs = diagDef.enabledLogs ?? [
@@ -183,7 +193,7 @@ export class AzureMonitorResources extends Construct {
 
         const diagSetting = new MonitorDiagnosticSetting(
           this,
-          `diagnostic-setting-${sanitizedId}-${index}`,
+          `diagnostic-setting-${sanitizedId}`,
           {
             provider: provider,
             name: diagDef.name,
@@ -200,12 +210,12 @@ export class AzureMonitorResources extends Construct {
 
     // 3. Create Action Groups
     if (config.actionGroups) {
-      config.actionGroups.forEach((groupDef, index) => {
+      config.actionGroups.forEach((groupDef) => {
         const sanitizedId = groupDef.name.replace(/[^a-zA-Z0-9]/g, "-");
 
         const actionGroup = new MonitorActionGroup(
           this,
-          `action-group-${sanitizedId}-${index}`,
+          `action-group-${sanitizedId}`,
           {
             provider: provider,
             resourceGroupName: config.resourceGroupName,
@@ -226,8 +236,8 @@ export class AzureMonitorResources extends Construct {
 
     // 4. Create log alerts (Scheduled Query Rules, v2 API)
     if (config.logAlerts) {
-      config.logAlerts.forEach((logDef, index) => {
-        const sanitizedId = logDef.name.replace(/[^a-zA-Z0-9]/g, "-");
+      config.logAlerts.forEach((logDef) => {
+        const sanitizedId = (logDef.key ?? logDef.name).replace(/[^a-zA-Z0-9]/g, "-");
 
         const resolvedActionGroupIds: string[] = [];
         if (logDef.actionGroups) {
@@ -239,7 +249,7 @@ export class AzureMonitorResources extends Construct {
 
         const logAlert = new MonitorScheduledQueryRulesAlertV2(
           this,
-          `log-alert-${sanitizedId}-${index}`,
+          `log-alert-${sanitizedId}`,
           {
             provider: provider,
             resourceGroupName: config.resourceGroupName,
@@ -284,8 +294,8 @@ export class AzureMonitorResources extends Construct {
 
     // 5. Create metric alerts
     if (config.metricAlerts) {
-      config.metricAlerts.forEach((metricDef, index) => {
-        const sanitizedId = metricDef.name.replace(/[^a-zA-Z0-9]/g, "-");
+      config.metricAlerts.forEach((metricDef) => {
+        const sanitizedId = (metricDef.key ?? metricDef.name).replace(/[^a-zA-Z0-9]/g, "-");
 
         const resolvedActionGroupIds: string[] = [];
         if (metricDef.actionGroups) {
@@ -297,7 +307,7 @@ export class AzureMonitorResources extends Construct {
 
         const metricAlert = new MonitorMetricAlert(
           this,
-          `metric-alert-${sanitizedId}-${index}`,
+          `metric-alert-${sanitizedId}`,
           {
             provider: provider,
             resourceGroupName: config.resourceGroupName,

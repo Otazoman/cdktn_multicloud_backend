@@ -24,7 +24,7 @@ const synthWith = (logArchive: boolean) =>
     name: `logArchive=${logArchive}`,
     overrides: {
       ...allOn,
-      env: "prod",
+      vpnMode: "haBgp",
       awsToGoogle: true,
       awsToAzure: true,
       googleToAzure: true,

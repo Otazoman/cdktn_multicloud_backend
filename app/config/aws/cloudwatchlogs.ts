@@ -12,28 +12,6 @@
  * resource construct will fail to find its Log Group.
  */
 export const cloudwatchLogGroupsConfig = [
-  // --- RDS: rds-mysql-instance (aurorards.ts -> rdsConfigs) ---
-  {
-    name: "/aws/rds/instance/rds-mysql-instance/audit",
-    retentionInDays: 7,
-    tags: { Component: "Database", ManagedBy: "CDKTN" },
-  },
-  {
-    name: "/aws/rds/instance/rds-mysql-instance/error",
-    retentionInDays: 7,
-    tags: { Component: "Database", ManagedBy: "CDKTN" },
-  },
-  {
-    name: "/aws/rds/instance/rds-mysql-instance/general",
-    retentionInDays: 7,
-    tags: { Component: "Database", ManagedBy: "CDKTN" },
-  },
-  {
-    name: "/aws/rds/instance/rds-mysql-instance/slowquery",
-    retentionInDays: 7,
-    tags: { Component: "Database", ManagedBy: "CDKTN" },
-  },
-
   // --- RDS: rds-postgres-instance (aurorards.ts -> rdsConfigs) ---
   {
     name: "/aws/rds/instance/rds-postgres-instance/postgresql",
@@ -43,28 +21,6 @@ export const cloudwatchLogGroupsConfig = [
   {
     name: "/aws/rds/instance/rds-postgres-instance/upgrade",
     retentionInDays: 30,
-    tags: { Component: "Database", ManagedBy: "CDKTN" },
-  },
-
-  // --- Aurora: aurora-mysql-cluster (aurorards.ts -> auroraConfigs) ---
-  {
-    name: "/aws/rds/cluster/aurora-mysql-cluster/audit",
-    retentionInDays: 7,
-    tags: { Component: "Database", ManagedBy: "CDKTN" },
-  },
-  {
-    name: "/aws/rds/cluster/aurora-mysql-cluster/error",
-    retentionInDays: 7,
-    tags: { Component: "Database", ManagedBy: "CDKTN" },
-  },
-  {
-    name: "/aws/rds/cluster/aurora-mysql-cluster/general",
-    retentionInDays: 7,
-    tags: { Component: "Database", ManagedBy: "CDKTN" },
-  },
-  {
-    name: "/aws/rds/cluster/aurora-mysql-cluster/slowquery",
-    retentionInDays: 7,
     tags: { Component: "Database", ManagedBy: "CDKTN" },
   },
 

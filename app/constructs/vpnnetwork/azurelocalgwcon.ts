@@ -134,12 +134,12 @@ function createBatch(
   return { localGateways, vpnConnections };
 }
 
-// Single tunnel (dev): static routing via the local address spaces
+// Single tunnel ("singleTunnel"): static routing via the local address spaces
 function buildSingleTunnelLocalGatewayConfig(tunnel: TunnelConfig) {
   return { addressSpace: tunnel.localAddressSpaces };
 }
 
-// HA (prod): dynamic routing via BGP
+// HA ("haBgp"): dynamic routing via BGP
 function buildHaLocalGatewayConfig(tunnel: TunnelConfig) {
   return {
     bgpSettings: tunnel.bgpSettings
@@ -151,12 +151,12 @@ function buildHaLocalGatewayConfig(tunnel: TunnelConfig) {
   };
 }
 
-// Single tunnel (dev): BGP disabled
+// Single tunnel ("singleTunnel"): BGP disabled
 function buildSingleTunnelConnectionConfig() {
   return { bgpEnabled: false };
 }
 
-// HA (prod): BGP enabled, with the Azure APIPA addresses to use if specified
+// HA ("haBgp"): BGP enabled, with the Azure APIPA addresses to use if specified
 function buildHaConnectionConfig(tunnel: TunnelConfig) {
   return {
     bgpEnabled: true,

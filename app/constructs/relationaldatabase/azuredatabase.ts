@@ -1,9 +1,12 @@
 import { MysqlFlexibleDatabase } from "@cdktn/provider-azurerm/lib/mysql-flexible-database";
 import { MysqlFlexibleServer } from "@cdktn/provider-azurerm/lib/mysql-flexible-server";
+import { MysqlFlexibleServerConfiguration } from "@cdktn/provider-azurerm/lib/mysql-flexible-server-configuration";
 import { PostgresqlFlexibleServer } from "@cdktn/provider-azurerm/lib/postgresql-flexible-server";
+import { PostgresqlFlexibleServerConfiguration } from "@cdktn/provider-azurerm/lib/postgresql-flexible-server-configuration";
 import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
 import { Subnet } from "@cdktn/provider-azurerm/lib/subnet";
 import { VirtualNetwork } from "@cdktn/provider-azurerm/lib/virtual-network";
+import { ITerraformDependable } from "cdktn";
 import { Construct } from "constructs";
 
 export type AzureDatabaseType = "mysql" | "postgresql";
@@ -90,6 +93,29 @@ function loadConfigurationFromFile(filePath: string): ConfigurationParameter[] {
   }
 }
 
+/** Construct ID part for a parameter name (e.g. "azure.extensions"). */
+function parameterIdPart(name: string): string {
+  return name.replace(/[^A-Za-z0-9_-]/g, "_");
+}
+
+/**
+ * Creates one configuration resource per parameter. The resources are chained
+ * with dependsOn so that they are applied one at a time: the server accepts
+ * only one operation at a time.
+ */
+function createConfigurationResources(
+  parameters: ConfigurationParameter[],
+  create: (
+    parameter: ConfigurationParameter,
+    dependsOn: ITerraformDependable[],
+  ) => ITerraformDependable,
+): void {
+  let previous: ITerraformDependable | undefined;
+  for (const parameter of parameters) {
+    previous = create(parameter, previous ? [previous] : []);
+  }
+}
+
 /**
  * Creates an Azure MySQL Flexible Server and Database
  */
@@ -101,8 +127,7 @@ function createAzureMySqlFlexibleServer(
   location: string,
   delegatedSubnet: Subnet,
   privateDnsZone: any, // DNS Zone managed externally
-  vnetLink: any, // VNet Link managed externally
-  index: number
+  vnetLink: any // VNet Link managed externally
 ): AzureDatabaseOutput {
   // Load configuration parameters if specified
   const configurationParameters = config.configurationParametersFile
@@ -112,7 +137,7 @@ function createAzureMySqlFlexibleServer(
   // Create MySQL Flexible Server
   const mysqlServer = new MysqlFlexibleServer(
     scope,
-    `azure-mysql-server-${config.key ?? config.serverName}-${index}`,
+    `azure-mysql-server-${config.key ?? config.serverName}`,
     {
       provider: provider,
       name: config.serverName,
@@ -149,19 +174,26 @@ function createAzureMySqlFlexibleServer(
     }
   );
 
-  // Apply configuration parameters if any are loaded
-  if (configurationParameters.length > 0) {
-    console.log(
-      `Applying ${configurationParameters.length} configuration parameters to MySQL server: ${config.serverName}`
-    );
-    // Note: Configuration parameters would typically be applied via server configuration resources
-    // This is a placeholder for future implementation
-  }
+  // Apply configuration parameters
+  createConfigurationResources(configurationParameters, (parameter, dependsOn) =>
+    new MysqlFlexibleServerConfiguration(
+      scope,
+      `azure-mysql-config-${config.key ?? config.serverName}-${parameterIdPart(parameter.name)}`,
+      {
+        provider: provider,
+        name: parameter.name,
+        resourceGroupName: resourceGroupName,
+        serverName: mysqlServer.name,
+        value: parameter.value,
+        dependsOn: dependsOn,
+      }
+    )
+  );
 
   // Create MySQL Database
   const mysqlDatabase = new MysqlFlexibleDatabase(
     scope,
-    `azure-mysql-database-${config.key ?? config.name}-${index}`,
+    `azure-mysql-database-${config.key ?? config.name}`,
     {
       provider: provider,
       name: config.name,
@@ -191,8 +223,7 @@ function createAzurePostgreSqlFlexibleServer(
   location: string,
   delegatedSubnet: Subnet,
   privateDnsZone: any, // DNS Zone managed externally
-  vnetLink: any, // VNet Link managed externally
-  index: number
+  vnetLink: any // VNet Link managed externally
 ): AzureDatabaseOutput {
   // Load configuration parameters if specified
   const configurationParameters = config.configurationParametersFile
@@ -203,7 +234,7 @@ function createAzurePostgreSqlFlexibleServer(
   // Note: When using VNet integration (delegatedSubnetId), we must NOT set publicNetworkAccessEnabled
   const postgresServer = new PostgresqlFlexibleServer(
     scope,
-    `azure-postgres-server-${config.key ?? config.serverName}-${index}`,
+    `azure-postgres-server-${config.key ?? config.serverName}`,
     {
       provider: provider,
       name: config.serverName,
@@ -238,14 +269,21 @@ function createAzurePostgreSqlFlexibleServer(
     }
   );
 
-  // Apply configuration parameters if any are loaded
-  if (configurationParameters.length > 0) {
-    console.log(
-      `Applying ${configurationParameters.length} configuration parameters to PostgreSQL server: ${config.serverName}`
-    );
-    // Note: Configuration parameters would typically be applied via server configuration resources
-    // This is a placeholder for future implementation
-  }
+  // Apply configuration parameters. Changing a static parameter restarts the
+  // server (provider feature restart_server_on_configuration_value_change).
+  createConfigurationResources(configurationParameters, (parameter, dependsOn) =>
+    new PostgresqlFlexibleServerConfiguration(
+      scope,
+      `azure-postgres-config-${config.key ?? config.serverName}-${parameterIdPart(parameter.name)}`,
+      {
+        provider: provider,
+        name: parameter.name,
+        serverId: postgresServer.id,
+        value: parameter.value,
+        dependsOn: dependsOn,
+      }
+    )
+  );
 
   // For now, we'll skip PostgreSQL database creation to avoid import issues
   // The PostgreSQL Flexible Server itself is sufficient for most use cases
@@ -274,7 +312,7 @@ export function createAzureDatabases(
   provider: AzurermProvider,
   params: CreateAzureDatabasesParams
 ): AzureDatabaseOutput[] {
-  return params.databaseConfigs.map((config, index) => {
+  return params.databaseConfigs.map((config) => {
     // Get the subnet for this database using the subnetKey
     const delegatedSubnet = params.subnets[config.subnetKey];
 
@@ -303,8 +341,7 @@ export function createAzureDatabases(
         params.location,
         delegatedSubnet,
         privateDnsZone,
-        vnetLink,
-        index
+        vnetLink
       );
     } else if (config.type === "postgresql") {
       return createAzurePostgreSqlFlexibleServer(
@@ -315,8 +352,7 @@ export function createAzureDatabases(
         params.location,
         delegatedSubnet,
         privateDnsZone,
-        vnetLink,
-        index
+        vnetLink
       );
     } else {
       throw new Error(

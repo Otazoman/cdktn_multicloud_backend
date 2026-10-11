@@ -38,6 +38,11 @@ export interface CloudRunConfig {
   maxInstanceRequestConcurrency?: number;
   useLb?: boolean;
   cpuAlwaysAllocated?: boolean;
+  /**
+   * The image is updated by CI/CD (Cloud Build `gcloud run deploy --image`):
+   * Terraform ignores the image so that deploy does not roll it back.
+   */
+  ignoreImageChanges?: boolean;
   vpcSubnetId?: string;
   networkId?: string;
 }
@@ -101,6 +106,17 @@ export function createGoogleCloudRunResources(
       ],
     },
   });
+
+  // CI/CD updates the image and gcloud sets client / client_version
+  if (config.ignoreImageChanges) {
+    service.addOverride("lifecycle", {
+      ignore_changes: [
+        "template[0].containers[0].image",
+        "client",
+        "client_version",
+      ],
+    });
+  }
 
   // 2. IAM Policy for Public Access
   if (config.allowUnauthenticated) {

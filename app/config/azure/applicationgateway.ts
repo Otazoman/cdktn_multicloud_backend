@@ -1,4 +1,4 @@
-import { LOCATION, RESOURCE_GROUP } from "./common";
+import { LOCATION, PUBLIC_DOMAIN, RESOURCE_GROUP } from "./common";
 
 import type { AzureAppGwConfig } from "../../constructs/loadbalancer/azureappgw";
 
@@ -41,8 +41,8 @@ export const azureAppGwConfigs: AzureAppGwSettings[] = [
     },
     // DNS configuration
     dnsConfig: {
-      subdomain: "azuretest.tohonokai.com",
-      fqdn: "api.azuretest.tohonokai.com",
+      subdomain: PUBLIC_DOMAIN,
+      fqdn: `api.${PUBLIC_DOMAIN}`,
     },
     listeners: [
       {
@@ -78,7 +78,7 @@ export const azureAppGwConfigs: AzureAppGwSettings[] = [
         protocol: "Http",
         requestTimeout: 30,
         pickHostNameFromBackendAddress: true,
-        // hostName: "api.azuretest.tohonokai.com",
+        // hostName: `api.${PUBLIC_DOMAIN}`,
         targetFqdns: ["backend-api-service"],
       },
     ],
@@ -215,8 +215,8 @@ export const azureAppGwConfigs: AzureAppGwSettings[] = [
       capacity: 1,
     },
     dnsConfig: {
-      subdomain: "azuretest.tohonokai.com",
-      fqdn: "api.azuretest.tohonokai.com",
+      subdomain: PUBLIC_DOMAIN,
+      fqdn: `api.${PUBLIC_DOMAIN}`,
     },
     listeners: [
       {
@@ -240,7 +240,7 @@ export const azureAppGwConfigs: AzureAppGwSettings[] = [
         protocol: "Http",
         requestTimeout: 30,
         pickHostNameFromBackendAddress: true,
-        // hostName: "api.azuretest.tohonokai.com",
+        // hostName: `api.${PUBLIC_DOMAIN}`,
         targetFqdns: ["backend-api-service"],
       },
     ],

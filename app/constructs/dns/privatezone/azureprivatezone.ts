@@ -13,7 +13,7 @@ import { Subnet } from "@cdktn/provider-azurerm/lib/subnet";
 import { VirtualNetwork } from "@cdktn/provider-azurerm/lib/virtual-network";
 import { ITerraformDependable } from "cdktn";
 import { Construct } from "constructs";
-import { resourceName } from "../../../utils/naming";
+import { resourceName, idPart } from "../../../utils/naming";
 
 export type AzureDatabaseType = "mysql" | "postgresql";
 
@@ -235,10 +235,10 @@ export function createAzureForwardingRuleset(
   // Create forwarding rules
   const rules = params.forwardingRules
     .filter((rule) => rule.targetDnsServers) // Only create rules with target servers
-    .map((rule, index) => {
+    .map((rule) => {
       return new PrivateDnsResolverForwardingRule(
         scope,
-        `forwarding-rule-${index}`,
+        `forwarding-rule-${idPart(rule.name)}`,
         {
           provider: provider,
           name: rule.name,
@@ -369,10 +369,10 @@ export function createAzureFilesInnerCnameRecords(
     ttl?: number;
   }>,
 ): PrivateDnsCnameRecord[] {
-  return records.map((record, index) => {
+  return records.map((record) => {
     return new PrivateDnsCnameRecord(
       scope,
-      `azure-files-cname-${record.name}-${index}`,
+      `azure-files-cname-${idPart(record.name)}`,
       {
         provider: provider,
         name: record.name,
@@ -397,10 +397,10 @@ export function createAzureInnerCnameRecords(
     target: string; // e.g., "azure-mysql-server-2025-1108.privatelink.mysql.database.azure.com"
   }>,
 ): any[] {
-  return cnameRecords.map((record, index) => {
+  return cnameRecords.map((record) => {
     return new PrivateDnsCnameRecord(
       scope,
-      `azure-inner-cname-${record.name}-${index}`,
+      `azure-inner-cname-${idPart(record.name)}`,
       {
         provider: provider,
         name: record.name,

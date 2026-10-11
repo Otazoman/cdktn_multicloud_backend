@@ -18,6 +18,7 @@ import { LoadBalancerDnsInfo } from "../common";
 
 import { addTerraformDependency } from "../../utils/terraformDependency";
 import { AwsBuildContext } from "./context";
+import { idPart } from "../../utils/naming";
 
 /** 6-7. ACM certificates, ALB, ECS and DNS A-records (feature: containers) */
 export function createAwsContainers(ctx: AwsBuildContext): void {
@@ -275,10 +276,10 @@ export function createAwsContainers(ctx: AwsBuildContext): void {
     // 7. DNS A-records (ALB alias records)
     // ──────────────────────────────────────────────
     if (isFeatureEnabled("aws", "dns")) {
-      awsAlbs.forEach((alb, index) => {
+      awsAlbs.forEach((alb) => {
         const zone = publicZones[alb.dnsInfo.subdomain];
         if (zone) {
-          new Route53Record(scope, `aws-a-rec-${index}`, {
+          new Route53Record(scope, `aws-a-rec-${idPart(alb.dnsInfo.fqdn || alb.dnsInfo.subdomain)}`, {
             provider: awsProvider,
             zoneId: zone.zoneId,
             name: alb.dnsInfo.fqdn || alb.dnsInfo.subdomain,

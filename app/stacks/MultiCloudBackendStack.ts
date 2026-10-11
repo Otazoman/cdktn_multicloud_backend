@@ -1,8 +1,10 @@
-import { TerraformStack } from "cdktn";
+import { LocalBackend, TerraformStack } from "cdktn";
 import { Construct } from "constructs";
+import * as path from "path";
 import { createCloudResources } from "../clouds/registry";
 import { CloudContext } from "../clouds/types";
 import { hostZones, useVpn } from "../config/commonsettings";
+import { currentEnv } from "../config/environment";
 import { createProviders } from "../providers/providers";
 import { createPrivateZoneResources } from "../resources/privateZoneResources";
 import { createVpnResources } from "../resources/vpnResources";
@@ -24,6 +26,13 @@ import { createVpnResources } from "../resources/vpnResources";
 export class MultiCloudBackendStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
     super(scope, id);
+
+    // ── State per environment (FEAT-04): state/<DEPLOY_ENV>/terraform.tfstate
+    // (local, not in Git; same base directory as the default
+    // terraform.<stack>.tfstate)
+    new LocalBackend(this, {
+      path: path.join(process.cwd(), "state", currentEnv(), "terraform.tfstate"),
+    });
 
     // ── Providers (declared only in providers/providers.ts) ────────────────
     const providers = createProviders(this);

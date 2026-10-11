@@ -114,7 +114,7 @@ export function createAwsOutboundEndpointWithRules(
   const createdRules: Route53ResolverRule[] = [];
 
   // Create forwarding rules
-  config.forwardingRules.forEach((rule, idx) => {
+  config.forwardingRules.forEach((rule) => {
     const domainSafeName = rule.domain.replace(/\./g, "-");
     const ruleName = resourceName(
       rule.ruleName,
@@ -125,7 +125,7 @@ export function createAwsOutboundEndpointWithRules(
 
     const resolverRule = new Route53ResolverRule(
       scope,
-      `${rule.ruleType}-forwarding-rule-${idx}`,
+      `${rule.ruleType}-forwarding-rule-${domainSafeName}`,
       {
         provider: provider,
         name: ruleName,

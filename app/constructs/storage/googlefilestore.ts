@@ -4,7 +4,13 @@ import { FilestoreInstance } from "@cdktn/provider-google/lib/filestore-instance
 import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
 import { ITerraformDependable } from "cdktn";
 import { Construct } from "constructs";
+import { idPart } from "../../utils/naming";
 interface FilestoreConfig {
+  /**
+   * Construct ID key (Terraform address). Defaults to `name`. To rename
+   * the resource without replacing it in state, set this to the old value.
+   */
+  key?: string;
   name: string;
   location: string; // e.g., "asia-northeast1-a"
   tier:
@@ -56,8 +62,8 @@ export function createGoogleFilestoreInstances(
 ) {
   const instances = params.filestoreConfigs
     .filter((config) => config.build)
-    .map((config, index) => {
-      return new FilestoreInstance(scope, `filestoreInstance${index}`, {
+    .map((config) => {
+      return new FilestoreInstance(scope, `filestoreInstance-${idPart(config.key ?? config.name)}`, {
         provider: provider,
         project: params.project,
         name: config.name,

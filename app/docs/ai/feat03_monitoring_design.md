@@ -401,7 +401,7 @@ Slack への通知の仕組みはクラウドごとに大きく違う。
 | 10 | Log Analytics ワークスペース | **1つのワークスペース（`azureMonitorConfig.logAnalyticsWorkspace`）に集約**（VPN・Container Apps・ログアラートで共用）。AWS の「CloudWatch Logs の中にリソースごとのロググループ」に相当 | 決定（2026-10-10） |
 | 11 | ログの保持期間 | **段階4に含める**。AWS: ロググループごと、Google: **用途ごとのログバケット（VPN・Cloud Run）を作り、バケットごとに設定**、Azure: テーブルごと（§4） | 決定（2026-10-10） |
 | 12 | VPN のログの ON/OFF | **全クラウドで各リソースの `logs` で制御**（Google は `_Default` からの除外、§4.2） | 決定（2026-10-10） |
-| 13 | Google のログバケットを destroy 後7日以内に作り直せない問題 | (a) 運用文書に注意を書く / (b) バケット ID を設定で変えられるようにしておき、すぐ作り直すときは ID を変える / (c) destroy 時にバケットを残す（`_Default` のように Terraform の管理から外す） | 決定（2026-10-10）: (a)+(b) |
+| 13 | Google のログバケットを destroy 後7日以内に作り直せない問題（2026-10-11 追加: `googleUseLogBuckets = false` でログバケットを使わず `_Default` のままにできる） | (a) 運用文書に注意を書く / (b) バケット ID を設定で変えられるようにしておき、すぐ作り直すときは ID を変える / (c) destroy 時にバケットを残す（`_Default` のように Terraform の管理から外す） | 決定（2026-10-10）: (a)+(b) |
 | 14 | Azure VPN ログの保持期間 | `AzureDiagnostics` テーブルの保持期間で設定する（§4.4 #1・#2。VPN 専用のテーブルはない） | 決定（2026-10-10） |
 | 15 | Google のログバケットの既定値 | ベストプラクティスに合わせる（§4.2）: 場所は `LOCATION`、保持 30日、`enableAnalytics` は設定項目（既定 false）、バケットは `vpn` / `cloudrun` | 決定（2026-10-10） |
 

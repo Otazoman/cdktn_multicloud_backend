@@ -38,16 +38,6 @@ export const firewallIngressRules = [
     priority: 1000,
   },
   {
-    name: "allow-cloudsql-mysql",
-    resourceName: "multicloud-gcp-vpc-allow-cloudsql-mysql",
-    permission: {
-      protocol: "tcp",
-      ports: ["3306"],
-    },
-    sourceRanges: ["10.0.0.0/16", "10.1.0.0/16", "10.2.0.0/16"],
-    priority: 1000,
-  },
-  {
     name: "allow-cloudsql-postgres",
     resourceName: "multicloud-gcp-vpc-allow-cloudsql-postgres",
     permission: {

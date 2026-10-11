@@ -105,18 +105,6 @@ export const securityGroups = [
     },
     ingress: [
       {
-        fromPort: 3306,
-        toPort: 3306,
-        protocol: "tcp",
-        cidrBlocks: [
-          "10.0.0.0/16",
-          "10.1.0.0/16",
-          "10.2.0.0/16",
-          "10.100.0.0/16",
-        ],
-        description: "MySQL inbound traffic",
-      },
-      {
         fromPort: 5432,
         toPort: 5432,
         protocol: "tcp",

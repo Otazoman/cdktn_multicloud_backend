@@ -74,7 +74,7 @@ export const azureAcaConfigs = [
     internal: true,
     externalEnabled: true,
     subnetName: "aca-subnet",
-    env: [{ name: "DB_URL", value: "flexible-db.mysql.database.azure.com" }],
+    env: [{ name: "DB_URL", value: "flexible-db.postgres.database.azure.com" }],
     minReplicas: 0,
     maxReplicas: 10,
     cnameRecordName: "api-backend",

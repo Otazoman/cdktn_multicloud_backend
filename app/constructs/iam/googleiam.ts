@@ -75,13 +75,13 @@ export class GcpIamResources extends Construct {
 
     // 1. Independent IAM Custom Roles Creation
     if (config.customRoles) {
-      config.customRoles.forEach((roleDef, index) => {
+      config.customRoles.forEach((roleDef) => {
         const sanitizedId = roleDef.roleId.replace(/[^a-zA-Z0-9]/g, "-");
 
         // Fixed: Use ProjectIamCustomRole instead of IamCustomRole
         const customRole = new ProjectIamCustomRole(
           this,
-          `gcp-custom-role-${sanitizedId}-${index}`,
+          `gcp-custom-role-${sanitizedId}`,
           {
             provider: provider,
             project: config.projectId,
@@ -102,10 +102,10 @@ export class GcpIamResources extends Construct {
 
     // 2. Service Accounts Creation & Project IAM Bindings
     if (config.serviceAccounts) {
-      config.serviceAccounts.forEach((saDef, index) => {
+      config.serviceAccounts.forEach((saDef) => {
         const sanitizedId = saDef.accountId.replace(/[^a-zA-Z0-9]/g, "-");
 
-        const sa = new ServiceAccount(this, `gcp-sa-${sanitizedId}-${index}`, {
+        const sa = new ServiceAccount(this, `gcp-sa-${sanitizedId}`, {
           provider: provider,
           accountId: saDef.accountId,
           displayName: saDef.displayName,
@@ -119,7 +119,7 @@ export class GcpIamResources extends Construct {
 
         // 3. Attach Roles to the Service Account (Project-level Binding)
         if (saDef.projectRoles && saDef.projectRoles.length > 0) {
-          saDef.projectRoles.forEach((roleName, rIndex) => {
+          saDef.projectRoles.forEach((roleName) => {
             const isLocalCustomRole = this.createdCustomRoles[roleName];
             const finalRoleName = isLocalCustomRole
               ? `projects/${config.projectId}/roles/${roleName}`
@@ -130,7 +130,7 @@ export class GcpIamResources extends Construct {
               `gcp-project-iam-${sanitizedId}-${roleName.replace(
                 /[^a-zA-Z0-9]/g,
                 "-",
-              )}-${rIndex}`,
+              )}`,
               {
                 provider: provider,
                 project: config.projectId,

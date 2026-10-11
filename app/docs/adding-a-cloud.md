@@ -1,5 +1,7 @@
 # Adding a cloud
 
+[日本語](adding-a-cloud.ja.md)
+
 This guide uses a hypothetical cloud `oci`. Existing cloud modules, the stack
 and constructs of other clouds do not need to change.
 

@@ -422,7 +422,7 @@ export function createAwsRelationalDatabases(
   provider: AwsProvider,
   params: CreateAwsRelationalDatabasesParams,
 ): AwsRelationalDatabaseOutput[] {
-  return params.databaseConfigs.map((config, index) => {
+  return params.databaseConfigs.map((config) => {
     // Validate and get Subnet IDs
     const subnetIds = config.subnetKeys.map((key) => {
       const subnet = params.subnets[key];
@@ -437,13 +437,13 @@ export function createAwsRelationalDatabases(
     // Create or get DbSubnetGroup
     let dbSubnetGroupName = config.dbSubnetGroupName;
     if (!dbSubnetGroupName) {
-      const sanitizedIdentifier = config.identifier.replace(
+      const sanitizedIdentifier = (config.key ?? config.identifier).replace(
         /[^a-zA-Z0-9]/g,
         "-",
       );
       const dbSubnetGroup = new DbSubnetGroup(
         scope,
-        `${config.type}-subnet-group-${sanitizedIdentifier}-${index}`,
+        `${config.type}-subnet-group-${sanitizedIdentifier}`,
         {
           provider: provider,
           name: resourceName(

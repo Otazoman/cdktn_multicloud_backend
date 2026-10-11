@@ -1,11 +1,13 @@
 # VPN
 
+[日本語](vpn.ja.md)
+
 ## Modes
 
-| `env` | Tunnels | Routing |
+| `vpnMode` (`config/commonsettings.ts`, per environment) | Tunnels | Routing |
 |---|---|---|
-| `dev` | One tunnel per peer gateway (Google Classic VPN, Azure active-standby) | Static routes |
-| `prod` | HA: AWS VGW (2 tunnels per connection), Google HA VPN (2 interfaces), Azure VPN Gateway active-active (2 instances) | BGP |
+| `singleTunnel` | One tunnel per peer gateway (Google Classic VPN, Azure active-standby) | Static routes |
+| `haBgp` | HA: AWS VGW (2 tunnels per connection), Google HA VPN (2 interfaces), Azure VPN Gateway active-active (2 instances) | BGP |
 
 ## Topologies
 
@@ -14,7 +16,7 @@ Each pair flag creates a **direct** connection:
 | Flags | Result |
 |---|---|
 | All three | Full mesh |
-| Two of them (e.g. `awsToAzure` + `googleToAzure`) | The shared cloud (Azure) is a hub. The Azure VPN Gateway re-advertises routes learned from one BGP peer to the others, so AWS and Google reach each other through Azure (`prod` only) |
+| Two of them (e.g. `awsToAzure` + `googleToAzure`) | The shared cloud (Azure) is a hub. The Azure VPN Gateway re-advertises routes learned from one BGP peer to the others, so AWS and Google reach each other through Azure (`haBgp` only) |
 | One | That pair only |
 
 ## Code structure
@@ -29,7 +31,7 @@ Each pair flag creates a **direct** connection:
 
 ASNs: AWS 64512, Google Cloud 65000, Azure 65515.
 
-## BGP inside addresses (prod)
+## BGP inside addresses (haBgp)
 
 Each tunnel uses a /30 with one address per side, defined in
 `config/vpn/addressPlan.ts`:

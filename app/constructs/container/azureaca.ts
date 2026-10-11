@@ -37,6 +37,12 @@ export interface AzureContainerAppConfig {
    */
   scaleRules?: AzureContainerAppScaleRule[];
   /**
+   * The image is updated by CI/CD (ACR Tasks `az containerapp update
+   * --image`): Terraform ignores the image so that deploy does not roll it
+   * back.
+   */
+  ignoreImageChanges?: boolean;
+  /**
    * Environment logs (applied when the environment is created): when set,
    * the environment sends its logs to Azure Monitor and a diagnostic setting
    * forwards them to the Log Analytics Workspace (resource-specific tables
@@ -139,6 +145,12 @@ export function createAzureContainerAppResources(
       trafficWeight: [{ percentage: 100, latestRevision: true }],
     },
   });
+
+  if (config.ignoreImageChanges) {
+    app.addOverride("lifecycle", {
+      ignore_changes: ["template[0].container[0].image"],
+    });
+  }
 
   // Use `<app.name>.<environment.defaultDomain>` as the stable ingressFqdn.
   // This is consistent regardless of revision updates.

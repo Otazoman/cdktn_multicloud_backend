@@ -1,6 +1,8 @@
 import { CodebuildProject } from "@cdktn/provider-aws/lib/codebuild-project";
+import { CodebuildWebhook } from "@cdktn/provider-aws/lib/codebuild-webhook";
 import { EcrLifecyclePolicy } from "@cdktn/provider-aws/lib/ecr-lifecycle-policy";
 import { EcrRepository } from "@cdktn/provider-aws/lib/ecr-repository";
+import { IamRolePolicy } from "@cdktn/provider-aws/lib/iam-role-policy";
 import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
 import { Construct } from "constructs";
 
@@ -29,6 +31,26 @@ export interface CicdConfig {
     serviceRoleArn: string;
     // CloudWatch Log Group Name created externally (optional)
     cloudwatchLogGroupName?: string;
+    /**
+     * Name of the service role (serviceRoleArn). Required by
+     * connectionArn and deploy: their permissions are added to it.
+     */
+    serviceRoleName?: string;
+    /**
+     * ARN of an AVAILABLE CodeConnections connection to GitHub. When set,
+     * the source is read through it and a webhook starts the build.
+     */
+    connectionArn?: string;
+    /** HEAD_REF pattern of the webhook (e.g. "^refs/heads/(main)$") */
+    triggerHeadRefPattern?: string;
+  };
+  /** ECS service the build deploys to (buildspec.yml of the application) */
+  deploy?: {
+    clusterName: string;
+    serviceName: string;
+    containerName: string;
+    /** Task execution / task roles passed to ECS with the new revision */
+    passRoleArns: string[];
   };
   tags?: { [key: string]: string };
 }
@@ -87,6 +109,15 @@ export function createAwsCicdResources(
     type: "PLAINTEXT",
   });
 
+  // Deploy target read by buildspec.yml of the application
+  if (config.deploy) {
+    envVars.push(
+      { name: "ECS_CLUSTER", value: config.deploy.clusterName, type: "PLAINTEXT" },
+      { name: "ECS_SERVICE", value: config.deploy.serviceName, type: "PLAINTEXT" },
+      { name: "CONTAINER_NAME", value: config.deploy.containerName, type: "PLAINTEXT" },
+    );
+  }
+
   // 3. CodeBuild Project
   const codebuild = new CodebuildProject(scope, `codebuild-${config.key ?? config.name}`, {
     provider,
@@ -107,6 +138,9 @@ export function createAwsCicdResources(
       type: "GITHUB",
       location: config.codebuild.repositoryUrl,
       buildspec: config.codebuild.buildspec,
+      auth: config.codebuild.connectionArn
+        ? { type: "CODECONNECTIONS", resource: config.codebuild.connectionArn }
+        : undefined,
     },
     vpcConfig: {
       vpcId: vpcId,
@@ -124,5 +158,77 @@ export function createAwsCicdResources(
     tags: config.tags,
   });
 
-  return { repository, codebuild };
+  // 4. Permissions of the service role for the connection and the deploy
+  const statements: Record<string, unknown>[] = [];
+  if (config.codebuild.connectionArn) {
+    statements.push({
+      Effect: "Allow",
+      Action: [
+        "codeconnections:GetConnection",
+        "codeconnections:GetConnectionToken",
+        "codeconnections:UseConnection",
+      ],
+      Resource: [config.codebuild.connectionArn],
+    });
+  }
+  if (config.deploy) {
+    const { clusterName, serviceName, passRoleArns } = config.deploy;
+    statements.push(
+      {
+        Effect: "Allow",
+        Action: ["ecs:DescribeServices", "ecs:UpdateService"],
+        Resource: [`arn:aws:ecs:*:*:service/${clusterName}/${serviceName}`],
+      },
+      {
+        // Task definitions cannot be restricted by resource
+        Effect: "Allow",
+        Action: ["ecs:DescribeTaskDefinition", "ecs:RegisterTaskDefinition"],
+        Resource: ["*"],
+      },
+      {
+        Effect: "Allow",
+        Action: ["iam:PassRole"],
+        Resource: passRoleArns,
+        Condition: {
+          StringEquals: { "iam:PassedToService": "ecs-tasks.amazonaws.com" },
+        },
+      },
+    );
+  }
+  let rolePolicy: IamRolePolicy | undefined;
+  if (statements.length > 0) {
+    if (!config.codebuild.serviceRoleName) {
+      throw new Error(
+        `CodeBuild project "${config.name}": serviceRoleName is required for the connection / deploy permissions`,
+      );
+    }
+    rolePolicy = new IamRolePolicy(scope, `codebuild-policy-${config.key ?? config.name}`, {
+      provider,
+      name: `${config.name}-deploy`,
+      role: config.codebuild.serviceRoleName,
+      policy: JSON.stringify({ Version: "2012-10-17", Statement: statements }),
+    });
+  }
+
+  // 5. Webhook: pushes to the trigger branches start the build
+  let webhook: CodebuildWebhook | undefined;
+  if (config.codebuild.connectionArn && config.codebuild.triggerHeadRefPattern) {
+    webhook = new CodebuildWebhook(scope, `codebuild-webhook-${config.key ?? config.name}`, {
+      provider,
+      projectName: codebuild.name,
+      buildType: "BUILD",
+      filterGroup: [
+        {
+          filter: [
+            { type: "EVENT", pattern: "PUSH" },
+            { type: "HEAD_REF", pattern: config.codebuild.triggerHeadRefPattern },
+          ],
+        },
+      ],
+      // The source must be readable through the connection first
+      dependsOn: rolePolicy ? [rolePolicy] : undefined,
+    });
+  }
+
+  return { repository, codebuild, rolePolicy, webhook };
 }

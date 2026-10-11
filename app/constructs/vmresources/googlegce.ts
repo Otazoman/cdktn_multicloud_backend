@@ -6,8 +6,14 @@ import { ITerraformDependable } from "cdktn";
 import { Construct } from "constructs";
 import * as fs from "fs";
 import * as path from "path";
+import { idPart } from "../../utils/naming";
 
 interface GceInstanceConfig {
+  /**
+   * Construct ID key (Terraform address). Defaults to `name`. To rename
+   * the resource without replacing it in state, set this to the old value.
+   */
+  key?: string;
   name: string;
   machineType: string;
   zone: string;
@@ -46,7 +52,7 @@ export function createGoogleGceInstances(
 ) {
   const instances = params.instanceConfigs
     .filter((config) => config.build)
-    .map((config, index) => {
+    .map((config) => {
       //Startup Script
       let startupScriptContent: string | undefined = undefined;
       if (config.startupScriptPath) {
@@ -63,7 +69,7 @@ export function createGoogleGceInstances(
         }
       }
 
-      return new ComputeInstance(scope, `gceInstance${index}`, {
+      return new ComputeInstance(scope, `gceInstance-${idPart(config.key ?? config.name)}`, {
         provider: provider,
         project: params.project,
         name: config.name,

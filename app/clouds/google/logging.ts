@@ -6,6 +6,7 @@ import {
   gcpRunConfigs,
   googleLogBucketsConfig,
   googleLogRouteNames,
+  googleUseLogBuckets,
   googleVpnParams,
 } from "../../config/google/googlesettings";
 import {
@@ -57,11 +58,15 @@ export function createGoogleLogging(ctx: GoogleBuildContext): void {
       });
   }
 
-  if (sources.length === 0) {
+  // Without log buckets, `logs: true` resources stay in _Default (nothing to create)
+  const routedSources = googleUseLogBuckets
+    ? sources
+    : sources.filter((source) => !source.logs);
+  if (routedSources.length === 0) {
     return;
   }
 
-  const routes: GoogleLogRouteParams[] = sources.map((source) => {
+  const routes: GoogleLogRouteParams[] = routedSources.map((source) => {
     if (
       source.logs &&
       !googleLogBucketsConfig.some((bucket) => bucket.key === source.logBucket)

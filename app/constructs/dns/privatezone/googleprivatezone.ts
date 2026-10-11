@@ -4,7 +4,7 @@ import { DnsPolicy } from "@cdktn/provider-google/lib/dns-policy";
 import { DnsRecordSet } from "@cdktn/provider-google/lib/dns-record-set";
 import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
 import { Construct } from "constructs";
-import { resourceName } from "../../../utils/naming";
+import { resourceName, idPart } from "../../../utils/naming";
 
 /**
  * Retrieves Google Cloud DNS Inbound Resolver IP addresses
@@ -83,7 +83,7 @@ export function createGooglePrivateDnsZones(
     config.enableForwarding &&
     (params.azureDnsResolverIp || params.awsInboundEndpointIps?.length)
   ) {
-    names.forEach((zoneName, idx) => {
+    names.forEach((zoneName) => {
       const zoneSafeName = zoneName.replace(/\./g, "-");
       let description = config.forwardingZoneDescription;
       let targetNameServers: Array<{ ipv4Address: string }> = [];
@@ -129,7 +129,7 @@ export function createGooglePrivateDnsZones(
 
       // Only create forwarding zone if we have target name servers
       if (targetNameServers.length > 0) {
-        const mz = new DnsManagedZone(scope, `gcp-forwarding-zone-${idx}`, {
+        const mz = new DnsManagedZone(scope, `gcp-forwarding-zone-${zoneSafeName}`, {
           provider: provider,
           name: resourceName(
             config.forwardingZoneNames?.[zoneName],
@@ -155,7 +155,7 @@ export function createGooglePrivateDnsZones(
           `No target DNS resolver found for zone: ${zoneName}, creating private zone instead`,
         );
         // Fall back to creating a private zone
-        const mz = new DnsManagedZone(scope, `gcp-private-zone-${idx}`, {
+        const mz = new DnsManagedZone(scope, `gcp-private-zone-${zoneSafeName}`, {
           provider: provider,
           name: resourceName(
             config.privateZoneNames?.[zoneName],
@@ -177,12 +177,12 @@ export function createGooglePrivateDnsZones(
     });
   } else {
     // Fallback: Create standard private zones (original behavior)
-    names.forEach((zoneName, idx) => {
+    names.forEach((zoneName) => {
       const zoneSafeName = zoneName.replace(/\./g, "-");
       const description =
         config.privateZoneDescription || `Private DNS zone for ${zoneName}`;
 
-      const mz = new DnsManagedZone(scope, `gcp-private-zone-${idx}`, {
+      const mz = new DnsManagedZone(scope, `gcp-private-zone-${zoneSafeName}`, {
         provider: provider,
         name: resourceName(
           config.privateZoneNames?.[zoneName],
@@ -260,8 +260,8 @@ export function createGoogleInnerZoneWithARecords(
   });
 
   // Create A records for each instance
-  params.instances.forEach((instance, idx) => {
-    const aRecord = new DnsRecordSet(scope, `${recordIdPrefix}-${idx}`, {
+  params.instances.forEach((instance) => {
+    const aRecord = new DnsRecordSet(scope, `${recordIdPrefix}-${idPart(instance.name)}`, {
       provider: provider,
       name: instance.name.endsWith(".") ? instance.name : instance.name + ".",
       managedZone: internalZone.name,
@@ -290,8 +290,8 @@ export function addGoogleInnerZoneARecords(
   }>,
   recordIdPrefix: string = "gcp-inner-a-record-extra",
 ): DnsRecordSet[] {
-  return instances.map((instance, idx) => {
-    return new DnsRecordSet(scope, `${recordIdPrefix}-${idx}`, {
+  return instances.map((instance) => {
+    return new DnsRecordSet(scope, `${recordIdPrefix}-${idPart(instance.name)}`, {
       provider: provider,
       name: instance.name.endsWith(".") ? instance.name : instance.name + ".",
       managedZone: internalZone.name,

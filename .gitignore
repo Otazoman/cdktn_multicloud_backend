@@ -6,6 +6,9 @@ terraform.tfstate.backup
 .terraform.lock.hcl
 .terraform.tfstate.lock.info
 .env
+# Credentials and secrets per environment (FEAT-04); templates end in .sample
+.env.*
+!.env*.sample
 ssh_private_key.pem
 outputs.json
 authfiles

@@ -1,9 +1,9 @@
 // Azure Database for PostgreSQL Flexible Server Configuration Parameters
+// Values must be plain numbers in the parameter's unit (no "MB" / "GB").
+// Reference: https://learn.microsoft.com/azure/postgresql/server-parameters/
 export const postgresParameters = [
-  {
-    name: "shared_buffers",
-    value: "32MB", // Appropriate for small instances
-  },
+  // shared_buffers: not set. Azure sets it from the memory of the SKU when the
+  // server is created (B1ms, 2GiB: 32768 x 8kB = 256MB, 1/8 of the memory).
   {
     name: "max_connections",
     value: "100",
@@ -20,25 +20,21 @@ export const postgresParameters = [
     name: "log_checkpoints",
     value: "on",
   },
-  {
-    name: "log_connections",
-    value: "on",
-  },
+  // log_connections: read-only on flexible server (always logged), not set.
   {
     name: "log_disconnections",
     value: "on",
   },
-  {
-    name: "effective_cache_size",
-    value: "128MB",
-  },
+  // effective_cache_size: not set. Azure sets it from the memory of the SKU
+  // when the server is created: memoryGib x 131072 - shared_buffers
+  // (B1ms, 2GiB: 229376 x 8kB = 1792MB).
   {
     name: "work_mem",
-    value: "4MB",
+    value: "4096", // 4MB (unit: kB)
   },
   {
     name: "maintenance_work_mem",
-    value: "64MB",
+    value: "65536", // 64MB (unit: kB)
   },
   {
     name: "timezone",
@@ -54,11 +50,17 @@ export const postgresParameters = [
   },
   {
     name: "wal_level",
-    value: "replica", // Enable WAL for backup and replication
+    // Logical replication (FEAT-01 active/active). "replica" to disable.
+    value: "logical",
+  },
+  {
+    // Logical replication needs at least 16 (Azure documentation)
+    name: "max_worker_processes",
+    value: "16",
   },
   {
     name: "max_wal_size",
-    value: "1GB",
+    value: "1024", // 1GB (unit: MB)
   },
 ];
 

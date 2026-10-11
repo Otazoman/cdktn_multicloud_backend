@@ -9,6 +9,11 @@ import { addTerraformDependency } from "../../utils/terraformDependency";
  * Configuration for a CloudWatch Log Group.
  */
 export interface AwsLogGroupDefinition {
+  /**
+   * Construct ID key (Terraform address). Defaults to `name`. To rename
+   * the resource without replacing it in state, set this to the old value.
+   */
+  key?: string;
   /** The name of the log group. */
   name: string;
   /** Specifies the number of days you want to retain log events in the specified log group. Default is 0 (infinite). */
@@ -21,6 +26,11 @@ export interface AwsLogGroupDefinition {
  * Configuration for a CloudWatch Log Metric Filter.
  */
 export interface AwsMetricFilterDefinition {
+  /**
+   * Construct ID key (Terraform address). Defaults to `name`. To rename
+   * the resource without replacing it in state, set this to the old value.
+   */
+  key?: string;
   /** A symbolic name for the metric filter. */
   name: string;
   /** The name of the log group to associate the metric filter with (can be a local name or an external one). */
@@ -41,6 +51,11 @@ export interface AwsMetricFilterDefinition {
  * Configuration for a CloudWatch Metric Alarm.
  */
 export interface AwsMetricAlarmDefinition {
+  /**
+   * Construct ID key (Terraform address). Defaults to `alarmName`. To rename
+   * the resource without replacing it in state, set this to the old value.
+   */
+  key?: string;
   /** The descriptive name for the alarm. */
   alarmName: string;
   /** The arithmetic operation to use when comparing the specified Statistic and Threshold. */
@@ -124,12 +139,12 @@ export class AwsCloudWatchResources extends Construct {
 
     // 1. Independent CloudWatch Log Groups Creation
     if (config.logGroups) {
-      config.logGroups.forEach((logDef, index) => {
-        const sanitizedId = logDef.name.replace(/[^a-zA-Z0-9-_]/g, "-");
+      config.logGroups.forEach((logDef) => {
+        const sanitizedId = (logDef.key ?? logDef.name).replace(/[^a-zA-Z0-9-_]/g, "-");
 
         const logGroup = new CloudwatchLogGroup(
           this,
-          `aws-log-group-${sanitizedId}-${index}`,
+          `aws-log-group-${sanitizedId}`,
           {
             provider: provider,
             name: logDef.name,
@@ -148,8 +163,8 @@ export class AwsCloudWatchResources extends Construct {
 
     // 2. Independent CloudWatch Log Metric Filters Creation
     if (config.metricFilters) {
-      config.metricFilters.forEach((filterDef, index) => {
-        const sanitizedId = filterDef.name.replace(/[^a-zA-Z0-9-_]/g, "-");
+      config.metricFilters.forEach((filterDef) => {
+        const sanitizedId = (filterDef.key ?? filterDef.name).replace(/[^a-zA-Z0-9-_]/g, "-");
 
         // Safely evaluate whether the targeted Log Group was created locally inside this construct
         const localLogGroup = this.createdLogGroups[filterDef.logGroupName];
@@ -159,7 +174,7 @@ export class AwsCloudWatchResources extends Construct {
 
         const metricFilter = new CloudwatchLogMetricFilter(
           this,
-          `aws-metric-filter-${sanitizedId}-${index}`,
+          `aws-metric-filter-${sanitizedId}`,
           {
             provider: provider,
             name: filterDef.name,
@@ -189,12 +204,12 @@ export class AwsCloudWatchResources extends Construct {
 
     // 3. Independent CloudWatch Metric Alarms Creation
     if (config.metricAlarms) {
-      config.metricAlarms.forEach((alarmDef, index) => {
-        const sanitizedId = alarmDef.alarmName.replace(/[^a-zA-Z0-9-_]/g, "-");
+      config.metricAlarms.forEach((alarmDef) => {
+        const sanitizedId = (alarmDef.key ?? alarmDef.alarmName).replace(/[^a-zA-Z0-9-_]/g, "-");
 
         const metricAlarm = new CloudwatchMetricAlarm(
           this,
-          `aws-metric-alarm-${sanitizedId}-${index}`,
+          `aws-metric-alarm-${sanitizedId}`,
           {
             provider: provider,
             alarmName: alarmDef.alarmName,

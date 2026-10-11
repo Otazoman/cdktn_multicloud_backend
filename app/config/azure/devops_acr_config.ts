@@ -1,8 +1,10 @@
+import { envScopedName } from "../environment";
 import { LOCATION, RESOURCE_GROUP } from "./common";
 
 export const azureDevOpsAcrConfigs = [
   {
-    name: "mycompanyacr001",
+    // Globally unique; other environments than dev get the environment name appended
+    name: envScopedName("mycompanyacr001", { hyphen: false }),
     // Private endpoint names (omitted: default name)
     names: {
       privateEndpoint: "pe-mycompanyacr001",

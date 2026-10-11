@@ -1,8 +1,8 @@
-import { LOCATION } from "./common";
 import type {
   GcpAlertPolicyDefinition,
   GcpLogMetricDefinition,
 } from "../../constructs/observability/googlecloudmonitoring";
+import { LOCATION } from "./common";
 
 /** Notification target: one email notification channel per address. */
 export interface GoogleNotificationTargetConfig {

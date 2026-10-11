@@ -1,5 +1,12 @@
+import { appRepository, appRepositoryUrl } from "../cicd";
 import { LOCATION, PROJECT_NAME } from "./common";
 
+/**
+ * Artifact Registry, Cloud Build private pool and GitHub trigger.
+ *
+ * The build definition is cloudbuild.yaml of the application repository
+ * (config/cicd.ts). Pushes to the branches of cicdTrigger start the build.
+ */
 export const googleCicdConfigs = [
   {
     build: true,
@@ -20,14 +27,22 @@ export const googleCicdConfigs = [
       diskSizeGb: 100,
       peeredNetworkIpRange: "",
     },
-    // GitHub Event Trigger Configuration
+    // GitHub trigger (Cloud Build 2nd gen). The connection is created and
+    // approved with gcloud before the deploy (docs/getting-started.md).
     githubTrigger: {
-      build: false,
+      build: true,
       name: "github-push-trigger",
-      owner: "your-github-organization-or-user",
-      repoName: "your-repository-name",
-      branchPattern: "^main$",
+      // Connection in the region of cloudbuildPrivatePool.location
+      connectionName: "multicloud-github",
+      repositoryName: appRepository.name,
+      remoteUri: appRepositoryUrl,
       filename: "cloudbuild.yaml",
+      // Service account the build runs as (created by cdktn)
+      serviceAccountId: "cloudbuild-deployer",
+      // Cloud Run service the build deploys to (name in cloudrun.ts; passed
+      // as _SERVICE). Terraform then ignores the service's image. Omit to
+      // build and push only (cloudbuild.yaml then fails at its deploy step).
+      deployTarget: { cloudRunServiceName: "web-service-with-lb" },
     },
     tags: {
       environment: "dev",

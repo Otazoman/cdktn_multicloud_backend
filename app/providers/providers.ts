@@ -4,6 +4,9 @@ import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
 import { NullProvider } from "@cdktn/provider-null/lib/provider";
 import { Construct } from "constructs";
 import { REGION as AWS_REGION } from "../config/aws/common";
+import { accounts } from "../config/commonsettings";
+import { currentEnv } from "../config/environment";
+import { isCloudEnabled } from "../config/features";
 import {
   LOCATION as GOOGLE_REGION,
   PROJECT_NAME as GOOGLE_PROJECT,
@@ -27,16 +30,27 @@ export interface Providers {
 }
 
 export const createProviders = (scope: Construct): Providers => {
+  // Accounts of the environment (FEAT-04): when set, the providers refuse to
+  // run against another account.
   const awsProvider = new AwsProvider(scope, "aws", {
     region: AWS_REGION,
+    allowedAccountIds: accounts.awsAccountId
+      ? [accounts.awsAccountId]
+      : undefined,
   });
 
+  if (isCloudEnabled("google") && !GOOGLE_PROJECT) {
+    throw new Error(
+      `PROJECT_NAME in config/google/common.ts is not set for DEPLOY_ENV "${currentEnv()}".`,
+    );
+  }
   const googleProvider = new GoogleProvider(scope, "google", {
     project: GOOGLE_PROJECT,
     region: GOOGLE_REGION,
   });
 
   const azureProvider = new AzurermProvider(scope, "azure", {
+    subscriptionId: accounts.azureSubscriptionId,
     features: [{}],
   });
 

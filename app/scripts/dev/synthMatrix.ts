@@ -3,12 +3,13 @@
  * (__tests__/synth-matrix.test.ts) and the before/after comparison script
  * (scripts/dev/synth-matrix.ts).
  *
- * The full stack is synthesized for every combination of `env` and the VPN
- * connection flags, for several feature sets, by overriding the exports of
- * config/commonsettings.ts in memory (the file itself is never modified).
+ * The full stack is synthesized for every combination of `vpnMode` and the
+ * VPN connection flags, for several feature sets, by overriding the exports
+ * of config/commonsettings.ts in memory (the file itself is never modified).
+ * DEPLOY_ENV selects the environment (default: dev).
  *
- * NOTE: synthesized output contains secrets loaded from config/.env
- * (e.g. DB passwords). Never commit it.
+ * NOTE: synthesized output contains the secrets of the environment variables
+ * (.env.<env> in the container, e.g. DB passwords). Never commit it.
  */
 import * as path from "path";
 import { Testing } from "cdktn";
@@ -29,7 +30,7 @@ const allFeaturesOn = {
   },
 };
 
-/** Setting overrides combined with every env x connection pattern. */
+/** Setting overrides combined with every vpnMode x connection pattern. */
 export const FEATURE_SETS: Record<string, Record<string, unknown>> = {
   // Values currently written in config/commonsettings.ts
   current: {},
@@ -52,17 +53,17 @@ export function buildMatrixCases(
 ): MatrixCase[] {
   const cases: MatrixCase[] = [];
   for (const [featureSetName, features] of Object.entries(featureSets)) {
-    for (const env of ["dev", "prod"]) {
+    for (const vpnMode of ["singleTunnel", "haBgp"]) {
       for (const awsToGoogle of [true, false]) {
         for (const awsToAzure of [true, false]) {
           for (const googleToAzure of [true, false]) {
             cases.push({
               name:
-                `${featureSetName} env=${env} awsToGoogle=${awsToGoogle} ` +
+                `${featureSetName} vpnMode=${vpnMode} awsToGoogle=${awsToGoogle} ` +
                 `awsToAzure=${awsToAzure} googleToAzure=${googleToAzure}`,
               overrides: {
                 ...features,
-                env,
+                vpnMode,
                 awsToGoogle,
                 awsToAzure,
                 googleToAzure,
@@ -76,18 +77,9 @@ export function buildMatrixCases(
   return cases;
 }
 
-let envLoaded = false;
-
 /** Synthesizes the full stack for one case and returns the parsed JSON. */
 export function synthCase(matrixCase: MatrixCase): any {
-  if (!envLoaded) {
-    require("dotenv").config({
-      path: path.join(APP_DIR, "config/.env"),
-      quiet: true,
-    });
-    envLoaded = true;
-  }
-
+  process.env.DEPLOY_ENV = process.env.DEPLOY_ENV || "dev";
   const settings = require(path.join(APP_DIR, "config/commonsettings"));
   const { MultiCloudBackendStack } = require(
     path.join(APP_DIR, "stacks/MultiCloudBackendStack"),

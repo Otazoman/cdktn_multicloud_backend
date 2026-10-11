@@ -1,5 +1,5 @@
 import { DnsRecordSet } from "@cdktn/provider-google/lib/dns-record-set";
-import { resourceName } from "../../utils/naming";
+import { resourceName, idPart } from "../../utils/naming";
 import { Resource as NullResource } from "@cdktn/provider-null/lib/resource";
 
 import { isFeatureEnabled } from "../../config/features";
@@ -13,9 +13,9 @@ import { createGoogleCloudRunResources } from "../../constructs/container/google
 import { createGoogleLbResources } from "../../constructs/loadbalancer/googlelb";
 import { LoadBalancerDnsInfo } from "../common";
 import { GoogleLbResourcesWithDns } from "./types";
+import { googleCicdDeployTargets } from "./cicd";
 import { addTerraformDependency } from "../../utils/terraformDependency";
 import { GoogleBuildContext } from "./context";
-import { CloudRunV2Service } from "@cdktn/provider-google/lib/cloud-run-v2-service";
 import { ComputeSubnetwork } from "@cdktn/provider-google/lib/compute-subnetwork";
 import { GoogleGlobalLbResources, GoogleRegionalLbResources } from "./types";
 
@@ -60,7 +60,7 @@ export function createGoogleContainers(ctx: GoogleBuildContext): void {
     const proxySubnetWaits: Map<string, NullResource> = new Map();
     if (googleVpcResources.proxySubnets) {
       googleVpcResources.proxySubnets.forEach((ps, idx) => {
-        const waitId = `wait-destroy-proxy-subnet-${idx}`;
+        const waitId = `wait-destroy-proxy-subnet-${ps.node.id}`;
         const waitRes = new NullResource(scope, waitId, {
           provider: nullProvider,
           // Trigger on the subnet ID so the wait is re-created if the subnet
@@ -83,7 +83,9 @@ export function createGoogleContainers(ctx: GoogleBuildContext): void {
     }
 
     // 6a. Cloud Run services
-    const cloudRunServices: Record<string, CloudRunV2Service> = {};
+    const cloudRunServices = ctx.cloudRunServices;
+    // Services deployed by CI/CD: Terraform ignores their image
+    const cicdTargets = googleCicdDeployTargets();
 
     if (gcpRunConfigs) {
       gcpRunConfigs
@@ -110,6 +112,7 @@ export function createGoogleContainers(ctx: GoogleBuildContext): void {
             },
             vpcSubnetId: subnetConstruct?.id,
             networkId: googleVpcResources.vpc.id,
+            ignoreImageChanges: cicdTargets.has(config.name),
           });
 
           // depends_on: Cloud Run → Subnet (structural dependency)
@@ -229,12 +232,12 @@ export function createGoogleContainers(ctx: GoogleBuildContext): void {
     //    Construct reference (no separate "Phase 2" DNS step needed).
     // ──────────────────────────────────────────────
     if (isFeatureEnabled("google", "dns")) {
-      [...globalLbs, ...regionalLbs].forEach((lb, index) => {
+      [...globalLbs, ...regionalLbs].forEach((lb) => {
         if (!lb.dnsInfo) return;
         const zone = publicZones[lb.dnsInfo.subdomain];
         const ipAddress = lb.staticIp?.address || lb.forwardingRule.ipAddress;
         if (zone && ipAddress) {
-          new DnsRecordSet(scope, `gcp-a-rec-${index}`, {
+          new DnsRecordSet(scope, `gcp-a-rec-${idPart(lb.dnsInfo.fqdn || lb.dnsInfo.subdomain)}`, {
             provider: googleProvider,
             project: zone.project,
             managedZone: zone.name,

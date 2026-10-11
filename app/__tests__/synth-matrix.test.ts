@@ -1,8 +1,8 @@
 /**
- * Regression test: synthesizes the full stack for every env x VPN connection
- * pattern (see scripts/dev/synthMatrix.ts) and checks invariants that must
- * always hold. No snapshot is stored because the synthesized output contains
- * secrets from config/.env.
+ * Regression test: synthesizes the full stack for every vpnMode x VPN
+ * connection pattern (see scripts/dev/synthMatrix.ts) and checks invariants
+ * that must always hold. No snapshot is stored because the synthesized output
+ * contains secrets from the environment variables (.env.<env>).
  */
 import {
   buildDependencyGraph,
@@ -18,7 +18,7 @@ describe.each(buildMatrixCases().map((c) => [c.name, c] as const))(
   "%s",
   (_name, matrixCase) => {
     let synth: any;
-    const { env, awsToGoogle, awsToAzure, googleToAzure, useVpn } =
+    const { vpnMode, awsToGoogle, awsToAzure, googleToAzure, useVpn } =
       matrixCase.overrides as Record<string, any>;
     const vpnEnabled = useVpn ?? require("../config/commonsettings").useVpn;
 
@@ -68,7 +68,7 @@ describe.each(buildMatrixCases().map((c) => [c.name, c] as const))(
         synth,
         "azurerm_virtual_network_gateway_connection",
       );
-      if (env === "dev") {
+      if (vpnMode === "singleTunnel") {
         // Single tunnel: static routing, no BGP
         for (const conn of connections) {
           expect(conn.bgp_enabled).toBe(false);

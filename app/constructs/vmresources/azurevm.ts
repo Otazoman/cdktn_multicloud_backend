@@ -2,10 +2,15 @@ import { LinuxVirtualMachine } from "@cdktn/provider-azurerm/lib/linux-virtual-m
 import { NetworkInterface } from "@cdktn/provider-azurerm/lib/network-interface";
 import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
 import { Construct } from "constructs";
-import { resourceName } from "../../utils/naming";
+import { resourceName, idPart } from "../../utils/naming";
 import * as fs from "fs";
 
 interface AzureVmConfig {
+  /**
+   * Construct ID key (Terraform address). Defaults to `name`. To rename
+   * the resource without replacing it in state, set this to the old value.
+   */
+  key?: string;
   name: string;
   /** Default: <project>-azure-nic-<vm name> */
   nicName?: string;
@@ -50,9 +55,9 @@ export function createAzureVms(
   const vms: LinuxVirtualMachine[] = [];
 
   // for rate limit
-  for (const [index, vmConfig] of params.vmConfigs
-    .filter((vmConfig) => vmConfig.build)
-    .entries()) {
+  for (const vmConfig of params.vmConfigs.filter(
+    (vmConfig) => vmConfig.build
+  )) {
     const targetSubnet = params.subnets[vmConfig.subnetKey];
     if (!targetSubnet) {
       throw new Error(
@@ -81,7 +86,7 @@ export function createAzureVms(
       }
     }
 
-    const nic = new NetworkInterface(scope, `nic-${index}`, {
+    const nic = new NetworkInterface(scope, `nic-${idPart(vmConfig.key ?? vmConfig.name)}`, {
       name: resourceName(vmConfig.nicName, "azure", "nic", vmConfig.name),
       location: vmConfig.location,
       resourceGroupName: vmConfig.resourceGroupName,
@@ -101,7 +106,7 @@ export function createAzureVms(
       provider: provider,
     });
 
-    const vm = new LinuxVirtualMachine(scope, `vm-${index}`, {
+    const vm = new LinuxVirtualMachine(scope, `vm-${idPart(vmConfig.key ?? vmConfig.name)}`, {
       name: vmConfig.name,
       resourceGroupName: vmConfig.resourceGroupName,
       location: vmConfig.location,

@@ -1,4 +1,5 @@
 import type { AlbConfig } from "../../constructs/loadbalancer/awsalb";
+import { PUBLIC_DOMAIN } from "./common";
 
 /**
  * ALB settings: the construct's AlbConfig with security group / subnet
@@ -33,14 +34,14 @@ export const albConfigs: AwsAlbSettings[] = [
     securityGroupNames: ["alb-sg"],
     subnetNames: ["my-aws-vpc-public-subnet1a", "my-aws-vpc-public-subnet1c"],
     dnsConfig: {
-      subdomain: "awstest.tohonokai.com",
-      fqdn: "api.awstest.tohonokai.com",
+      subdomain: PUBLIC_DOMAIN,
+      fqdn: `api.${PUBLIC_DOMAIN}`,
     },
     certificateConfig: {
       enabled: true,
       mode: "AWS_MANAGED",
-      domains: ["api.awstest.tohonokai.com"],
-      validationZone: "awstest.tohonokai.com",
+      domains: [`api.${PUBLIC_DOMAIN}`],
+      validationZone: PUBLIC_DOMAIN,
     },
     listenerConfig: {
       name: "production-listener",

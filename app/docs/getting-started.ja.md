@@ -1,0 +1,461 @@
+# はじめに（初回 deploy までの準備）
+
+[English](getting-started.md)
+
+最初の `cdktn deploy` までに必要な準備をまとめています。英語版（[getting-started.md](getting-started.md)）と同じ内容です。変更するときは両方を更新してください。
+
+1. [前提](#1-前提)
+2. [クラウドの認証情報](#2-クラウドの認証情報)
+3. [アプリケーションの秘密の値](#3-アプリケーションの秘密の値)
+4. [証明書と鍵](#4-証明書と鍵)
+5. [クラウド側の準備](#5-クラウド側の準備)
+6. [設定](#6-設定)
+7. [初回の deploy](#7-初回の-deploy)
+
+## 1. 前提
+
+- Docker と Docker Compose（Ubuntu 24.04 上の Docker 28.5 / Compose 2.40 で確認済み）
+- deploy 先の各クラウドのアカウント（AWS アカウント、Google Cloud プロジェクト、Azure サブスクリプション）
+
+コマンドはすべて `cdktn-backend` コンテナの中で実行します。コンテナには Node.js、cdktn CLI、Terraform、OpenTofu が入っています（`Dockerfile` を参照）。
+
+### 環境
+
+環境（`dev`、`stg`、`prod`）ごとに、別々のクラウドのアカウントに構築します。**環境ごとにコンテナを 1 つ**起動します。`DEPLOY_ENV` で環境を選ぶと、そのコンテナには次のものが渡されます。
+
+- その環境の認証情報と秘密の値（`.env.<環境名>`、2 章）
+- 設定（設定ファイルの `byEnv`、6 章）
+- state（`state/<環境名>/terraform.tfstate`）
+
+```bash
+cp .env.sample .env                        # ツールのバージョン（ビルド引数）
+DEPLOY_ENV=dev docker compose -p cdktn-dev up -d --build
+docker compose -p cdktn-dev exec cdktn-backend bash   # 作業ディレクトリ: /app
+npm install
+```
+
+別の環境では、別のプロジェクト名を使います（例: `DEPLOY_ENV=prod docker compose -p cdktn-prod up -d`）。どのコンテナも `app/` を共有しているため、2 つの環境で同時に synth や deploy をしないでください（`cdktf.out/` が共有されています）。環境名の一覧は `config/environment.ts` の `ENVIRONMENTS` にあります。環境を増やすときは、そこに追加し、`.env.<環境名>` を作ります。
+
+## 2. クラウドの認証情報
+
+**リポジトリの直下**で `.env.ENV.sample` を `.env.<環境名>`（`.env.dev`、`.env.stg`、`.env.prod`）にコピーし、その環境のアカウントの値を書きます。これらのファイルは Git の管理外です。`compose.yaml` が `.env.<DEPLOY_ENV>` をコンテナに渡し、Terraform の provider は標準の環境変数を読みます。同じファイルに、アプリケーションの秘密の値（3 章）も書きます。
+
+| 変数 | 内容 |
+|---|---|
+| `AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY` | AWS の IAM ユーザーの認証情報 |
+| `ARM_SUBSCRIPTION_ID`、`ARM_CLIENT_ID`、`ARM_CLIENT_SECRET`、`ARM_TENANT_ID`、`ARM_ENVIRONMENT` | Azure のサービスプリンシパル |
+| `GOOGLE_CLOUD_KEYFILE_JSON` | Google Cloud のサービスアカウントキーの、**コンテナ内での**パス。`compose.yaml` が、キーのあるホストのディレクトリをマウントします |
+| `GOOGLE_CLOUD_PROJECT` | Google Cloud のプロジェクト ID |
+
+イメージのビルドに使うツールのバージョン（`NODE_VERSION`、`TERRAFORM_VERSION`、`OPENTOFU_VERSION`）は、`.env`（`.env.sample` から作成）に残します。
+
+リージョン、Azure のロケーション、Google Cloud のプロジェクトは、`config/aws/common.ts`、`config/azure/common.ts`、`config/google/common.ts` に書きます。Google Cloud のプロジェクト ID（`PROJECT_NAME`）は環境ごとに書きます。Google Cloud を有効にする環境では必須です。
+
+ある環境の認証情報で別の環境を変更してしまわないように、各環境のアカウント ID を `config/commonsettings.ts` の `accounts` に書いてください。AWS の provider はほかのアカウントでの実行を拒否し（`allowed_account_ids`）、Azure の provider はそのサブスクリプションを使います。
+
+## 3. アプリケーションの秘密の値
+
+認証情報と同じ `.env.<環境名>` に書きます（2 章。`config/.env` はもう読まれません）。
+
+| 変数 | 使われる場所 |
+|---|---|
+| `AWSDB_ROOT_USER`、`AWSDB_ROOT_PASSWORD` | RDS / Aurora の管理者 |
+| `GOOGLEDB_ROOT_USER`、`GOOGLEDB_ROOT_PASSWORD` | Cloud SQL の管理者 |
+| `AZUREDB_ROOT_USER`、`AZUREDB_ROOT_PASSWORD` | Azure Database の管理者 |
+| `AZURE_APPGW_SSL_CERT_PASSWORD` | Application Gateway の PFX 証明書のパスワード（4 章） |
+| `GOOGLE_AZURE_VPN_PRESHARED_KEY` | Google Cloud ↔ Azure の VPN トンネルの事前共有鍵 |
+| `ECS_WORKER_POSTGRES_PASSWORD` | ECS の `worker-service` の環境変数 `POSTGRES_PASSWORD` |
+
+`.env.<環境名>` は Docker Compose が読みます。次の値は引用符で囲んでください。
+
+- `$` を含む値: **シングルクォート**で囲みます。囲まないと `$...` が変数として展開され、値が途中で切れます。ダブルクォートでも展開されます。
+- ` #` を含む値: 引用符で囲みます。囲まないと、行の残りがコメントとして扱われます。
+
+## 4. 証明書と鍵
+
+次のファイルは環境ごとに用意し、Git では管理しません。使う機能を deploy する前に置いてください。
+
+| ファイル | 使われる場所 |
+|---|---|
+| `sslcerts/openssl/server.crt`、`sslcerts/openssl/server.key` | Google Cloud Load Balancing（証明書の取り込み） |
+| `sslcerts/pfx/azureappgw_certificate.pfx` | Azure Application Gateway（HTTPS リスナー） |
+| `pubkey/azurevmauthkey.pub` | Azure の VM の SSH 公開鍵 |
+
+テスト用には、同梱の `sslcerts/openssl/openssl.cnf` で自己署名証明書を作れます。
+
+```bash
+cd sslcerts/openssl
+openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
+  -config openssl.cnf -keyout server.key -out server.crt
+openssl pkcs12 -export -inkey server.key -in server.crt \
+  -out ../pfx/azureappgw_certificate.pfx   # AZURE_APPGW_SSL_CERT_PASSWORD を使う
+```
+
+## 5. クラウド側の準備
+
+### AWS
+
+cdktn が使う IAM ユーザーに、有効にするリソースの権限に加えて、次の権限を付けます。
+
+- **ECS**: ECS の権限と、Application Auto Scaling の権限
+
+  ```json
+  {
+    "Effect": "Allow",
+    "Action": "application-autoscaling:*",
+    "Resource": "*"
+  }
+  ```
+
+- **EFS**: `AmazonElasticFileSystemFullAccess`
+- **CodeBuild / ECR**: `IAMFullAccess` と、次のポリシー
+
+  ```json
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "codebuild:CreateProject",
+          "codebuild:DeleteProject",
+          "codebuild:UpdateProject",
+          "codebuild:BatchGetProjects",
+          "codebuild:ListProjects"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "ecr:CreateRepository",
+          "ecr:DeleteRepository",
+          "ecr:DescribeRepositories",
+          "ecr:PutLifecyclePolicy",
+          "ecr:GetLifecyclePolicy",
+          "ecr:DeleteLifecyclePolicy",
+          "ecr:SetRepositoryPolicy"
+        ],
+        "Resource": "*"
+      }
+    ]
+  }
+  ```
+
+### Google Cloud
+
+使う機能の API を有効にします。
+
+| 機能 | API |
+|---|---|
+| Cloud SQL | Cloud Resource Manager API、Cloud SQL Admin API、Service Networking API |
+| Cloud Run | Cloud Run Admin API、IAM API、Artifact Registry API、Cloud Build API、Serverless VPC Access API、Cloud Filestore API |
+| Filestore | Cloud Filestore API |
+| Secret Manager（Cloud SQL と一緒に使う） | Secret Manager API |
+| CI/CD | Cloud Build API、Secret Manager API（GitHub との接続）、Artifact Registry API、Cloud Run Admin API |
+
+```bash
+PROJECT=your-project-id
+USER_EMAIL=you@example.com
+SERVICE_ACCOUNT=your-sa@your-project-id.iam.gserviceaccount.com
+
+gcloud config set project "$PROJECT"
+gcloud services enable run.googleapis.com iam.googleapis.com \
+  artifactregistry.googleapis.com cloudbuild.googleapis.com
+
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member="user:${USER_EMAIL}" --role="roles/run.admin"
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member="serviceAccount:${SERVICE_ACCOUNT}" --role="roles/run.admin"
+```
+
+Cloud SQL を使う場合、cdktn が使うサービスアカウントには **Network Administrator**（ネットワーク管理者）のロールが必要です（編集者のロールでは足りません）。
+
+### Azure
+
+- **Container Apps**: リソースプロバイダー `Microsoft.App` を登録します。
+
+  ```bash
+  az login
+  az provider register --namespace Microsoft.App
+  az provider show --namespace Microsoft.App --query registrationState
+  ```
+
+- **Key Vault**（Azure Database と一緒に作られます）: cdktn は Key Vault に `Key Vault Secrets Officer` のロールを割り当てます。そのため、cdktn を実行する ID には、ロールを割り当てる権限（リソースグループの所有者、またはユーザー アクセス管理者）が必要です。
+
+### 公開 DNS のサブドメインの委任
+
+クラウドごとに、それぞれのサブドメイン（例: `awstest.example.com`）を持ちます。公開ゾーンを作った後、親ゾーンから委任します。
+
+各サブドメインのネームサーバーを調べます。
+
+```bash
+# AWS（Route 53）
+SUB_DOMAIN="awstest.example.com"
+aws route53 list-hosted-zones-by-name --dns-name "$SUB_DOMAIN" \
+  --query "HostedZones[0].Id" --output text \
+  | xargs -I {} aws route53 get-hosted-zone --id {} \
+      --query "DelegationSet.NameServers" --output text
+
+# Google Cloud（Cloud DNS）- 末尾のドットに注意
+SUB_DOMAIN="googletest.example.com."
+gcloud dns managed-zones list --project="$PROJECT" \
+  --filter="dnsName=$SUB_DOMAIN" --format="value(nameServers.list())"
+
+# Azure DNS
+SUB_DOMAIN="azuretest.example.com"
+az network dns zone show -g "your-resource-group" -n "$SUB_DOMAIN" \
+  --query "nameServers" -o tsv
+```
+
+親ゾーンに NS レコードとして登録します（例: Route 53）。
+
+```bash
+PARENT_ZONE_ID=your-parent-zone-id
+SUB_DOMAIN="awstest.example.com"
+SUB_NS="ns-1.example.net ns-2.example.org"   # 上で調べたネームサーバー
+
+aws route53 change-resource-record-sets \
+  --hosted-zone-id "$PARENT_ZONE_ID" \
+  --change-batch "{
+    \"Comment\": \"Update NS for $SUB_DOMAIN\",
+    \"Changes\": [{
+      \"Action\": \"UPSERT\",
+      \"ResourceRecordSet\": {
+        \"Name\": \"$SUB_DOMAIN.\",
+        \"Type\": \"NS\",
+        \"TTL\": 60,
+        \"ResourceRecords\": [
+          $(for ns in $SUB_NS; do echo "{\"Value\": \"$ns\"},"; done | sed '$s/,$//')
+        ]
+      }
+    }]
+  }"
+```
+
+### CI/CD: GitHub との接続（初回の deploy の前に）
+
+`features.cicd` を有効にすると、変更がマージされたときに、各クラウドがアプリのリポジトリをビルドします。GitHub との接続にはブラウザでの承認が必要で、Terraform ではできません。そのため、`cdktn deploy` の**前に**接続を作ります。cdktn は、その接続を名前で参照します。この作業は環境ごとに 1 回行います。以下でインストールする GitHub App は、どれもアプリのリポジトリだけを対象にします。
+
+最初にシェルで名前を設定します（必要に応じて変えてください）。後で、同じ値を cdktn の設定ファイルに書きます。
+
+```bash
+# アプリのリポジトリ（プライベート）
+GITHUB_OWNER=Otazoman
+GITHUB_REPO=multipleclouds-api-app
+# AWS
+AWS_REGION=ap-northeast-1
+AWS_CONNECTION_NAME=multicloud-github
+# Google Cloud
+GCP_PROJECT=multicloud-sitevpn-project
+GCP_REGION=asia-northeast1
+GCP_CONNECTION_NAME=multicloud-github
+# Azure DevOps
+ADO_ORG=otazoman-multicloud
+ADO_PROJECT=multicloud-api
+```
+
+App をインストールするには、GitHub のリポジトリの管理者権限が必要です。
+
+#### AWS: CodeConnections
+
+1. 接続を作ります（作った直後は `PENDING` の状態です）。
+
+   ```bash
+   AWS_CONNECTION_ARN="$(aws codeconnections create-connection \
+     --region "$AWS_REGION" --provider-type GitHub \
+     --connection-name "$AWS_CONNECTION_NAME" \
+     --query ConnectionArn --output text)"
+   echo "$AWS_CONNECTION_ARN"
+   ```
+
+2. ブラウザで承認します（CLI ではこの手順を完了できません）。
+   1. 同じリージョンの AWS コンソールで、**デベロッパー用ツール** → **設定** → **接続** を開き、作った接続を選びます。
+   2. **保留中の接続を更新** を選びます。求められたら GitHub にサインインし、**AWS Connector for GitHub** を承認します。
+   3. **新しいアプリをインストールする** を選び、アカウント `$GITHUB_OWNER` を選びます。**Only select repositories** → `$GITHUB_REPO` → **Install** を選びます。
+   4. コンソールに戻り、**接続** を選びます。
+
+3. 状態が `AVAILABLE` になったことを確認します。
+
+   ```bash
+   aws codeconnections get-connection --region "$AWS_REGION" \
+     --connection-arn "$AWS_CONNECTION_ARN" \
+     --query Connection.ConnectionStatus --output text
+   ```
+
+#### Google Cloud: Cloud Build の GitHub 接続（第 2 世代）
+
+1. API を有効にします（有効にした直後は、次の手順が数分間失敗することがあります）。
+
+   ```bash
+   gcloud services enable cloudbuild.googleapis.com secretmanager.googleapis.com \
+     --project="$GCP_PROJECT"
+   ```
+
+2. Cloud Build のサービスエージェントが、GitHub のトークンを Secret Manager に保存できるようにします（プロジェクトごとに 1 回）。
+
+   ```bash
+   GCP_PROJECT_NUMBER="$(gcloud projects describe "$GCP_PROJECT" --format='value(projectNumber)')"
+   gcloud projects add-iam-policy-binding "$GCP_PROJECT" \
+     --member="serviceAccount:service-${GCP_PROJECT_NUMBER}@gcp-sa-cloudbuild.iam.gserviceaccount.com" \
+     --role="roles/secretmanager.admin" --condition=None
+   ```
+
+   `--condition=None` を付けると、条件なしでロールを付与します。付けないと、プロジェクトに条件付きの権限があるときに、gcloud が条件の指定を求めます。そこで既存の条件（例: 期限切れの時間制限）を選ぶとロールが効かず、次の手順が `Permission 'secretmanager.secrets.create' denied` で失敗します。
+
+3. 接続を作ります。コマンドがリンクを表示します。
+
+   ```bash
+   gcloud config set project "$GCP_PROJECT"
+   gcloud builds connections create github "$GCP_CONNECTION_NAME" \
+     --region="$GCP_REGION"
+   ```
+
+   成功すると、出力の最後に `PENDING_USER_OAUTH` とリンクが表示されます。手順 4 に進んでください（接続は**削除しないでください**）。
+
+   **コマンドが失敗した場合だけ**（例: API を有効にした直後）、失敗した接続が残り、次の実行で「すでに存在する」と表示されることがあります。その場合は削除してから、作成のコマンドをもう一度実行します。
+
+   ```bash
+   gcloud builds connections delete "$GCP_CONNECTION_NAME" --region="$GCP_REGION"
+   ```
+
+4. GitHub にサインインしたブラウザでリンクを開き、**Cloud Build** の GitHub App を承認します（Cloud Build は、トークンをプロジェクトの Secret Manager に保存します）。メッセージはロボット用のアカウントを勧めますが、個人のアカウントのリポジトリなら、そのアカウントで問題ありません。
+5. App をインストールします。アカウント `$GITHUB_OWNER` を選び、**Only select repositories** → `$GITHUB_REPO` → **Install** を選びます。
+6. `installationState.stage` が `COMPLETE` になったことを確認します。
+
+   ```bash
+   gcloud builds connections describe "$GCP_CONNECTION_NAME" \
+     --region="$GCP_REGION" --format="value(installationState.stage)"
+   ```
+
+   - `PENDING_USER_OAUTH`: 手順 4 がまだ終わっていません。
+   - `PENDING_INSTALL_APP`: 承認は終わっていますが、App がリポジトリにインストールされていません。App がすでにアカウントにインストールされている場合は、GitHub の **Settings** → **Applications** → **Installed GitHub Apps** → **Google Cloud Build** の **Configure** を選びます。**Repository access** に `$GITHUB_REPO` を加えて、**Save** を選びます。その後、残りの手順のリンクを開いて、もう一度確認します。
+
+     ```bash
+     gcloud builds connections describe "$GCP_CONNECTION_NAME" \
+       --region="$GCP_REGION" --format="value(installationState.actionUri)"
+     ```
+
+   最初からやり直す場合は、次の順で行い、手順 3 から繰り返します。
+   1. 接続を削除します（手順 3 の削除のコマンド）。
+   2. **Installed GitHub Apps** で **Google Cloud Build** をアンインストールします。
+   3. **Authorized GitHub Apps** で **Google Cloud Build** を取り消します（Revoke）。
+
+#### Azure: Azure DevOps の組織、プロジェクト、GitHub との接続
+
+ここでの作業はすべてブラウザで行います。Azure DevOps は、同じメールアドレスを **2 つのアカウント**として扱います。個人の Microsoft アカウントと、Microsoft Entra のテナント（「既定のディレクトリ」）のメンバーです。組織は個人のアカウントで作り、その後テナントに接続します。接続した後は、テナントのメンバーとして組織を開きます。2 つのアカウントは、プロフィール（表示される名前や国が違うことがあります）も組織の一覧も別々です。
+
+| 画面 | URL | 内容 |
+|---|---|---|
+| プロフィールと組織の一覧 | `https://aex.dev.azure.com` | プロフィール、**Microsoft account** とテナントを切り替えるドロップダウン、そのアカウントの組織の一覧。選んでいるアカウントの一覧に組織がないときは、必ず **Create new organization** が表示されます |
+| 組織 | `https://dev.azure.com/$ADO_ORG` | 組織のプロジェクトの一覧と、**Organization settings**（左下） |
+| プロジェクト | `https://dev.azure.com/$ADO_ORG/$ADO_PROJECT` | プロジェクトと、**Project settings**（左下。**Organization settings** とは別のページ） |
+
+1. Azure ポータルで自分のアカウントを確認します。**Microsoft Entra ID** → **概要** にテナント（通常は「既定のディレクトリ」）が表示されます。**ユーザー** で、自分のアカウントの **ユーザーの種類** が **メンバー** であることを確認します（ゲストでは組織を接続できません）。
+2. 組織を作ります。
+   1. <https://aex.dev.azure.com> を開き（<https://dev.azure.com> からも移動します。Azure ポータルからは **Azure DevOps organizations** → **My Azure DevOps Organizations**）、Azure ポータルと**同じアカウント**でサインインします。プロフィールの画面が開き、名前の下のドロップダウンには **Microsoft account** と表示されます。
+   2. **Create new organization** → **Continue**（利用規約）を選びます。
+   3. 名前に `$ADO_ORG` を入れ、プロジェクトをホストする地域（例: East Asia）を選び、表示された文字を入力して **Continue** を選びます。
+
+   Azure のサブスクリプションは不要です。サブスクリプションを紐付けるのは、有料の機能（並列ジョブの追加など）を使うときだけです（**Organization settings** → **Billing**）。
+3. プロジェクトを作ります。次の画面は **Create a project to get started** です。Project name に `$ADO_PROJECT` を入れ、**Visibility** は **Private** のまま **Create project** を選びます。プロジェクトのトップページ（「Welcome to the project!」）が開きます。そこで操作することはありません。
+4. 組織をテナントに接続します。
+   1. 画面上部のパンくずリストで組織名（`$ADO_ORG`）を選び、左下の **Organization settings** → **Microsoft Entra** を開きます。**Connect directory** と表示されます（まだ接続していない状態）。
+   2. **Connect directory** → 手順 1 のテナントを選び、**Connect** を選びます。組織の中身は消えません。
+   3. 求められたら **Sign out** を選びます。
+5. サインインし直し、テナントのメンバーとして組織を開きます。
+   1. aex.dev.azure.com ではなく、`https://dev.azure.com/$ADO_ORG` を**直接**開き、同じメールアドレスでサインインします。アカウントの種類を聞かれたら、「職場または学校アカウント」を選びます。
+   2. 組織の画面に、プロジェクト `$ADO_PROJECT` が表示されます。右上のイニシャルが前と違うことがありますが、テナントのメンバーのプロフィールだからです。
+   3. **Organization settings** → **Microsoft Entra** に、テナント名が表示されていることを確認します。
+   4. `https://dev.azure.com/$ADO_ORG` をブックマークします。<https://aex.dev.azure.com> の一覧は、**Microsoft account** とテナントのどちらを選んでも空のまま、**Create new organization** が表示されることがあります。**組織を作り直さず**、URL で開いてください。
+6. プロジェクトから GitHub に接続します（手順 5 のとおり、テナントのメンバーとして開きます）。
+   1. `https://dev.azure.com/$ADO_ORG/$ADO_PROJECT` → 左下の **Project settings** → **Boards** → **GitHub connections** を開きます。
+   2. **New connection** → **GitHub** を選び、`$GITHUB_OWNER` で GitHub にサインインし、求められたら承認します。
+   3. GitHub App のインストールを求められたら、**Only select repositories** → `$GITHUB_REPO` を選びます。Azure DevOps 側でも `$GITHUB_REPO` だけを選んで保存します。
+   4. 一覧に、接続 `$GITHUB_OWNER`（認証方式 **GitHub App**、リポジトリ `$GITHUB_OWNER/$GITHUB_REPO`）が表示されます。
+
+   GitHub の <https://github.com/apps/azure-pipelines> から始めないでください。そこから始めると **Setup your Azure Pipelines project** の画面が開きます。この画面は新しい組織を作るためのもので、テナントに接続した組織は選べません。この画面が開いた場合は、**Continue** を押さずに閉じてください。
+7. パイプラインが使うサービス接続を確認します。同じ **Project settings** で、**Pipelines** → **Service connections** を開きます。
+   - 名前が `github.com_$GITHUB_OWNER`（例: `github.com_Otazoman`）で、種類が **GitHub — using azure pipelines app** の接続があることを確認します。この名前を cdktn の設定に使います。ID は不要です（cdktn が名前から検索します）。
+   - 手順 6 の **GitHub connections** の接続と、このサービス接続は別のものです。cdktn が使うのはサービス接続だけです。
+   - サービス接続がない場合は、プロジェクトの左メニューの **Pipelines** → **Create Pipeline** → **GitHub** を選び、`$GITHUB_REPO` を選びます。App の承認を求められたら承認し、**Configure your pipeline** の画面は保存せずに閉じます（パイプラインは cdktn が作ります）。その後、もう一度確認します。
+
+   CLI で確認する場合（`az login` でテナントのメンバーとしてサインインして）:
+
+   ```bash
+   az devops service-endpoint list --organization "https://dev.azure.com/$ADO_ORG" \
+     --project "$ADO_PROJECT" \
+     --query "[].{name:name, type:type, auth:authorization.scheme}" --output table
+   ```
+
+   GitHub App の接続は、種類が `GitHub`、認証方式が `InstallationToken` です。
+
+#### cdktn の設定ファイルに値を書く
+
+| 値 | ファイル | 項目 |
+|---|---|---|
+| `$GITHUB_OWNER`、`$GITHUB_REPO` | `config/cicd.ts` | `appRepository`（全クラウドで共通） |
+| ビルドを起動するブランチ | `config/cicd.ts` | `cicdTrigger.branches`（`byEnv`。既定は `main`） |
+| `$AWS_CONNECTION_NAME` | `config/aws/cicd/cicdsettings.ts` | `codebuild.codeConnectionName`（`byEnv`。既定は `multicloud-github`）。ARN は plan のときに名前から引きます |
+| `$GCP_CONNECTION_NAME` | `config/google/cicdsettings.ts` | `githubTrigger.connectionName`（接続は `cloudbuildPrivatePool.location` のリージョン、つまり `$GCP_REGION` に作ります） |
+| `$ADO_ORG`、`$ADO_PROJECT`、手順 7 のサービス接続の名前（`github.com_$GITHUB_OWNER`） | Azure の CI/CD の設定 | 未実装 |
+
+`codeConnectionName` を空にすると、synth が警告を表示し、CodeBuild のプロジェクトは webhook なしで作られます（プライベートのリポジトリを読めません）。
+
+## 6. 設定
+
+すべての設定項目は [configuration/](configuration/README.md)（共通、AWS、Google Cloud、Azure。英語）で説明しています。
+
+環境ごとに違う値は、その値を書く場所で `byEnv()`（`config/environment.ts`）を使って書きます。例:
+
+```ts
+instanceType: byEnv({ dev: "t3.micro", stg: "t3.small", prod: "t3.medium" }),
+build: byEnv({ default: false, stg: true }),   // 既定値 + 違う環境だけ
+```
+
+すべての環境で一意である必要がある名前（Key Vault、ACR、Azure Database のサーバー、ストレージアカウント）は、`envScopedName()` を使います。`dev` は名前をそのまま使い、ほかの環境では環境名を付けます。
+
+全体の切り替えは `config/commonsettings.ts` にあります。
+
+| 設定 | 内容 |
+|---|---|
+| `accounts` | 環境ごとのアカウント ID（2 章） |
+| `vpnMode` | `"singleTunnel"`: トンネル 1 本の VPN と静的ルート。`"haBgp"`: BGP を使う HA VPN。既定値: `dev`・`stg` は `singleTunnel`、`prod` は `haBgp` |
+| `useVpn` | VPN のリソースを作るかどうか |
+| `awsToGoogle`、`awsToAzure`、`googleToAzure` | 2 つのクラウドを **直接** VPN でつなぎます。2 つを有効にすると（例: AWS–Azure と Google–Azure）、共通のクラウドがハブになり、残りの 2 つの間を BGP で中継します（`haBgp` のみ） |
+| `hostZones` | プライベート DNS ゾーンと、クラウド間の DNS 転送を作ります |
+| `clouds.<cloud>.enabled` | そのクラウドのネットワークと、その上のすべてを作ります（`<cloud>`: `aws`、`google`、`azure`） |
+| `clouds.<cloud>.features` | クラウドごとの機能: `vms`、`dbs`（マネージド DB）、`storage`（ファイルストレージ）、`containers`（マネージドコンテナとそのロードバランサー）、`cicd`、`dns`（公開 DNS ゾーンとレコード）、`alerting`（通知先とアラーム）、`logArchive`（コンテナのログをオブジェクトストレージに保管） |
+
+`haBgp` で使う、VPN のペアごとの BGP の内側のアドレス（APIPA）は `config/vpn/addressPlan.ts` に書きます。`npx jest __tests__/addressPlan.test.ts` で確認できます。ASN はクラウドごとに `config/<cloud>/vpn.ts` に書きます。
+
+機能は VPN の接続に依存しません。クラウドと機能が有効なら、`useVpn = false` でも作られます。
+
+クラウドごとの設定（ネットワーク、VM のサイズ、DB エンジン、コンテナイメージ、ロードバランサー、VPN のパラメータなど）は、`config/aws/`、`config/azure/`、`config/google/` にあります。
+
+### リソースの名前
+
+すべてのリソースの名前（Application Gateway のリスナーや IP 構成などのサブリソースも含む）は、そのリソースを作る機能の設定ファイルに書きます（例: VPN の名前は `config/<cloud>/vpn.ts`、サブネットの名前は `config/<cloud>/vpc*/subnets.ts`）。
+
+- 項目の `name` がほかの設定から参照される論理名の場合、クラウド上の実際の名前は別に書きます（`resourceName`、またはその項目のために作るリソースの `names`）。
+- 名前を省略すると、既定の名前 `<PROJECT_NAME>-<cloud>-<リソースの種類>[-<key>]` が作られます。名前は、リソースの命名規則（使える文字、最大の長さ）に合わせて調整されます。`PROJECT_NAME` は `config/naming.ts` にあります。
+- クラウド側で決まっている名前（例: Azure の `GatewaySubnet`、`AzureBastionSubnet`、`privatelink.file.core.windows.net`）は変えられません。
+
+名前を変えると、通常はクラウド側でリソースが作り直されます。名前を変えたときは、deploy の前に `cdktn diff` を確認してください。
+
+ほとんどの項目の Terraform のアドレス（construct ID）は、項目の名前から作られます。名前を変えても Terraform に新しいリソースとして扱わせたくない場合は、`key` に以前の名前を書きます（例: `key: "old-name"`）。Azure Files の共有は `shareKey`、Container Apps の環境は `environmentKey` を使います。
+
+## 7. 初回の deploy
+
+その環境のコンテナ（1 章）の中で実行します。
+
+```bash
+echo "$DEPLOY_ENV"      # このコンテナの環境
+npx tsc --noEmit -p .   # 型チェック
+cdktn diff              # plan を確認する
+cdktn deploy
+```
+
+state は `state/<環境名>/terraform.tfstate` に書き込まれます（Git の管理外。作業端末で管理してください）。
+
+削除の手順と既知の問題は [operations.md](operations.md) を参照してください。

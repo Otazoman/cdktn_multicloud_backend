@@ -8,8 +8,9 @@
  * Typical flow: run `synth` before a change, make the change, run `synth`
  * again, then `compare`. A pure refactoring must report "IDENTICAL".
  *
- * The output files contain secrets from config/.env. Write them to an
- * ignored location (e.g. cdktf.out/) and never commit them.
+ * The output files contain the secrets of the environment variables
+ * (.env.<env>). Write them to an ignored location (e.g. cdktf.out/) and never
+ * commit them. DEPLOY_ENV selects the environment (default: dev).
  */
 import * as fs from "fs";
 import {

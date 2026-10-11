@@ -117,7 +117,7 @@ const synthWith = (alerting: boolean) =>
     name: `alerting=${alerting}`,
     overrides: {
       ...allOn,
-      env: "prod",
+      vpnMode: "haBgp",
       awsToGoogle: false,
       awsToAzure: true,
       googleToAzure: true,

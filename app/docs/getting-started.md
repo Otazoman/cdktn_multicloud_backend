@@ -1,5 +1,7 @@
 # Getting started
 
+[日本語](getting-started.ja.md)
+
 This guide covers everything needed before the first `cdktn deploy`.
 
 1. [Prerequisites](#1-prerequisites)
@@ -18,17 +20,35 @@ This guide covers everything needed before the first `cdktn deploy`.
 All commands run inside the `cdktn-backend` container, which provides Node.js,
 the cdktn CLI, Terraform and OpenTofu (see `Dockerfile`).
 
+### Environments
+
+Each environment (`dev`, `stg`, `prod`) is deployed to its own cloud accounts.
+Run **one container per environment**: `DEPLOY_ENV` selects the environment,
+and the container gets that environment's credentials and secrets
+(`.env.<env>`, section 2), settings (`byEnv` in the config files, section 6)
+and state (`state/<env>/terraform.tfstate`).
+
 ```bash
-docker compose up -d --build
-docker compose exec cdktn-backend bash   # working directory: /app
+cp .env.sample .env                        # tool versions (build arguments)
+DEPLOY_ENV=dev docker compose -p cdktn-dev up -d --build
+docker compose -p cdktn-dev exec cdktn-backend bash   # working directory: /app
 npm install
 ```
 
+For another environment use its own project name, for example
+`DEPLOY_ENV=prod docker compose -p cdktn-prod up -d`. All containers share
+`app/`, so do not synthesize or deploy two environments at the same time
+(`cdktf.out/` is shared). The environment names are listed in
+`config/environment.ts` (`ENVIRONMENTS`); to add one, add it there and create
+its `.env.<env>`.
+
 ## 2. Cloud credentials
 
-Copy `.env.sample` to `.env` in the **repository root** and fill in the values.
-`compose.yaml` passes this file to the container; the Terraform providers read
-the standard environment variables.
+Copy `.env.ENV.sample` to `.env.<env>` (`.env.dev`, `.env.stg`, `.env.prod`) in
+the **repository root** and fill in the values of that environment's accounts.
+These files are ignored by Git. `compose.yaml` passes `.env.<DEPLOY_ENV>` to the
+container; the Terraform providers read the standard environment variables.
+The same file holds the application secrets (section 3).
 
 | Variable | Description |
 |---|---|
@@ -36,14 +56,24 @@ the standard environment variables.
 | `ARM_SUBSCRIPTION_ID`, `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`, `ARM_ENVIRONMENT` | Azure service principal |
 | `GOOGLE_CLOUD_KEYFILE_JSON` | Path **inside the container** to the Google Cloud service account key. `compose.yaml` mounts the host directory that contains the key |
 | `GOOGLE_CLOUD_PROJECT` | Google Cloud project ID |
-| `NODE_VERSION`, `TERRAFORM_VERSION`, `OPENTOFU_VERSION` | Tool versions used to build the image |
+
+The tool versions used to build the image (`NODE_VERSION`,
+`TERRAFORM_VERSION`, `OPENTOFU_VERSION`) stay in `.env` (from `.env.sample`).
 
 Regions, the Azure location and the Google Cloud project are set in
 `config/aws/common.ts`, `config/azure/common.ts` and `config/google/common.ts`.
+The Google Cloud project ID (`PROJECT_NAME`) is set per environment and is
+required for every environment where Google Cloud is enabled.
+
+To stop the credentials of one environment from changing another, set the
+account IDs of each environment in `accounts` (`config/commonsettings.ts`):
+the AWS provider then refuses other accounts (`allowed_account_ids`) and the
+Azure provider uses that subscription.
 
 ## 3. Application secrets
 
-Copy `config/.env.sample` to `config/.env` and fill in the values.
+Set these values in the same `.env.<env>` file as the credentials (section 2;
+`config/.env` is no longer read).
 
 | Variable | Used by |
 |---|---|
@@ -54,8 +84,10 @@ Copy `config/.env.sample` to `config/.env` and fill in the values.
 | `GOOGLE_AZURE_VPN_PRESHARED_KEY` | Pre-shared key of the Google Cloud ↔ Azure VPN tunnels |
 | `ECS_WORKER_POSTGRES_PASSWORD` | `POSTGRES_PASSWORD` environment variable of the ECS `worker-service` |
 
-Wrap values that contain `#` in double quotes; otherwise the rest of the line
-is treated as a comment.
+Docker Compose reads `.env.<env>`: wrap values that contain `$` in **single**
+quotes (otherwise `$...` is expanded as a variable and the value is cut off,
+even inside double quotes), and values that contain ` #` in quotes (otherwise
+the rest of the line is treated as a comment).
 
 ## 4. Certificates and keys
 
@@ -140,6 +172,8 @@ Enable the APIs for the features you use:
 | Cloud SQL | Cloud Resource Manager API, Cloud SQL Admin API, Service Networking API |
 | Cloud Run | Cloud Run Admin API, IAM API, Artifact Registry API, Cloud Build API, Serverless VPC Access API, Cloud Filestore API |
 | Filestore | Cloud Filestore API |
+| Secret Manager (with Cloud SQL) | Secret Manager API |
+| CI/CD | Cloud Build API, Secret Manager API (GitHub connection), Artifact Registry API, Cloud Run Admin API |
 
 ```bash
 PROJECT=your-project-id
@@ -169,9 +203,10 @@ Cloud SQL (the Editor role is not sufficient).
   az provider show --namespace Microsoft.App --query registrationState
   ```
 
-- **Azure Database for MySQL in Japan East**: request quota / region access
-  before the first deploy, otherwise creation fails
-  ([how to request](https://learn.microsoft.com/azure/quotas/quickstart-increase-quota-portal)).
+- **Key Vault** (created with Azure Database): cdktn assigns the role
+  `Key Vault Secrets Officer` on the vault, so the identity that runs cdktn
+  needs permission to create role assignments (Owner or User Access
+  Administrator on the resource group).
 
 ### Public DNS sub-domain delegation
 
@@ -224,20 +259,276 @@ aws route53 change-resource-record-sets \
   }"
 ```
 
+### CI/CD: connect GitHub (before the first deploy)
+
+With `features.cicd`, each cloud builds the application repository when a
+change is merged. The connections to GitHub need approval in a browser, which
+Terraform cannot do, so create them **before** `cdktn deploy`; cdktn then
+references them by name. Do this once per environment. Every GitHub App
+installation below is limited to the application repository only.
+
+Set the names once in your shell (change them as needed) and write the same
+values to the cdktn config files afterwards:
+
+```bash
+# Application repository (private)
+GITHUB_OWNER=Otazoman
+GITHUB_REPO=multipleclouds-api-app
+# AWS
+AWS_REGION=ap-northeast-1
+AWS_CONNECTION_NAME=multicloud-github
+# Google Cloud
+GCP_PROJECT=multicloud-sitevpn-project
+GCP_REGION=asia-northeast1
+GCP_CONNECTION_NAME=multicloud-github
+# Azure DevOps
+ADO_ORG=otazoman-multicloud
+ADO_PROJECT=multicloud-api
+```
+
+You need admin permission on the GitHub repository to install the apps.
+
+#### AWS: CodeConnections
+
+1. Create the connection (it starts in the `PENDING` state):
+
+   ```bash
+   AWS_CONNECTION_ARN="$(aws codeconnections create-connection \
+     --region "$AWS_REGION" --provider-type GitHub \
+     --connection-name "$AWS_CONNECTION_NAME" \
+     --query ConnectionArn --output text)"
+   echo "$AWS_CONNECTION_ARN"
+   ```
+
+2. Approve it in the browser (the CLI cannot complete this step):
+   1. Open the AWS console in the same region, **Developer Tools** →
+      **Settings** → **Connections**, and select the connection.
+   2. Choose **Update pending connection**. Sign in to GitHub and authorize
+      **AWS Connector for GitHub** if asked.
+   3. Choose **Install a new app**, select the account `$GITHUB_OWNER`, then
+      **Only select repositories** → `$GITHUB_REPO` → **Install**.
+   4. Back in the console, choose **Connect**.
+
+3. Check that the status is `AVAILABLE`:
+
+   ```bash
+   aws codeconnections get-connection --region "$AWS_REGION" \
+     --connection-arn "$AWS_CONNECTION_ARN" \
+     --query Connection.ConnectionStatus --output text
+   ```
+
+#### Google Cloud: Cloud Build GitHub connection (2nd gen)
+
+1. Enable the APIs (a newly enabled API can take a few minutes before the
+   next steps succeed):
+
+   ```bash
+   gcloud services enable cloudbuild.googleapis.com secretmanager.googleapis.com \
+     --project="$GCP_PROJECT"
+   ```
+
+2. Allow the Cloud Build service agent to store the GitHub token in Secret
+   Manager (once per project):
+
+   ```bash
+   GCP_PROJECT_NUMBER="$(gcloud projects describe "$GCP_PROJECT" --format='value(projectNumber)')"
+   gcloud projects add-iam-policy-binding "$GCP_PROJECT" \
+     --member="serviceAccount:service-${GCP_PROJECT_NUMBER}@gcp-sa-cloudbuild.iam.gserviceaccount.com" \
+     --role="roles/secretmanager.admin" --condition=None
+   ```
+
+   `--condition=None` adds the role without a condition. Without it, gcloud
+   asks for a condition when the project already has conditional bindings;
+   choosing an existing condition (for example an expired time limit) makes
+   the role ineffective and the next step fails with
+   `Permission 'secretmanager.secrets.create' denied`.
+
+3. Create the connection; the command prints a link:
+
+   ```bash
+   gcloud config set project "$GCP_PROJECT"
+   gcloud builds connections create github "$GCP_CONNECTION_NAME" \
+     --region="$GCP_REGION"
+   ```
+
+   On success the output ends with `PENDING_USER_OAUTH` and a link: go on
+   with step 4 (do **not** delete the connection).
+
+   **Only if the command fails** (for example because an API was enabled only
+   a moment ago), a failed connection may remain and the next attempt reports
+   that it already exists. Delete it and run the create command again:
+
+   ```bash
+   gcloud builds connections delete "$GCP_CONNECTION_NAME" --region="$GCP_REGION"
+   ```
+
+4. In the browser, open the link while signed in to GitHub and authorize the
+   **Cloud Build** GitHub App (Cloud Build stores the token in Secret Manager
+   in the project). The message recommends a robot account; for a repository
+   of a personal account, that account is fine.
+5. Install the app: choose the account `$GITHUB_OWNER`, **Only select
+   repositories** → `$GITHUB_REPO` → **Install**.
+6. Check that `installationState.stage` is `COMPLETE`:
+
+   ```bash
+   gcloud builds connections describe "$GCP_CONNECTION_NAME" \
+     --region="$GCP_REGION" --format="value(installationState.stage)"
+   ```
+
+   - `PENDING_USER_OAUTH`: step 4 is not done yet.
+   - `PENDING_INSTALL_APP`: the authorization is done but the app is not
+     installed for the repository. If the app is already installed on the
+     account (GitHub **Settings** → **Applications** → **Installed GitHub
+     Apps** → **Google Cloud Build**), choose **Configure**, add `$GITHUB_REPO`
+     under **Repository access** and **Save**. Then open the link of the
+     remaining step and check again:
+
+     ```bash
+     gcloud builds connections describe "$GCP_CONNECTION_NAME" \
+       --region="$GCP_REGION" --format="value(installationState.actionUri)"
+     ```
+
+   To start over: delete the connection (the delete command in step 3),
+   uninstall **Google Cloud Build** in **Installed GitHub Apps** and revoke it
+   in **Authorized GitHub Apps**, then repeat from step 3.
+
+#### Azure: Azure DevOps organization, project and GitHub connection
+
+Everything here is done in the browser. Azure DevOps treats the same e-mail
+address as **two accounts**: the personal Microsoft account and the member of
+your Microsoft Entra tenant ("Default Directory"). You create the organization
+with the personal account and then connect it to the tenant; from then on you
+open it as the tenant member. The two accounts have separate profiles (the
+name and the country shown can differ) and separate lists of organizations.
+
+| Page | URL | What it is |
+|---|---|---|
+| Profile and organization list | `https://aex.dev.azure.com` | Your profile, a drop-down to switch between **Microsoft account** and the tenant, and the organizations of that account. It shows **Create new organization** whenever the selected account has no organization in the list |
+| Organization | `https://dev.azure.com/$ADO_ORG` | The organization's projects, and **Organization settings** (bottom left) |
+| Project | `https://dev.azure.com/$ADO_ORG/$ADO_PROJECT` | The project, and **Project settings** (bottom left; a different page from **Organization settings**) |
+
+1. Check your account in the Azure portal: **Microsoft Entra ID** →
+   **Overview** shows the tenant (normally "Default Directory"); in
+   **Users**, your account's **User type** must be **Member** (a guest
+   cannot connect the organization).
+2. Create the organization:
+   1. Open <https://aex.dev.azure.com> (<https://dev.azure.com> redirects there;
+      from the Azure portal: **Azure DevOps organizations** → **My Azure DevOps
+      Organizations**) and sign in with **the same account** as the Azure
+      portal. The profile page opens; the drop-down under your name shows
+      **Microsoft account**.
+   2. Choose **Create new organization** → **Continue** (terms of service).
+   3. Name: `$ADO_ORG`; choose the region that hosts the projects (for example
+      East Asia), enter the characters shown → **Continue**.
+
+   No Azure subscription is needed. Link one only for paid features (for
+   example more parallel jobs): **Organization settings** → **Billing**.
+3. Create the project: the next page is **Create a project to get started**.
+   Project name: `$ADO_PROJECT`; **Visibility** stays **Private** → **Create
+   project**. The project's welcome page ("Welcome to the project!") opens;
+   nothing needs to be done there.
+4. Connect the organization to the tenant:
+   1. Select the organization name (`$ADO_ORG`) in the breadcrumb at the top,
+      then **Organization settings** (bottom left) → **Microsoft Entra**. The
+      page shows **Connect directory** (not connected yet).
+   2. **Connect directory** → select the tenant from step 1 → **Connect**.
+      Nothing in the organization is deleted.
+   3. Choose **Sign out** when asked.
+5. Sign in again and open the organization as the tenant member:
+   1. Open `https://dev.azure.com/$ADO_ORG` **directly** (not
+      aex.dev.azure.com) and sign in with the same e-mail address. If asked
+      for the account type, choose the work or school account.
+   2. The organization page shows the project `$ADO_PROJECT`. The initials in
+      the top right can differ from before: this is the tenant member's
+      profile.
+   3. **Organization settings** → **Microsoft Entra** shows the tenant name.
+   4. Bookmark `https://dev.azure.com/$ADO_ORG`. The list on
+      <https://aex.dev.azure.com> can stay empty and show **Create new
+      organization**, with either **Microsoft account** or the tenant
+      selected. **Do not create the organization again**; open it with the
+      URL.
+6. Connect GitHub from the project (as the tenant member, step 5):
+   1. Open `https://dev.azure.com/$ADO_ORG/$ADO_PROJECT` → **Project
+      settings** (bottom left) → **Boards** → **GitHub connections**.
+   2. Choose **New connection** → **GitHub**, sign in to GitHub as
+      `$GITHUB_OWNER` and authorize when asked.
+   3. Install the GitHub App when asked: **Only select repositories** →
+      `$GITHUB_REPO`, and select only `$GITHUB_REPO` in Azure DevOps → save.
+   4. The list shows the connection `$GITHUB_OWNER` with the authentication
+      type **GitHub App** and the repository `$GITHUB_OWNER/$GITHUB_REPO`.
+
+   Do not start from <https://github.com/apps/azure-pipelines> on GitHub: it
+   opens the page **Setup your Azure Pipelines project**, which creates a new
+   organization and cannot select an organization connected to the tenant.
+   If that page is open, close it without choosing **Continue**.
+7. Check the service connection used by the pipelines: in the same
+   **Project settings**, open **Pipelines** → **Service connections**.
+   - A connection named `github.com_$GITHUB_OWNER` (for example
+     `github.com_Otazoman`) with the type **GitHub — using azure pipelines
+     app** must be listed. Its name is the value for the cdktn config; the ID
+     is not needed (cdktn looks the connection up by name).
+   - The **GitHub connections** entry of step 6 and this service connection
+     are separate items. cdktn uses only the service connection.
+   - If the service connection is not listed, open **Pipelines** in the
+     project's left menu → **Create Pipeline** → **GitHub**, select
+     `$GITHUB_REPO`, approve the app if asked, and close the page **Configure
+     your pipeline** without saving (cdktn creates the pipeline). Then check
+     again.
+
+   With the CLI (signed in as the tenant member with `az login`):
+
+   ```bash
+   az devops service-endpoint list --organization "https://dev.azure.com/$ADO_ORG" \
+     --project "$ADO_PROJECT" \
+     --query "[].{name:name, type:type, auth:authorization.scheme}" --output table
+   ```
+
+   The GitHub App connection has the type `GitHub` and the scheme
+   `InstallationToken`.
+
+#### Write the values to the cdktn config
+
+| Value | File | Item |
+|---|---|---|
+| `$GITHUB_OWNER`, `$GITHUB_REPO` | `config/cicd.ts` | `appRepository` (shared by every cloud) |
+| Branches that start the build | `config/cicd.ts` | `cicdTrigger.branches` (`byEnv`; default `main`) |
+| `$AWS_CONNECTION_NAME` | `config/aws/cicd/cicdsettings.ts` | `codebuild.codeConnectionName` (`byEnv`; default `multicloud-github`). The ARN is looked up by name at plan time |
+| `$GCP_CONNECTION_NAME` | `config/google/cicdsettings.ts` | `githubTrigger.connectionName` (the connection must be in the region of `cloudbuildPrivatePool.location`, `$GCP_REGION`) |
+| `$ADO_ORG`, `$ADO_PROJECT`, the service connection name from step 7 (`github.com_$GITHUB_OWNER`) | Azure CI/CD config | Not implemented yet |
+
+Without `codeConnectionName`, synth prints a warning and the CodeBuild
+project is created without a webhook (it cannot read the private
+repository).
+
 ## 6. Configuration
+
+Every setting is described in [configuration/](configuration/README.md) (common, AWS, Google Cloud, Azure).
+
+Values that differ per environment are written with `byEnv()`
+(`config/environment.ts`) where they are set, for example:
+
+```ts
+instanceType: byEnv({ dev: "t3.micro", stg: "t3.small", prod: "t3.medium" }),
+build: byEnv({ default: false, stg: true }),   // default + overrides
+```
+
+Names that must be unique across all environments (Key Vault, ACR, Azure
+Database servers, storage accounts) use `envScopedName()`: `dev` keeps the
+name and other environments get the environment name appended.
 
 Global switches are in `config/commonsettings.ts`:
 
 | Setting | Description |
 |---|---|
-| `env` | `"dev"`: single-tunnel VPN with static routes. `"prod"`: HA VPN with BGP |
+| `accounts` | Account IDs per environment (section 2) |
+| `vpnMode` | `"singleTunnel"`: single-tunnel VPN with static routes. `"haBgp"`: HA VPN with BGP. Default: `dev` / `stg` `singleTunnel`, `prod` `haBgp` |
 | `useVpn` | Create VPN resources |
-| `awsToGoogle`, `awsToAzure`, `googleToAzure` | Create a **direct** VPN connection between the pair. With two of them enabled (e.g. AWS–Azure and Google–Azure), the shared cloud acts as a hub and routes between the other two via BGP (`prod` only) |
+| `awsToGoogle`, `awsToAzure`, `googleToAzure` | Create a **direct** VPN connection between the pair. With two of them enabled (e.g. AWS–Azure and Google–Azure), the shared cloud acts as a hub and routes between the other two via BGP (`haBgp` only) |
 | `hostZones` | Create private DNS zones and cross-cloud DNS forwarding |
 | `clouds.<cloud>.enabled` | Create the cloud's network and everything on it (`<cloud>`: `aws`, `google`, `azure`) |
 | `clouds.<cloud>.features` | Per-cloud features: `vms`, `dbs` (managed databases), `storage` (file storage), `containers` (managed containers and their load balancers), `cicd`, `dns` (public DNS zones and records), `alerting` (notification targets and alarms), `logArchive` (archive container logs to object storage) |
 
-BGP inside addresses (APIPA) of each VPN pair, used in `prod`, are set in
+BGP inside addresses (APIPA) of each VPN pair, used with `haBgp`, are set in
 `config/vpn/addressPlan.ts`; `npx jest __tests__/addressPlan.test.ts` checks
 them. ASNs are set per cloud in `config/<cloud>/vpn.ts`.
 
@@ -275,10 +566,16 @@ use `shareKey`, Container Apps environments use `environmentKey`.
 
 ## 7. First deploy
 
+Inside the container of the environment (section 1):
+
 ```bash
+echo "$DEPLOY_ENV"      # the environment of this container
 npx tsc --noEmit -p .   # type check
 cdktn diff              # review the plan
 cdktn deploy
 ```
+
+The state is written to `state/<env>/terraform.tfstate` (ignored by Git; keep
+it on the work machine).
 
 See [operations.md](operations.md) for destroy procedures and known issues.

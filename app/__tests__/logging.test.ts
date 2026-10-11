@@ -8,6 +8,7 @@ import { awsVpnparams } from "../config/aws/vpn";
 import { azureMonitorConfig } from "../config/azure/azuremonitor";
 import { azureAcaEnvironmentDefaults } from "../config/azure/containerapps";
 import { azureVpnparams } from "../config/azure/vpn";
+import * as cloudlogging from "../config/google/cloudlogging";
 import { googleLogBucketsConfig } from "../config/google/cloudlogging";
 import { gcpRunConfigs } from "../config/google/cloudrun";
 import { googleVpnParams } from "../config/google/vpn";
@@ -26,7 +27,7 @@ const synthAllOn = () =>
     name: "logging",
     overrides: {
       ...FEATURE_SETS.allOn,
-      env: "prod",
+      vpnMode: "haBgp",
       awsToGoogle: true,
       awsToAzure: true,
       googleToAzure: true,
@@ -204,6 +205,23 @@ describe("logging: switches", () => {
       (b) => b.bucket_id === "vpn-logs-v2",
     );
     expect(bucket).toMatchObject({ retention_days: 90, enable_analytics: true });
+  }, 120000);
+
+  test("Google without log buckets: logs stay in _Default", () => {
+    const settings = cloudlogging as { googleUseLogBuckets: boolean };
+    settings.googleUseLogBuckets = false;
+    try {
+      gcpRunConfigs[0].logs = false;
+      const synth = synthAllOn();
+      expect(resourcesOf(synth, "google_logging_project_bucket_config")).toHaveLength(0);
+      expect(resourcesOf(synth, "google_logging_project_sink")).toHaveLength(0);
+      // Only the logs: false service is excluded from _Default
+      expect(resourcesOf(synth, "google_logging_project_exclusion").map((e) => e.filter)).toEqual([
+        `resource.type="cloud_run_revision" AND resource.labels.service_name="${gcpRunConfigs[0].name}"`,
+      ]);
+    } finally {
+      settings.googleUseLogBuckets = true;
+    }
   }, 120000);
 
   test.each([

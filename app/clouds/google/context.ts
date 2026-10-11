@@ -1,3 +1,4 @@
+import { CloudRunV2Service } from "@cdktn/provider-google/lib/cloud-run-v2-service";
 import { ComputeSubnetwork } from "@cdktn/provider-google/lib/compute-subnetwork";
 import { ITerraformDependable } from "cdktn";
 import { DnsManagedZone } from "@cdktn/provider-google/lib/dns-managed-zone";
@@ -16,4 +17,6 @@ export interface GoogleBuildContext {
   googleVpcResources: GoogleVpcResources;
   publicZones: Record<string, DnsManagedZone>;
   psaDependencies: ITerraformDependable[] | undefined;
+  /** Cloud Run services by name, set by the containers feature */
+  cloudRunServices: Record<string, CloudRunV2Service>;
 }

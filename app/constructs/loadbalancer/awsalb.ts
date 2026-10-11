@@ -4,6 +4,7 @@ import { LbListenerRule } from "@cdktn/provider-aws/lib/lb-listener-rule";
 import { LbTargetGroup } from "@cdktn/provider-aws/lib/lb-target-group";
 import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
 import { Construct } from "constructs";
+import { idPart } from "../../utils/naming";
 
 /**
  * Configuration for ALB Actions (forward, fixed-response, redirect)
@@ -63,6 +64,11 @@ export interface AlbTargetGroupConfig {
  * Configuration for the Listener
  */
 export interface AlbListenerConfig {
+  /**
+   * Construct ID key (Terraform address). Additional listeners only. Defaults to `name`. To rename
+   * the resource without replacing it in state, set this to the old value.
+   */
+  key?: string;
   name?: string; // Logical name for identifying the listener (e.g., "production-listener", "test-listener")
   port: number;
   protocol: string;
@@ -179,7 +185,7 @@ export function createAwsAlbResources(
       const listenerName = listenerConfig.name ?? `additional-${index}`;
       const additionalListener = new LbListener(
         scope,
-        `listener-${config.key ?? config.name}-additional-${index}`,
+        `listener-${config.key ?? config.name}-additional-${idPart(listenerConfig.key ?? listenerName)}`,
         {
           provider,
           loadBalancerArn: alb.arn,

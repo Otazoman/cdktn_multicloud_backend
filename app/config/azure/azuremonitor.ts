@@ -134,7 +134,11 @@ export const azureLogArchiveConfig: {
      * deletes the archived logs).
      */
     infrastructureEncryption: boolean;
-    lifecycle?: { toCoolDays?: number; toArchiveDays?: number; deleteDays?: number };
+    lifecycle?: {
+      toCoolDays?: number;
+      toArchiveDays?: number;
+      deleteDays?: number;
+    };
   };
   /** Environments (environmentName) to archive. Omitted: every environment with logs: true */
   acaEnvironments?: string[];

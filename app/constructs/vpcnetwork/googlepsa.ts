@@ -4,9 +4,15 @@ import { DataGoogleComputeGlobalAddress } from "@cdktn/provider-google/lib/data-
 import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
 import { ServiceNetworkingConnection } from "@cdktn/provider-google/lib/service-networking-connection";
 import { Construct } from "constructs";
+import { idPart } from "../../utils/naming";
 
 /** Configuration for a single named IP range registered in ServiceNetworkingConnection */
 interface ServiceSubRange {
+  /**
+   * Construct ID key (Terraform address). Defaults to `rangeName`. To rename
+   * the resource without replacing it in state, set this to the old value.
+   */
+  key?: string;
   /** Name of the ComputeGlobalAddress resource */
   rangeName: string;
   /** Starting IP address (e.g. "10.100.10.0") */
@@ -108,11 +114,11 @@ export class GooglePrivateServiceAccess extends Construct {
 
     // CloudSQL ranges
     if (config.serviceRanges.cloudSql) {
-      config.serviceRanges.cloudSql.forEach((r, i) => {
+      config.serviceRanges.cloudSql.forEach((r) => {
         const name = resolveRange(
           r,
-          `cloudsql-psa-address-${i}`,
-          `existing-cloudsql-psa-address-${i}`,
+          `cloudsql-psa-address-${idPart(r.key ?? r.rangeName)}`,
+          `existing-cloudsql-psa-address-${idPart(r.key ?? r.rangeName)}`,
         );
         this.cloudSqlRangeNames.push(name);
         reservedPeeringRanges.push(name);
@@ -121,11 +127,11 @@ export class GooglePrivateServiceAccess extends Construct {
 
     // Filestore ranges
     if (config.serviceRanges.filestore) {
-      config.serviceRanges.filestore.forEach((r, i) => {
+      config.serviceRanges.filestore.forEach((r) => {
         const name = resolveRange(
           r,
-          `filestore-psa-address-${i}`,
-          `existing-filestore-psa-address-${i}`,
+          `filestore-psa-address-${idPart(r.key ?? r.rangeName)}`,
+          `existing-filestore-psa-address-${idPart(r.key ?? r.rangeName)}`,
         );
         this.filestoreRangeNames.push(name);
         reservedPeeringRanges.push(name);

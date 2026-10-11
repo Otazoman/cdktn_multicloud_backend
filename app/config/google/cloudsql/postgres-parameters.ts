@@ -10,5 +10,10 @@ export const postgresDatabaseFlags = [
   {
     name: "max_connections",
     value: "100"
+  },
+  // Logical replication (FEAT-01 active/active). Remove to disable.
+  {
+    name: "cloudsql.logical_decoding",
+    value: "on"
   }
 ];

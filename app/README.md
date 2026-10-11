@@ -1,10 +1,13 @@
 # Multi-Cloud Backend — cdktn application
 
+[日本語](README.ja.md)
+
 This directory contains the cdktn (CDK Terrain) application that provisions the
 multi-cloud backend on AWS, Google Cloud and Azure.
 
 For setup, see [docs/getting-started.md](docs/getting-started.md).
 For deploy / destroy procedures and known issues, see [docs/operations.md](docs/operations.md).
+For every setting (items, allowed values, defaults), see [docs/configuration/](docs/configuration/README.md).
 For the design, see [docs/architecture.md](docs/architecture.md),
 [docs/networking/vpn.md](docs/networking/vpn.md) and
 [docs/adding-a-cloud.md](docs/adding-a-cloud.md).
@@ -17,7 +20,7 @@ For the design, see [docs/architecture.md](docs/architecture.md),
 | `stacks/` | The single stack `MultiCloudBackendStack` that wires everything together |
 | `providers/` | Terraform provider declarations (the only place providers are created) |
 | `clouds/` | Cloud registry (`registry.ts`), shared types (`types.ts`: per-cloud outputs and the `CloudContext` passed to cross-cloud modules) and one module per cloud (`aws/`, `azure/`, `google/`: `index.ts` for the foundations, one file per feature, `types.ts` for the cloud's types) |
-| `config/` | All settings. `commonsettings.ts` holds the global switches (read through `features.ts` / `connections.ts`); `aws/`, `azure/`, `google/` hold per-cloud settings (regions in `common.ts`) |
+| `config/` | All settings (reference: [docs/configuration/](docs/configuration/README.md)). `commonsettings.ts` holds the global switches (read through `features.ts` / `connections.ts`); `aws/`, `azure/`, `google/` hold per-cloud settings (regions in `common.ts`) |
 | `resources/` | Cross-cloud orchestrators: VPN (`vpnResources.ts` + `vpn/`, one module per cloud pair) and private DNS (`privateZoneResources.ts` + `privatezone/`, one module per cloud) |
 | `constructs/` | Resource definitions grouped by category (network, VPN, DB, storage, containers, ...) |
 | `utils/` | Shared helpers (e.g. `addTerraformDependency`) |
@@ -34,7 +37,7 @@ Data flows in one direction: `config` → `clouds` / `resources` → `constructs
 | Network | VPC | VPC | Virtual Network |
 | VPN | Virtual Private Gateway | HA VPN / Classic VPN + Cloud Router | VPN Gateway |
 | VM | EC2 | Compute Engine | Virtual Machines |
-| Database | RDS / Aurora | Cloud SQL | Azure Database for MySQL / PostgreSQL (Flexible Server) |
+| Database (PostgreSQL) | RDS / Aurora | Cloud SQL | Azure Database for PostgreSQL (Flexible Server) |
 | File storage | EFS | Filestore | Azure Files |
 | Containers | ECS (Fargate) | Cloud Run | Container Apps |
 | Load balancer | ALB | Cloud Load Balancing | Application Gateway |
@@ -68,10 +71,11 @@ npx ts-node scripts/dev/synth-matrix.ts synth cdktf.out/after.json
 npx ts-node scripts/dev/synth-matrix.ts compare cdktf.out/before.json cdktf.out/after.json
 ```
 
-The output files contain secrets from `config/.env`; keep them under `cdktf.out/`
+The output files contain secrets from the environment variables (`.env.<env>`); keep them under `cdktf.out/`
 (ignored by git) and never commit them.
 
 ## Terraform state
 
-State is stored locally (`terraform.app.tfstate`, ignored by git). It contains
+State is stored locally per environment (`state/<env>/terraform.tfstate`,
+ignored by git; see docs/operations.md to move an older `terraform.app.tfstate`). It contains
 secrets in plain text — keep it out of version control and back it up securely.

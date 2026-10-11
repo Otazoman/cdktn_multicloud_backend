@@ -1,7 +1,7 @@
 # FEAT-01 アクティブ / アクティブ構成 設計方針
 
 - 作成日: 2026-10-04（同日改訂: ユーザー決定を反映）
-- ステータス: **方針確定・cdktn 側の作業とアプリのディレクトリの承認待ち（§9・§10）**
+- ステータス: **方針確定・cdktn 側の作業とアプリのディレクトリの承認待ち（§9・§10）。CI/CD 連携の残課題を §12 に整理（2026-10-10。2026-10-11 に検討予定）**
 - 関連: `docs/ai/vpn_refactor_plan.md` の FEAT-01 / FEAT-02、`docs/ai/feat03_monitoring_design.md`
 
 ## 1. 目指す構成
@@ -25,7 +25,7 @@
 | CI/CD | **各クラウドの仕組みを使う**（GitHub Actions はビルドが分散するため使わない） |
 | VPN | 作成済み。**2クラウドの場合も 3クラウドの場合もある** |
 | レプリケーションの設定 | 作業用 VM からのシェルスクリプト、または各クラウドのコンテナジョブ（どちらでも可） |
-| シークレット・パラメータ | **初期値は cdktn で投入し、以後はアプリ側で更新する** |
+| シークレット・パラメータ | **cdktn は入れ物とダミーの初期値（Azure は Key Vault のみ）。本当の値は作業者が各クラウドの VM から CLI で入れる**（§7、2026-10-11 改訂） |
 | アプリ | **別リポジトリ**。API は **TypeScript + GraphQL** で CRUD |
 | cdktn の範囲 | インフラを作るところまで |
 
@@ -37,8 +37,8 @@
 | DB インスタンスと論理レプリケーションのパラメータ | ○ | |
 | コンテナの実行環境・レジストリ（初期イメージは仮のもの） | ○ | |
 | CI/CD の受け皿（トリガー、権限、レジストリへのアクセス） | ○ | |
-| シークレット・パラメータの**入れ物と初期値** | ○ | |
-| シークレット・パラメータの**以後の値** | | ○ |
+| シークレットの**入れ物とダミーの初期値** | ○ | |
+| シークレットの**本当の値**（作業者が VM から CLI で入れる。手順は cdktn の `docs/operations.md`） | | ○ |
 | ビルド手順（`buildspec.yml` / `cloudbuild.yaml` / Azure の手順） | | ○ |
 | API・Dockerfile・テーブル定義（マイグレーション） | | ○ |
 | レプリケーションの設定（publication / subscription）とその実行スクリプト | | ○ |
@@ -81,26 +81,38 @@ CI/CD が新しいイメージでコンテナを更新すると、Terraform の�
 | Cloud Run | コンテナのイメージ（とデプロイ時に付く属性） | 未対応 → 追加 |
 | Container Apps | コンテナのイメージ（リビジョン） | 未対応 → 追加 |
 
-## 7. シークレット・パラメータ（初期値は cdktn、以後はアプリ）
+## 7. シークレット・パラメータ（cdktn は入れ物とダミー値、本当の値は VM から CLI で入れる）
 
-cdktn が値を入れたまま管理すると、アプリ側で値を更新した後に `cdktn deploy` を実行したとき、Terraform が初期値に戻してしまう。
+**決定（2026-10-11）**: cdktn はシークレットの入れ物とダミーの初期値までを作り、本当の値は作業者が各クラウドの作業用 VM から CLI で入れる（3 クラウドで手順をそろえる）。値の変更は Terraform に無視させる。手順は `docs/operations.md` の「Secrets」。
 
-- **入れ物と初期値は cdktn で作り、値の変更は Terraform に無視させる**（`lifecycle.ignore_changes`）。
-
-| クラウド | 置き場所 | cdktn で作るもの | 値の変更を無視する対象 |
+| クラウド | 置き場所 | cdktn で作るもの | 本当の値を入れる方法 |
 |---|---|---|---|
-| AWS | Secrets Manager / SSM Parameter Store | シークレット、初期バージョン / パラメータ | `secret_string` / `value` |
-| Google | Secret Manager | シークレット、初期バージョン | （バージョンは追加式なので、アプリは新しいバージョンを追加する） |
-| Azure | Key Vault（**新規**） | Key Vault、シークレット | `value` |
+| AWS | Secrets Manager | シークレットと初期値 `CHANGE_ME`（`secret_string` は `ignore_changes`） | AWS の VM から `aws secretsmanager put-secret-value` |
+| Google | Secret Manager | シークレットと最初のバージョン `CHANGE_ME` | Google の VM から `gcloud secrets versions add`（新しいバージョンを追加。Terraform は最初のバージョンだけを持つ） |
+| Azure | Key Vault（**新規**。RBAC、パブリックアクセスなし、プライベートエンドポイントのみ） | Key Vault・プライベートエンドポイント・プライベート DNS ゾーン・`Key Vault Secrets Officer` の割り当て（cdktn の実行者と `secretsOfficerPrincipalIds`）。**シークレットは作らない**（データプレーンに VNet の外から接続できないため） | Azure の VM から `az keyvault secret set` |
 
-- 対象の例: DB の接続情報（API 用ユーザー・レプリケーション用ユーザーを分ける）、レプリケーションの接続先（各 DB のプライベート DNS 名）、API の設定値。
-- 初期値は `config/.env` から読む。Terraform の state には初期値が残るため、state の扱いに注意する（SEC-04）。
+- 対象（DB 機能が有効なクラウドごと）: API 用ユーザーのパスワード（`DB_PASSWORD`）、レプリケーション用ユーザーのパスワード。ユーザー名・接続先など秘密でない値は置かない（下記）。
+- 作業者は各 VM に**自分のアカウントでログイン**する（`aws login --remote` / `aws sso login --use-device-code`、`gcloud auth login --no-launch-browser`、`az login --use-device-code`）。VM には権限（インスタンスプロファイル・サービスアカウントのスコープ・マネージド ID）を付けない。作業後はログアウトする。
+- 3 つの CLI（AWS CLI v2、gcloud、az）は `scripts/vm_init.sh` で全 VM に入れる。
+- アプリ側の DB スクリプト（`migrate.sh` / `api-role-setup.sh` / `replication-setup.sh`）は、全クラウドのパスワードが必要なため、Key Vault を読める Azure の VM で 3 クラウドにログインして実行する。
+- Terraform の state にはダミー値と DB 管理者のパスワード（`config/.env`）が残る。state は作業端末だけで管理しているため許容する（SEC-04）。
+
+### 7.1 環境変数（秘密でない値）
+
+| 種類 | 例 | 正となる場所 | 実際に保存される場所 | コンテナへの届き方 |
+|---|---|---|---|---|
+| インフラが決める値 | `CLOUD_ID`、`DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER` | cdktn の設定ファイル（`DB_HOST` は DB の設定とプライベート DNS 名から自動で決める） | Terraform の state、各クラウドのコンテナ定義 | コンテナの環境変数（#5） |
+| アプリが決める値 | `GRAPHIQL_ENABLED`、`DB_POOL_MAX`、`DB_SSLMODE` | アプリのリポジトリのファイル（例: `config/app.env`、Git 管理） | イメージの中 | 起動時にファイルから読む（`node --env-file-if-exists`。同じ名前の環境変数があればそちらが優先） |
+| 秘密の値 | API 用・レプリケーション用のパスワード | 各クラウドのシークレットストア | 同左 | コンテナ定義にはシークレットへの参照だけを持たせる（#5） |
+
+- ECS はタスク定義を Terraform に無視させているため、インフラが決める値を後から変えても cdktn deploy では反映されない（§12.4。#5 で扱いを決める）。
+- Container Apps は、参照する Key Vault のシークレットがないとリビジョンを起動できないため、最初の deploy では参照を付けず、値を入れた後で付ける順番にする（#5 で具体化）。
 
 ## 8. ネットワーク・DB の前提
 
 | 項目 | 現状 | 必要な対応 |
 |---|---|---|
-| 論理レプリケーションのパラメータ | 未設定 | RDS / Aurora: `rds.logical_replication=1`、Cloud SQL: `cloudsql.logical_decoding=on`、Azure: `wal_level=logical`。あわせて `max_replication_slots` / `max_wal_senders`（参加ノード数に応じて） |
+| 論理レプリケーションのパラメータ | **設定済み（2026-10-11、§9 #1）** | RDS: `rds.logical_replication=1`（インスタンスのパラメータグループ）、Aurora: 同（クラスタのパラメータグループ）、Cloud SQL: `cloudsql.logical_decoding=on`、Azure: `wal_level=logical` と `max_worker_processes=16`（Azure のドキュメントで 16 以上を推奨）。`max_replication_slots` / `max_wal_senders` は各クラウドの既定値で足りる見込み（未確認。構築時に確認する） |
 | DB 間・VM から DB への通信（5432） | **許可済み**: AWS の DB 用 SG は Google（10.1.0.0/16）・Azure（10.2.0.0/16）から、Google は3クラウドの範囲から、Azure の PostgreSQL 用 NSG は `VirtualNetwork` タグ（VPN でつながった先の範囲を含む）から許可 | 変更なし（必要になれば、DB サブネット同士に絞る強化を別途検討） |
 | Cloud SQL への経路 | PSA の範囲を Cloud Router が VPN へ広告済み | 変更なし |
 | DB の接続名 | プライベート DNS に CNAME を登録する仕組みあり | レプリケーションと API の接続先に使う |
@@ -111,10 +123,10 @@ cdktn が値を入れたまま管理すると、アプリ側で値を更新し�
 
 | # | 作業 | 主な変更箇所 | 合成結果 |
 |---|---|---|---|
-| 1 | 論理レプリケーションのパラメータを有効化（設定でON/OFF） | `config/aws/aurorards/*-parameters.ts`、`config/google/cloudsql/*`、`config/azure/azuredatabase/postgres-parameters.ts` | DB のパラメータが変わる（作成済みの DB は再起動が必要な場合あり） |
-| 2 | Cloud Run / Container Apps で、CI/CD が更新するイメージを Terraform に無視させる（§6.1） | `constructs/container/googlecloudrun.ts`、`constructs/container/azureaca.ts` | 合成結果に `lifecycle.ignore_changes` が加わる |
-| 3 | シークレット・パラメータの入れ物と初期値（`ignore_changes` 付き）。Azure は Key Vault を新規 | `config/<cloud>/secrets.ts`（新規）、`clouds/<cloud>/secrets.ts`（新規）、construct 追加 | リソース追加 |
-| 4 | CI/CD の受け皿: AWS（webhook、デプロイ権限）、Google（トリガー・権限）、Azure（§6 の判断しだい） | `constructs/cicd/*`、`config/<cloud>/cicd*` | リソースの追加・変更 |
+| 1 | **（実装済み 2026-10-11）** 論理レプリケーションのパラメータを有効化。ON/OFF はパラメータファイルに書く・書かないで切り替える。AWS は RDS・Aurora のどちらでも対応（Aurora はクラスタのパラメータファイル `aurora-postgres-cluster-parameters.ts` を新規作成）。**Azure はパラメータファイルを読み込むだけで適用していなかったため、MySQL・PostgreSQL とも `*FlexibleServerConfiguration` で適用するように実装**（1件ずつ順に適用。単位付きの値は数値に変換。読み取り専用の `log_connections` は設定しない） | `config/aws/aurorards/*`、`config/google/cloudsql/postgres-parameters.ts`、`config/azure/azuredatabase/postgres-parameters.ts`、`constructs/relationaldatabase/azuredatabase.ts` | 新規構築ではパラメータグループ・フラグは作成時から効くため再起動不要。Azure はサーバー作成後にパラメータを適用するため、静的パラメータ（`wal_level` など）で初回 deploy 中に再起動が入る（provider の `restart_server_on_configuration_value_change`）。作成済みの DB は再起動が必要 |
+| 2 | **（Cloud Run は CI/CD の設定とつないだ 2026-10-11。Container Apps は #4 の Azure と一緒に）** Cloud Run / Container Apps で、CI/CD が更新するイメージを Terraform に無視させる（§6.1）。**対象は CI/CD の設定（Cloud Build トリガー・ACR Tasks）でデプロイ先に指定したサービスから自動で決める（決定）**。construct に `ignoreImageChanges` を追加済み。CI/CD の設定とつなぐのは #4 | `constructs/container/googlecloudrun.ts`、`constructs/container/azureaca.ts` | Cloud Run: `template[0].containers[0].image`、`client`、`client_version`。Container Apps: `template[0].container[0].image` を無視（`ignoreImageChanges` が true のサービスのみ） |
+| 3 | **（実装済み 2026-10-11）** シークレットの入れ物とダミーの初期値（§7）。Azure は Key Vault を新規作成（シークレットは作らない）。あわせて `scripts/vm_init.sh` に 3 つの CLI のインストールを追加し、`wait_for_apt_lock` の不具合（未定義の `log` と空の `LOCK_FILES` で、ロックを待っていなかった）を修正 | `config/<cloud>/secrets.ts`、`clouds/<cloud>/secrets.ts`、`constructs/secrets/*`（新規）、`clouds/<cloud>/index.ts`、`scripts/vm_init.sh`、`docs/operations.md`、`docs/getting-started.md` | DB 機能が有効なクラウドに、シークレット（AWS・Google 各 2）または Key Vault 一式（Azure）が加わる |
+| 4 | CI/CD の受け皿: AWS（webhook、デプロイ権限）、Google（トリガー・権限）、Azure（Managed DevOps Pool + Azure Pipelines） | `constructs/cicd/*`、`config/<cloud>/cicd*`、`config/cicd.ts` | リソースの追加・変更。**AWS・Google は実装済み（2026-10-11）**: 共通設定 `config/cicd.ts`（アプリのリポジトリ、起動するブランチを byEnv）。AWS は CodeConnections の ARN（byEnv）で source を読み、webhook（PUSH、HEAD_REF）、`deployTarget`（ECS サービス名）から `ECS_CLUSTER` / `ECS_SERVICE` / `CONTAINER_NAME` とデプロイ権限（サービスロールへのインラインポリシー）。Google は第2世代の接続（gcloud で作成）にリポジトリを登録し、専用のサービスアカウントで動くトリガー（置換変数 `_REGION` / `_AR_REPOSITORY` / `_SERVICE` / `_WORKER_POOL`）。`deployTarget` の Cloud Run に #2 の `ignoreImageChanges` を自動で付ける。**Azure は未実装**（依存の追加の承認後） |
 | 5 | API コンテナの設定（ポート、ヘルスチェックのパス、シークレットの受け渡し） | `config/aws/ecs.ts`、`config/google/cloudrun.ts`、`config/azure/containerapps.ts` | 設定しだい |
 | 6 | （必要なら）レプリケーション設定用のコンテナジョブの実行環境 | 各クラウドのコンテナ construct | リソース追加 |
 
@@ -125,8 +137,13 @@ cdktn が値を入れたまま管理すると、アプリ側で値を更新し�
 | 1 | Azure の CI/CD | 推奨: ACR Tasks（GitHub のマージで起動可能）。ご判断待ち |
 | 2 | AWS のデプロイ | **決定: CodeBuild + ECS ネイティブ Blue/Green** |
 | 3 | 作業用 VM から他クラウドの DB への通信 | **許可済み（確認済み）** |
-| 4 | 着手順 | 推奨: 1（DB パラメータ）・2（ignore_changes）→ 3（シークレット）→ 4（CI/CD）→ 5 |
+| 4 | 着手順 | **決定: §9 の順**（1（DB パラメータ）・2（ignore_changes）→ 3（シークレット）→ 4（CI/CD）→ 5）。#1・#2 は 2026-10-11 に実装 |
+| 7 | AWS で参加する DB | **決定: RDS PostgreSQL・Aurora PostgreSQL のどちらでも対応できるようにする** |
+| 9 | シークレットの値 | **決定: cdktn はダミー値、本当の値は各クラウドの VM から作業者のアカウントで CLI で入れる**（Cloud Shell は使わず VM にそろえる。Azure の Key Vault はプライベートエンドポイントのみ）（§7） |
+| 10 | 環境変数 | **決定: インフラが決める値は cdktn がコンテナの環境変数に、アプリが決める値はアプリのリポジトリのファイルに置く**（§7.1） |
+| 8 | Azure のパラメータ適用 | **決定: MySQL・PostgreSQL とも実装する**（既存の値は単位を数値に直して適用。`shared_buffers`・`effective_cache_size` は設定せず、Azure が SKU のメモリから決める既定値を使う） |
 | 5 | アプリのリポジトリ | **決定: アプリとインフラ（このリポジトリ）はリポジトリを分ける**。場所・名前・雛形を作るかはご判断待ち（§11） |
+| 6 | CI/CD 連携（GitHub とビルドの連携、環境変数・シークレット、ライフサイクルの違い） | **残課題（§12）**。2026-10-11 に検討予定 |
 
 ## 11. アプリのリポジトリ（案）
 
@@ -145,6 +162,61 @@ cdktn が値を入れたまま管理すると、アプリ側で値を更新し�
 ├ acr-task.yaml           Azure ACR Tasks（イメージのプッシュ → Container Apps 更新）
 └ docs/
 ```
+
+## 12. 残課題: CI/CD 連携（2026-10-11 検討予定）
+
+`multicloud_api_apps`（アプリ）と `cdktn_multicloud_backend`（インフラ、このリポジトリ）をつなぎ、GitHub のリポジトリへのマージで各クラウドのビルドシステムが動くようにする。検討する論点を以下に整理する（結論はまだ出していない）。
+
+### 12.1 現状（2026-10-10 時点）
+
+| 項目 | 状態 |
+|---|---|
+| アプリのリポジトリ | `/mnt/dev_data/multicloud_dev/src/multicloud_api_apps`。**コミットなし・リモート（GitHub）未設定**。`buildspec.yml` / `cloudbuild.yaml` / `acr-task.yaml` / `Dockerfile` / `migrations/` / `replication/` はある |
+| ビルド定義が外から受け取る値 | AWS: `REPOSITORY_URI` / `ECS_CLUSTER` / `ECS_SERVICE` / `CONTAINER_NAME`（CodeBuild の環境変数）。Google: `_REGION` / `_AR_REPOSITORY` / `_SERVICE` / `_WORKER_POOL`（Cloud Build の置換変数）。Azure: `acr-task.yaml` の値（要確認） |
+| アプリが実行時に読む値（`.env.sample`） | `CLOUD_ID`、`PORT`、`GRAPHIQL_ENABLED`、`DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_SSLMODE` / `DB_SSL_CA_FILE` / `DB_POOL_MAX` |
+| cdktn 側の CI/CD | §6 のとおり。AWS は webhook とデプロイ権限が未対応、Google はトリガーと GitHub 接続が未対応、Azure は ACR のみ（ACR Tasks は未作成） |
+| Terraform に無視させる設定 | ECS は対応済み。Cloud Run / Container Apps は未対応（§6.1） |
+
+### 12.2 論点1: GitHub と各クラウドのビルドシステムの連携
+
+| 論点 | 検討すること |
+|---|---|
+| 接続方式 | AWS: CodeConnections（GitHub App）か、CodeBuild の webhook（個人アクセストークン）か。Google: Cloud Build の GitHub 接続（第2世代、GitHub App）。Azure: ACR Tasks のコミットトリガー（個人アクセストークンが必要）。どれもコンソールでの承認など、Terraform だけでは完結しない手順があるかを確認する |
+| 接続の認証情報 | トークンを使う場合の置き場所（cdktn の `.env` か、各クラウドのシークレットストアか）、有効期限と更新の手順 |
+| 起動の条件 | どのブランチへのマージで起動するか。3クラウドで同じブランチにするか。リポジトリ内のどのディレクトリが変わったときだけ起動するか（例: `src/`・`Dockerfile`・`migrations/` の変更だけ。`docs/` の変更では起動しない） |
+| リポジトリの場所 | GitHub のリポジトリ名・所有者（個人 / Organization）。cdktn の設定ファイルにどう書くか（3クラウドで共通の1か所にするか） |
+
+### 12.3 論点2: 環境変数とシークレットの管理
+
+値の種類ごとに、誰が作り、どこに置き、どう渡すかを決める。
+
+| 値の種類 | 例 | 決める人・時期 | 検討すること |
+|---|---|---|---|
+| インフラが決める値（ビルド時） | ECR の URI、ECS クラスタ・サービス名、Artifact Registry 名、Cloud Run サービス名 | cdktn（deploy 時） | cdktn がビルドシステムの環境変数・置換変数として設定する（アプリのリポジトリに直書きしない）。名前を変えたときに自動で追従するか |
+| インフラが決める値（実行時） | `DB_HOST`（プライベート DNS 名）、`DB_PORT`、`DB_NAME`、`CLOUD_ID`、`PORT` | cdktn | コンテナの環境変数として cdktn が設定するか、パラメータストアに置いてアプリが読むか |
+| 秘密の値（実行時） | `DB_USER` / `DB_PASSWORD`、レプリケーション用ユーザー | 初期値は cdktn、以後はアプリ（§7） | 各クラウドのシークレットストア → コンテナへの渡し方（ECS の `secrets`、Cloud Run のシークレット参照、Container Apps の Key Vault 参照）。値を更新したときにコンテナへ反映される条件（再デプロイが必要か）。ローテーションの手順 |
+| アプリの設定値 | `GRAPHIQL_ENABLED`、`DB_POOL_MAX`、`DB_SSLMODE` | アプリ | アプリのリポジトリで管理するか、cdktn の設定ファイルで管理するか |
+| state に残る値 | シークレットの初期値 | — | Terraform の state に平文で残る（SEC-04）。初期値をダミーにして、本当の値はアプリ側で入れる案も検討する |
+
+### 12.4 論点3: ライフサイクルの違いをどう埋めるか
+
+インフラ（cdktn deploy）とアプリ（マージのたびにビルド・デプロイ）は、更新の頻度とタイミングが違う。
+
+| 論点 | 起きること・検討すること |
+|---|---|
+| 初回の立ち上げ | インフラを作る時点では、アプリのイメージがまだない。cdktn は仮のイメージでコンテナを作り、最初のビルドで本物に置き換わる（§3）。仮のイメージのヘルスチェックが通るか、初回のビルドを自動で起動するか |
+| 両方が同じ設定を触る | **ECS は `ignore_changes` で `task_definition` を無視しているため、cdktn でタスク定義（環境変数・CPU・メモリなど）を変えても反映されない**。CI/CD が登録するリビジョンは、そのとき動いているリビジョンを元にする（`buildspec.yml`）。Cloud Run / Container Apps でイメージを無視させた場合も同じ問題が起きる。どの項目をどちらが持つかの分担を決める |
+| デプロイの順序 | DB のマイグレーションとアプリのデプロイの順序（マイグレーションを先にするか、後方互換を必須にするか）。3クラウドの DB はレプリケーションでつながっているため、テーブル定義の変更は全クラウドに同じ順で適用する必要がある |
+| 3クラウドのバージョンのそろえ方 | 同じコミットを3クラウドでビルドするが、ビルドは別々に動く。一部のクラウドだけ失敗したときに、バージョンが混在してよいか。巻き戻しの手順 |
+| インフラの変更とアプリ | cdktn でリソースを作り直したとき（名前の変更など）に、ビルドの設定・権限が追従するか。destroy 時にレジストリのイメージをどう扱うか |
+| 監視 | ビルド・デプロイの失敗を通知するか（FEAT-03 の通知先を使えるか） |
+
+### 12.5 検討の進め方（案）
+
+1. 論点1: 接続方式と起動条件を決める（Terraform で作れる範囲と手作業の範囲を確認）。
+2. 論点2: 値の種類ごとに置き場所と渡し方を決める（§7 の方針を具体化）。
+3. 論点3: cdktn とアプリの分担（特に ECS のタスク定義）と、マイグレーションの順序を決める。
+4. 決まった内容を §6・§7・§9 に反映し、cdktn 側の作業（§9 #2〜#4）の変更内容を提示する。
 
 ## 参考
 

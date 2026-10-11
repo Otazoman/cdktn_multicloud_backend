@@ -1,4 +1,4 @@
-import { LOCATION, PROJECT_NAME } from "./common";
+import { LOCATION, PROJECT_NAME, PUBLIC_DOMAIN } from "./common";
 
 export const gcpLbConfigs = [
   /* =====================================================
@@ -25,8 +25,8 @@ export const gcpLbConfigs = [
 
     // DNS settings
     dnsConfig: {
-      subdomain: "googletest.tohonokai.com",
-      fqdn: "api.googletest.tohonokai.com",
+      subdomain: PUBLIC_DOMAIN,
+      fqdn: `api.${PUBLIC_DOMAIN}`,
     },
 
     // SSL is not used for HTTP
@@ -69,8 +69,8 @@ export const gcpLbConfigs = [
 
     // DNS settings
     dnsConfig: {
-      subdomain: "googletest.tohonokai.com",
-      fqdn: "api.googletest.tohonokai.com",
+      subdomain: PUBLIC_DOMAIN,
+      fqdn: `api.${PUBLIC_DOMAIN}`,
     },
 
     // SSL Configuration for Regional LB
@@ -78,7 +78,7 @@ export const gcpLbConfigs = [
     managedSsl: {
       // Default: <project>-google-ssl-certificate-<LB name>
       certificateName: "run-regional-https-lb-cert",
-      domains: ["api.googletest.tohonokai.com"],
+      domains: [`api.${PUBLIC_DOMAIN}`],
       certificatePath: "./sslcerts/openssl/server.crt",
       privateKeyPath: "./sslcerts/openssl/server.key",
     },
@@ -123,8 +123,8 @@ export const gcpLbConfigs = [
 
     // DNS settings
     dnsConfig: {
-      subdomain: "googletest.tohonokai.com",
-      fqdn: "api.googletest.tohonokai.com",
+      subdomain: PUBLIC_DOMAIN,
+      fqdn: `api.${PUBLIC_DOMAIN}`,
     },
 
     // SSL Configuration for Global Managed LB
@@ -132,7 +132,7 @@ export const gcpLbConfigs = [
     managedSsl: {
       // Default: <project>-google-ssl-certificate-<LB name>
       certificateName: "run-global-https-lb-cert",
-      domains: ["api.googletest.tohonokai.com"],
+      domains: [`api.${PUBLIC_DOMAIN}`],
       certificatePath: undefined, // Not required for Google-managed certificates
       privateKeyPath: undefined, // Not required for Google-managed certificates
     },
@@ -156,5 +156,5 @@ export const gcpLbConfigs = [
 // Public DNS zone name per sub-domain used in dnsConfig above
 // (omitted: <project>-google-public-zone-<domain>)
 export const gcpPublicZoneNames: Record<string, string> = {
-  "googletest.tohonokai.com": "zone-googletest-tohonokai-com",
+  [PUBLIC_DOMAIN]: `zone-${PUBLIC_DOMAIN.replace(/\./g, "-")}`,
 };

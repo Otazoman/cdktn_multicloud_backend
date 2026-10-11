@@ -9,6 +9,11 @@ import { addTerraformDependency } from "../../utils/terraformDependency";
  * Configuration for a Google Cloud Logging Log-based Metric.
  */
 export interface GcpLogMetricDefinition {
+  /**
+   * Construct ID key (Terraform address). Defaults to `name`. To rename
+   * the resource without replacing it in state, set this to the old value.
+   */
+  key?: string;
   /** The unique name of the log metric. */
   name: string;
   /** The advanced logs filter expression used to match log entries (e.g., 'resource.type="gce_instance" AND severity>=ERROR'). */
@@ -37,6 +42,11 @@ export interface GcpNotificationChannelDefinition {
  * Configuration for a Google Cloud Monitoring Alert Policy.
  */
 export interface GcpAlertPolicyDefinition {
+  /**
+   * Construct ID key (Terraform address). Defaults to `displayName`. To rename
+   * the resource without replacing it in state, set this to the old value.
+   */
+  key?: string;
   /** A human-readable name for this alert policy. */
   displayName: string;
   /** The MQL (Monitoring Query Language) or PromQL/Filter based condition string. */
@@ -127,13 +137,13 @@ export class GcpMonitoringResources extends Construct {
 
     // 1. Independent Google Cloud Log-based Metrics Creation
     if (config.logMetrics) {
-      config.logMetrics.forEach((metricDef, index) => {
-        const sanitizedId = metricDef.name.replace(/[^a-zA-Z0-9]/g, "-");
+      config.logMetrics.forEach((metricDef) => {
+        const sanitizedId = (metricDef.key ?? metricDef.name).replace(/[^a-zA-Z0-9]/g, "-");
 
         // Fixed: Use LoggingMetric instead of LoggingLogMetric
         const logMetric = new LoggingMetric(
           this,
-          `gcp-log-metric-${sanitizedId}-${index}`,
+          `gcp-log-metric-${sanitizedId}`,
           {
             provider: provider,
             project: config.projectId,
@@ -154,7 +164,7 @@ export class GcpMonitoringResources extends Construct {
 
     // 2. Independent Google Cloud Notification Channels Creation
     if (config.notificationChannels) {
-      config.notificationChannels.forEach((channelDef, index) => {
+      config.notificationChannels.forEach((channelDef) => {
         const sanitizedId = channelDef.displayName.replace(
           /[^a-zA-Z0-9]/g,
           "-",
@@ -162,7 +172,7 @@ export class GcpMonitoringResources extends Construct {
 
         const channel = new MonitoringNotificationChannel(
           this,
-          `gcp-notify-channel-${sanitizedId}-${index}`,
+          `gcp-notify-channel-${sanitizedId}`,
           {
             provider: provider,
             project: config.projectId,
@@ -183,8 +193,8 @@ export class GcpMonitoringResources extends Construct {
 
     // 3. Independent Google Cloud Alert Policies Creation
     if (config.alertPolicies) {
-      config.alertPolicies.forEach((policyDef, index) => {
-        const sanitizedId = policyDef.displayName.replace(/[^a-zA-Z0-9]/g, "-");
+      config.alertPolicies.forEach((policyDef) => {
+        const sanitizedId = (policyDef.key ?? policyDef.displayName).replace(/[^a-zA-Z0-9]/g, "-");
 
         // Resolve notification channels
         const targetChannels: string[] = [];
@@ -201,7 +211,7 @@ export class GcpMonitoringResources extends Construct {
 
         const alertPolicy = new MonitoringAlertPolicy(
           this,
-          `gcp-alert-policy-${sanitizedId}-${index}`,
+          `gcp-alert-policy-${sanitizedId}`,
           {
             provider: provider,
             project: config.projectId,

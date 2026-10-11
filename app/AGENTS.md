@@ -440,6 +440,12 @@ Follow existing project conventions when they differ from these general rules.
 - Keep construct IDs stable: build them from `entry.key ?? entry.name` (the
   `key` lets users rename a resource without changing its Terraform address),
   never from a name alone.
+- Never put a list position (`index`) of a config entry into a construct ID:
+  adding or removing an entry would change the addresses of the entries after
+  it and replace them. Pass names through `idPart()` (`utils/naming.ts`).
+  Positions that are part of the resource itself (VPN tunnel 1 / 2, Aurora
+  instance number) are allowed. `__tests__/construct-ids.test.ts` checks this
+  by reversing config lists.
 
 ---
 

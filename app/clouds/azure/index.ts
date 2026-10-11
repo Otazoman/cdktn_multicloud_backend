@@ -9,6 +9,7 @@
  *   2. Public DNS Zone          (features.dns)                    dns.ts
  *   3. Azure Files              (features.storage)                storage.ts
  *   4. Azure Database           (features.dbs)                    database.ts
+ *   4.5. Key Vault              (features.dbs)                    secrets.ts
  *   5. Azure VM                 (features.vms)                    compute.ts
  *   5.5. Container Registry     (features.cicd)                   cicd.ts
  *   5.8. Log archive storage    (features.logArchive)             logarchive.ts
@@ -39,6 +40,7 @@ import { AzureBuildContext } from "./context";
 import { createAzurePublicDns } from "./dns";
 import { createAzureStorage } from "./storage";
 import { createAzureDatabaseResources } from "./database";
+import { createAzureSecretResources } from "./secrets";
 import { createAzureVmResources } from "./compute";
 import { createAzureCicd } from "./cicd";
 import { createAzureContainers } from "./container";
@@ -128,6 +130,7 @@ export const createAzureResources = (
   createAzurePublicDns(ctx);
   createAzureStorage(ctx);
   createAzureDatabaseResources(ctx);
+  createAzureSecretResources(ctx);
   createAzureVmResources(ctx);
   createAzureCicd(ctx);
   createAzureLogArchiveResources(ctx);

@@ -18,6 +18,15 @@ import { LOCATION } from "./common";
  *   reused during that time. To deploy again within 7 days of a destroy,
  *   set a different bucketId.
  */
+/**
+ * true: route `logs: true` resources to the log buckets below.
+ * false: keep their logs in the _Default bucket (30 days, no log buckets or
+ * sinks are created) - e.g. for environments that are destroyed and deployed
+ * again within 7 days. `logs: false` resources are excluded from _Default
+ * either way.
+ */
+export const googleUseLogBuckets: boolean = true;
+
 export interface GoogleLogBucketConfig {
   /** Logical key referenced from logBucket */
   key: string;
@@ -31,9 +40,21 @@ export interface GoogleLogBucketConfig {
 
 export const googleLogBucketsConfig: GoogleLogBucketConfig[] = [
   // VPN gateways and Cloud Routers (BGP)
-  { key: "vpn", location: LOCATION, retentionDays: 30, enableAnalytics: false },
+  {
+    key: "vpn",
+    bucketId: "vpn-log-202610111130",
+    location: LOCATION,
+    retentionDays: 30,
+    enableAnalytics: false,
+  },
   // Cloud Run services
-  { key: "cloudrun", location: LOCATION, retentionDays: 30, enableAnalytics: false },
+  {
+    key: "cloudrun",
+    bucketId: "cloudrun-log-202610111130",
+    location: LOCATION,
+    retentionDays: 30,
+    enableAnalytics: false,
+  },
 ];
 
 /**

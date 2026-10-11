@@ -1,9 +1,11 @@
+import { envScopedName } from "../environment";
 import { LOCATION, RESOURCE_GROUP } from "./common";
 
 export const azureFilesConfigs = [
   {
     build: true,
-    accountName: "stcatappdata001",
+    // Globally unique; other environments than dev get the environment name appended
+    accountName: envScopedName("stcatappdata001", { hyphen: false }),
     // Private endpoint names (omitted: default name). privateDnsZoneVnetLink is
     // used by the account that creates the shared privatelink DNS zone.
     names: {
@@ -39,7 +41,8 @@ export const azureFilesConfigs = [
   },
   {
     build: false,
-    accountName: "stcatappdata002",
+    // Globally unique; other environments than dev get the environment name appended
+    accountName: envScopedName("stcatappdata002", { hyphen: false }),
     // Private endpoint names (omitted: default name). privateDnsZoneVnetLink is
     // used by the account that creates the shared privatelink DNS zone.
     names: {

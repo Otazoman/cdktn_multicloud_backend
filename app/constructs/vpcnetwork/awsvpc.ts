@@ -13,9 +13,14 @@ import { Subnet } from "@cdktn/provider-aws/lib/subnet";
 import { Vpc as AwsVpc } from "@cdktn/provider-aws/lib/vpc";
 import { Resource } from "@cdktn/provider-null/lib/resource";
 import { Construct } from "constructs";
-import { resourceName } from "../../utils/naming";
+import { resourceName, idPart } from "../../utils/naming";
 
 interface SubnetConfig {
+  /**
+   * Construct ID key (Terraform address). Defaults to `name`. To rename
+   * the resource without replacing it in state, set this to the old value.
+   */
+  key?: string;
   cidrBlock: string;
   az: string;
   name: string;
@@ -33,6 +38,11 @@ interface SecurityGroupRuleConfig {
 }
 
 interface SecurityGroupConfig {
+  /**
+   * Construct ID key (Terraform address). Defaults to `name`. To rename
+   * the resource without replacing it in state, set this to the old value.
+   */
+  key?: string;
   resourcetype: string;
   name: string;
   tags?: { [key: string]: string };
@@ -106,11 +116,15 @@ export function createAwsVpcResources(
   // subnets
   const subnets: Subnet[] = [];
   const subnetsByName: Record<string, Subnet> = {};
+  // Construct ID key per subnet name (route table associations follow it)
+  const subnetIdKeys: Record<string, string> = Object.fromEntries(
+    params.subnets.map((s) => [s.name, s.key ?? s.name]),
+  );
   const publicSubnets: Subnet[] = [];
   const privateSubnets: Subnet[] = [];
 
-  params.subnets.forEach((subnetConfig, index) => {
-    const subnetResource = new Subnet(scope, `awsSubnet${index}`, {
+  params.subnets.forEach((subnetConfig) => {
+    const subnetResource = new Subnet(scope, `awsSubnet-${idPart(subnetConfig.key ?? subnetConfig.name)}`, {
       provider: provider,
       vpcId: vpc.id,
       cidrBlock: subnetConfig.cidrBlock,
@@ -155,10 +169,10 @@ export function createAwsVpcResources(
   });
 
   params.routeTables.public.associatedSubnetNames.forEach(
-    (subnetName, index) => {
+    (subnetName) => {
       const subnet = subnetsByName[subnetName];
       if (subnet) {
-        new RouteTableAssociation(scope, `publicSubnetAssociation${index}`, {
+        new RouteTableAssociation(scope, `publicSubnetAssociation-${idPart(subnetIdKeys[subnetName])}`, {
           provider: provider,
           subnetId: subnet.id,
           routeTableId: publicRouteTable.id,
@@ -210,10 +224,10 @@ export function createAwsVpcResources(
   }
 
   params.routeTables.private.associatedSubnetNames.forEach(
-    (subnetName, index) => {
+    (subnetName) => {
       const subnet = subnetsByName[subnetName];
       if (subnet) {
-        new RouteTableAssociation(scope, `privateSubnetAssociation${index}`, {
+        new RouteTableAssociation(scope, `privateSubnetAssociation-${idPart(subnetIdKeys[subnetName])}`, {
           provider: provider,
           subnetId: subnet.id,
           routeTableId: privateRouteTable.id,
@@ -223,8 +237,8 @@ export function createAwsVpcResources(
   );
 
   // security groups
-  const securityGroups = params.securityGroups.map((sgConfig, index) => {
-    const sg = new SecurityGroup(scope, `awsSecurityGroup-${index}`, {
+  const securityGroups = params.securityGroups.map((sgConfig) => {
+    const sg = new SecurityGroup(scope, `awsSecurityGroup-${idPart(sgConfig.key ?? sgConfig.name)}`, {
       provider: provider,
       vpcId: vpc.id,
       name: sgConfig.name,

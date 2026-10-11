@@ -36,23 +36,11 @@ export const subnets = [
     natGatewayEnabled: false,
   },
   {
-    name: "db-mysql-subnet",
-    resourceName: "my-azure-vnet-db-mysql-subnet",
-    cidr: "10.2.31.0/24",
-    // Delegated subnets cannot have NAT Gateway associated —
-    // Azure does not support NAT Gateway on subnets delegated to managed PaaS services.
-    natGatewayEnabled: false,
-    delegations: [
-      {
-        name: "Microsoft.DBforMySQL-flexibleServers",
-        serviceName: "Microsoft.DBforMySQL/flexibleServers",
-      },
-    ],
-  },
-  {
     name: "db-postgres-subnet",
     resourceName: "my-azure-vnet-db-postgres-subnet",
     cidr: "10.2.32.0/24",
+    // Delegated subnets cannot have NAT Gateway associated —
+    // Azure does not support NAT Gateway on subnets delegated to managed PaaS services.
     natGatewayEnabled: false,
     delegations: [
       {
