@@ -55,8 +55,10 @@ export const awsEcsConfigs = [
     // must match an entry in config/aws/cloudwatchlogs.ts.
     cloudwatchLogGroupName: "/aws/ecs/api-service",
     containerName: "api-container",
-    image: "nginx:latest",
-    port: 80,
+    // Placeholder until CI/CD deploys the API (which listens on 8080);
+    // this image also listens on 8080.
+    image: "nginxinc/nginx-unprivileged:stable",
+    port: 8080,
     securityGroupNames: ["ecs-sg"],
     subnetNames: [
       "my-aws-vpc-private-subnet1a",

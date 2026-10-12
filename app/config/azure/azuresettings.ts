@@ -1,6 +1,7 @@
 export * from "./applicationgateway";
 export * from "./azuredatabase/databases";
 export * from "./azuremonitor";
+export * from "./cicd";
 export * from "./common";
 export * from "./containerapps";
 export * from "./devops_acr_config";

@@ -37,11 +37,16 @@ export interface AzureContainerAppConfig {
    */
   scaleRules?: AzureContainerAppScaleRule[];
   /**
-   * The image is updated by CI/CD (ACR Tasks `az containerapp update
-   * --image`): Terraform ignores the image so that deploy does not roll it
-   * back.
+   * The image is updated by CI/CD (Azure Pipelines, `az containerapp
+   * update --image`): Terraform ignores the image so that deploy does not
+   * roll it back.
    */
   ignoreImageChanges?: boolean;
+  /**
+   * Private registry the app pulls its image from (CI/CD pushes there), with
+   * the user-assigned identity that has AcrPull on it.
+   */
+  registry?: { server: string; identityId: string };
   /**
    * Environment logs (applied when the environment is created): when set,
    * the environment sends its logs to Azure Monitor and a diagnostic setting
@@ -121,6 +126,12 @@ export function createAzureContainerAppResources(
     resourceGroupName: config.resourceGroupName,
     containerAppEnvironmentId: environment.id,
     revisionMode: "Single",
+    identity: config.registry
+      ? { type: "UserAssigned", identityIds: [config.registry.identityId] }
+      : undefined,
+    registry: config.registry
+      ? [{ server: config.registry.server, identity: config.registry.identityId }]
+      : undefined,
 
     template: {
       container: [

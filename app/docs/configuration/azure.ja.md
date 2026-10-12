@@ -184,6 +184,30 @@ Azure 全体で一意である必要がある名前は `envScopedName()` を使�
 | `subnetName` | プライベートエンドポイントのサブネット | サブネットの `name` | **必須** | |
 | `adminEnabled` | 管理者ユーザー | `boolean` | — | |
 
+## CI/CD: Azure Pipelines（`cicd.ts`、`azureDevOpsConfig`、機能 `cicd`）
+
+パイプラインは、アプリのリポジトリ（`config/cicd.ts`）の `azure-pipelines.yml` を、Managed DevOps Pool（Microsoft が必要なときに作り、VNet に接続するビルドのエージェント）で実行し、イメージを ACR に push して Container Apps を更新します。手作業（組織、プロジェクト、GitHub の接続、サービスプリンシパルのメンバー登録、リソースプロバイダー、DevOpsInfrastructure のオブジェクト ID）は [getting-started.ja.md](../getting-started.ja.md) にあります。`cdktn get`（`.gen/` の Azure DevOps の provider）が必要です。
+
+| 項目名 | 設定する内容 | 設定できる値 | 指定がない場合のデフォルト値 | 備考 |
+|---|---|---|---|---|
+| `organization`、`project` | Azure DevOps の組織とプロジェクト | 名前、`byEnv` | `otazoman-multicloud`、`multicloud-api` | 作成済みであること。cdktn は `ARM_CLIENT_ID` / `ARM_CLIENT_SECRET` / `ARM_TENANT_ID` でサインインし、そのサービスプリンシパルは組織のメンバーであること |
+| `githubServiceConnectionName` | プロジェクトの GitHub のサービス接続（GitHub App） | 名前、`byEnv` | `github.com_Otazoman` | 名前から検索する |
+| `devOpsInfrastructurePrincipalId` | サービスプリンシパル DevOpsInfrastructure のオブジェクト ID | `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID` から | —（警告） | cdktn がプールの前に、VNet に対する閲覧者とネットワーク共同作成者を割り当てる |
+| `pool.name` | プール（Azure のリソースと Azure DevOps のエージェントプール） | 文字列 | `multicloud-devops-pool` | パイプラインの既定のプール |
+| `pool.devCenterName`、`pool.devCenterProjectName` | プールが所属する Dev Center とプロジェクト | 文字列 | `multicloud-devcenter`、`multicloud-devcenter-project` | 料金はかからない |
+| `pool.subnetName` | エージェントのサブネット | サブネットの `name` | `devops-pool-subnet`（`10.2.60.0/24`） | `Microsoft.DevOpsInfrastructure/pools` に委任、NAT ゲートウェイあり |
+| `pool.vmSize`、`pool.image` | エージェントの VM のサイズと、既定のイメージ | 文字列 | `Standard_D2ads_v5`、`ubuntu-24.04` | イメージには Docker と Azure CLI が入っている |
+| `pool.maximumConcurrency` | 同時に動くエージェントの数（と並列数） | 数値 | `1` | 自前のエージェントの並列ジョブは 1 つまで無料 |
+| `pool.standbyAgents` | 待機させておくエージェントの数 | 数値 | `0` | `0`: ジョブの実行中だけ VM があり、課金される |
+| `pool.identityName` | エージェントのユーザー割り当てマネージド ID | 文字列 | `multicloud-devops-pool-identity` | ACR への AcrPush と、デプロイ先の Container Apps への共同作成者が付く。`AZURE_CLIENT_ID` として渡す |
+| `pipeline.build` | パイプライン（とプール）を作る | `boolean` | `true` | |
+| `pipeline.name`、`pipeline.ymlPath` | パイプラインの名前、リポジトリ内のビルドの定義 | 文字列 | `multicloud-api-deploy`、`azure-pipelines.yml` | `cicdTrigger.branches`（`config/cicd.ts`）への push で起動する |
+| `pipeline.deployTarget.containerAppName` | パイプラインがデプロイする Container Apps | `containerapps.ts` の `name`（`build: true`） | `backend-api-service` | そのイメージは Terraform が無視する。ACR からは専用の ID で取得する |
+| `pipeline.deployTarget.acrName` | レジストリ | `devops_acr_config.ts` の `name` | `mycompanyacr001`（`envScopedName` で作る） | |
+| `pipeline.deployTarget.pullIdentityName` | Container Apps がイメージを取得する ID | 文字列 | `backend-api-service-acr-pull` | AcrPull のみ |
+
+cdktn が設定するパイプラインの変数: `AZURE_CLIENT_ID`、`ACR_NAME`、`ACR_LOGIN_SERVER`、`RESOURCE_GROUP`、`CONTAINER_APP_NAME`。
+
 ## 監視（`azuremonitor.ts`）
 
 ### Log Analytics とアクショングループ（`azureMonitorConfig`）

@@ -135,8 +135,8 @@ docker compose -p cdktn-dev exec cdktn-backend bash   # 中では今までどお
 |---|---|---|---|
 | 共通 | `config/cicd.ts`（`appRepository` = `Otazoman/multipleclouds-api-app`、`cicdTrigger.branches` = byEnv、既定 `main`）、`utils/branchPattern.ts` | — | 済み |
 | AWS | 実装済み: CodeConnections の接続を**名前から ARN を引く**（データソース `aws_codestarconnections_connection`。ARN はリポジトリに書かない: ユーザーの希望）、webhook（PUSH・HEAD_REF）、`deployTarget`（ECS サービス名）→ `ECS_CLUSTER` / `ECS_SERVICE` / `CONTAINER_NAME` とデプロイ権限（サービスロールへのインラインポリシー） | **完了**（接続 `multicloud-github`、承認済み） | `codebuild.codeConnectionName` = byEnv（既定 `multicloud-github`）。済み |
-| Google | 実装済み: 第2世代のリポジトリ登録、専用サービスアカウント `cloudbuild-deployer` で動くトリガー（置換変数 `_REGION` / `_AR_REPOSITORY` / `_SERVICE` / `_WORKER_POOL`）、`deployTarget` の Cloud Run に `ignoreImageChanges` を自動で付ける | 接続 `multicloud-github` を作成し承認の途中（`PENDING_INSTALL_APP` まで確認）。**`COMPLETE` になったかは未確認** | `githubTrigger.connectionName` = `multicloud-github`。済み |
-| Azure | **未実装**。依存パッケージ `@cdktn/provider-azuredevops` の追加の承認待ち | **完了**: 組織 `otazoman-multicloud`（テナント「既定のディレクトリ」に接続済み）、プロジェクト `multicloud-api`、サービス接続 `github.com_Otazoman`（GitHub App 方式）。Boards の GitHub connections にも接続あり（パイプラインでは使わない） | 設定ファイルは未作成（実装時に組織名・プロジェクト名・サービス接続名を書く） |
+| Google | 実装済み: 第2世代のリポジトリ登録、専用サービスアカウント `cloudbuild-deployer` で動くトリガー（置換変数 `_REGION` / `_AR_REPOSITORY` / `_SERVICE` / `_WORKER_POOL`）、`deployTarget` の Cloud Run に `ignoreImageChanges` を自動で付ける | **完了**（接続 `multicloud-github`、`COMPLETE` を確認 2026-10-12） | `githubTrigger.connectionName` = `multicloud-github`。済み |
+| Azure | **実装済み（2026-10-12、方式 (a)）**: Terraform の provider `microsoft/azuredevops@~> 1.16` を `cdktf.json` に追加し `cdktn get` で `.gen/` に生成（Git 管理外。`npm install` の後に `cdktn get`）。Managed DevOps Pool（Dev Center + プロジェクト、サブネット `devops-pool-subnet` 10.2.60.0/24、`Standard_D2ads_v5`、最大 1、待機 0）、エージェントの ID（AcrPush・Container App の Contributor）、パイプライン（`azuredevops` provider: GitHub 接続は名前から検索、変数 5 つ、プールと接続の利用許可、起動ブランチは `cicdTrigger`）、デプロイ先 `backend-api-service` に `ignoreImageChanges` と ACR から取得する専用 ID（AcrPull）。DevOpsInfrastructure の VNet の権限は `.env` の `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID` があれば cdktn が付ける | **完了**: 組織 `otazoman-multicloud`、プロジェクト `multicloud-api`、サービス接続 `github.com_Otazoman`、cdktn のサービスプリンシパルを組織に追加（Users・Agent pools の Administrator・サービス接続の Administrator）。リソースプロバイダーの登録（2026-10-12 完了）、アプリに `azure-pipelines.yml` を追加し `acr-task.yaml` を削除（2026-10-12、未コミット）。**未**: DevOpsInfrastructure のオブジェクト ID を `.env.dev` に書く | `config/azure/cicd.ts`（組織・プロジェクト・接続名は既定値で設定済み） |
 
 検証: 型チェック OK。今の設定（cicd 無効）の合成結果は変更前と完全一致。全機能を有効にした合成結果の差分は CI/CD のリソースのみ。jest は 182 件中 181 件成功。
 
@@ -144,11 +144,11 @@ docker compose -p cdktn-dev exec cdktn-backend bash   # 中では今までどお
 
 | # | 作業 | 必要なもの・決めること |
 |---|---|---|
-| 1 | Google の接続の確認: `gcloud builds connections describe multicloud-github --region=asia-northeast1 --format="value(installationState.stage)"` が `COMPLETE` か | ユーザーの作業 |
-| 2 | AWS・Google の CI/CD を dev に deploy: `commonsettings.ts` で aws / google の `features.cicd` と `features.containers` を `true` → `cdktn diff` → `cdktn deploy` | ユーザーの承認（インフラの変更・課金: CodeBuild / Cloud Build のプライベートプール / ECR / Artifact Registry、ALB・ECS・Cloud Run 等）。containers は deployTarget の ECS / Cloud Run に必要 |
+| 1 | ~~Google の接続の確認~~ | **完了**（2026-10-12、`COMPLETE`） |
+| 2 | AWS・Google の CI/CD を dev に deploy（準備: 2026-10-12 に AWS の ALB を `build` で HTTP のパターン `plain-http-alb` に切り替え。HTTPS のリスナーに証明書がないと合成時に警告を出すようにした）: `commonsettings.ts` で aws / google の `features.cicd` と `features.containers` を `true` → `cdktn diff` → `cdktn deploy` | ユーザーの承認（インフラの変更・課金: CodeBuild / Cloud Build のプライベートプール / ECR / Artifact Registry、ALB・ECS・Cloud Run 等）。containers は deployTarget の ECS / Cloud Run に必要 |
 | 3 | deploy 後の確認: webhook とトリガーが動くか（`main` への push）、Google のトリガーで `_WORKER_POOL` がプライベートプールを正しく指定するか、AWS の webhook が作れるか | アプリのリポジトリへの push |
-| 4 | Azure の CI/CD の実装: Managed DevOps Pool（Dev Center + プロジェクト + `azurerm_managed_devops_pool`）、`azuredevops` provider でパイプライン（サービス接続は名前から検索）、Container Apps の `ignoreImageChanges` の接続、ACR へのアクセス権 | **依存の追加 `@cdktn/provider-azuredevops` の承認**。cdktn の実行 ID（サービスプリンシパル）を Azure DevOps の組織のメンバーにする必要（`use_cli` で作業者としてサインインする案もある。要相談）。アプリ側にパイプラインの YAML がない（今は ACR Tasks 用の `acr-task.yaml` のみ）→ アプリのリポジトリに追加が必要 |
-| 5 | #5: API コンテナの設定（ポート、ヘルスチェックのパス、シークレットの受け渡し、DB 接続の環境変数） | FEAT-01 §9 #5 |
+| 4 | Azure の CI/CD（**実装済み 2026-10-12**。残りはオブジェクト ID の設定・deploy・確認）: Managed DevOps Pool（Dev Center + プロジェクト + `azurerm_managed_devops_pool`）、`azuredevops` provider でパイプライン（サービス接続は名前から検索）、Container Apps の `ignoreImageChanges` の接続、ACR へのアクセス権 | **依存の追加 `@cdktn/provider-azuredevops` の承認**。cdktn の実行 ID（サービスプリンシパル）を Azure DevOps の組織のメンバーにする必要（`use_cli` で作業者としてサインインする案もある。要相談）。アプリ側にパイプラインの YAML がない（今は ACR Tasks 用の `acr-task.yaml` のみ）→ アプリのリポジトリに追加が必要 |
+| 5 | #5: API コンテナの設定。**ポートは 2026-10-12 に対応**（アプリは 8080: ECS `api-service` のポートと ALB のターゲットグループを 8080、`ecs-sg` に 8080 を追加、Container Apps `backend-api-service` の `targetPort` を 8080、仮のイメージを 8080 で待ち受ける `nginxinc/nginx-unprivileged:stable` に変更。Cloud Run は元から 8080。ヘルスチェックの `/` はアプリの liveness と一致）。**残り**: シークレットの受け渡し、DB 接続の環境変数、readiness（`/readyz`）を使うか | FEAT-01 §9 #5 |
 | 6 | 起動条件の値を環境ごとに決める（`cicdTrigger.branches` の stg / prod） | ユーザーの判断。今は全環境 `main` |
 
 ### 7.3 そのほかの残課題

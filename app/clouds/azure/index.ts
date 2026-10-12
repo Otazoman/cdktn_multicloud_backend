@@ -42,7 +42,7 @@ import { createAzureStorage } from "./storage";
 import { createAzureDatabaseResources } from "./database";
 import { createAzureSecretResources } from "./secrets";
 import { createAzureVmResources } from "./compute";
-import { createAzureCicd } from "./cicd";
+import { createAzureCicd, createAzurePipelines } from "./cicd";
 import { createAzureContainers } from "./container";
 import { createAzureMonitoring } from "./monitoring";
 import { createAzureLogArchiveResources } from "./logarchive";
@@ -118,6 +118,7 @@ export const createAzureResources = (
 
   const ctx: AzureBuildContext = {
     scope,
+    providers,
     azureProvider,
     output,
     azureVnetResources,
@@ -135,6 +136,7 @@ export const createAzureResources = (
   createAzureCicd(ctx);
   createAzureLogArchiveResources(ctx);
   createAzureContainers(ctx);
+  createAzurePipelines(ctx);
   createAzureMonitoring(ctx);
 
   return output;

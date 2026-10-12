@@ -61,6 +61,20 @@ export const subnets = [
       },
     ],
   },
+  {
+    // Build agents of the Managed DevOps Pool (config/azure/cicd.ts). The
+    // agents need outbound internet access (GitHub, package registries).
+    name: "devops-pool-subnet",
+    resourceName: "my-azure-vnet-devops-pool-subnet",
+    cidr: "10.2.60.0/24",
+    natGatewayEnabled: true,
+    delegations: [
+      {
+        name: "devops-pool-delegation",
+        serviceName: "Microsoft.DevOpsInfrastructure/pools",
+      },
+    ],
+  },
 ];
 
 export const bastionSubnetcidr = "10.2.110.0/24";

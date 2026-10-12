@@ -139,7 +139,7 @@
 | `certificateConfig.enabled` | 証明書を使う | `boolean` | — | |
 | `certificateConfig.mode` | 証明書の入手方法 | `"AWS_MANAGED"`（ACM、DNS 検証）、`"IMPORT"`（ファイル） | — | |
 | `certificateConfig.domains` | ドメイン | 文字列 | — | 最初が主な名前、残りが SAN |
-| `certificateConfig.validationZone` | DNS 検証に使う公開ゾーン | ゾーン名 | — | `AWS_MANAGED` のみ。`features.dns` が必要 |
+| `certificateConfig.validationZone` | DNS 検証に使う公開ゾーン | ゾーン名 | — | `AWS_MANAGED` のみ。`features.dns` が必要。証明書がないのに HTTPS のリスナーがあると、synth で警告が出て、deploy は失敗する（AWS は HTTPS に証明書を必須とする）。その場合は HTTP のパターン（`build`）か `IMPORT` を使う |
 | `certificateConfig.certificatePath`、`privateKeyPath`、`certificateChainPath` | 取り込むファイル | パス | — | `IMPORT` のみ。ファイルがないと警告が出て、証明書は作られない |
 | `listenerConfig` | メインのリスナー | `{ name, port, protocol, sslPolicy?, defaultAction }` | **必須** | `protocol` は `HTTP` または `HTTPS`。証明書は自動で付く |
 | `additionalListeners[]` | ほかのリスナー（HTTP のリダイレクト、Blue/Green のテスト用リスナー） | `listenerConfig` と同じ形に `key?` を加えたもの | — | |

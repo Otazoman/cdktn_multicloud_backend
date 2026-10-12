@@ -27,7 +27,7 @@ export const azureAppGwConfigs: AzureAppGwSettings[] = [
     },
     location: LOCATION,
     resourceGroupName: RESOURCE_GROUP,
-    build: true,
+    build: false,
     // false: fixed `capacity` instances. true: autoscale between
     // minCapacity (0-100) and maxCapacity (2-125); capacity is then ignored.
     useAutoscale: false,
@@ -50,7 +50,8 @@ export const azureAppGwConfigs: AzureAppGwSettings[] = [
         names: {
           listener: "plain-https-appgw-http-only-listener-listener",
           rule: "plain-https-appgw-http-only-listener-rule",
-          redirect: "plain-https-appgw-http-only-listener-to-https-only-listener-rd",
+          redirect:
+            "plain-https-appgw-http-only-listener-to-https-only-listener-rd",
         },
         port: 80,
         protocol: "Http",
@@ -73,7 +74,10 @@ export const azureAppGwConfigs: AzureAppGwSettings[] = [
     backends: [
       {
         name: "api-backend-pool",
-        names: { pool: "api-backend-pool-pool", setting: "api-backend-pool-setting" },
+        names: {
+          pool: "api-backend-pool-pool",
+          setting: "api-backend-pool-setting",
+        },
         port: 80,
         protocol: "Http",
         requestTimeout: 30,
@@ -175,7 +179,10 @@ export const azureAppGwConfigs: AzureAppGwSettings[] = [
       },
       {
         name: "static-content",
-        names: { pool: "static-content-pool", setting: "static-content-setting" },
+        names: {
+          pool: "static-content-pool",
+          setting: "static-content-setting",
+        },
         port: 80,
         protocol: "Http",
         requestTimeout: 30,
@@ -207,7 +214,7 @@ export const azureAppGwConfigs: AzureAppGwSettings[] = [
     },
     location: LOCATION,
     resourceGroupName: RESOURCE_GROUP,
-    build: false,
+    build: true,
     useAutoscale: false,
     sku: {
       name: "Standard_v2",
@@ -235,7 +242,10 @@ export const azureAppGwConfigs: AzureAppGwSettings[] = [
     backends: [
       {
         name: "api-backend-pool",
-        names: { pool: "api-backend-pool-pool", setting: "api-backend-pool-setting" },
+        names: {
+          pool: "api-backend-pool-pool",
+          setting: "api-backend-pool-setting",
+        },
         port: 80,
         protocol: "Http",
         requestTimeout: 30,

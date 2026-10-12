@@ -28,11 +28,19 @@ and the container gets that environment's credentials and secrets
 (`.env.<env>`, section 2), settings (`byEnv` in the config files, section 6)
 and state (`state/<env>/terraform.tfstate`).
 
+Prepare `.env.<env>` **before** starting the container of the environment:
+the container reads it only when it starts. This includes the values found
+during the cloud-side preparation (section 5), such as the DevOpsInfrastructure
+object ID for the Azure CI/CD. If you add a value later, restart the container
+(`DEPLOY_ENV=<env> docker compose -p cdktn-<env> up -d`).
+
 ```bash
 cp .env.sample .env                        # tool versions (build arguments)
+cp .env.ENV.sample .env.dev                # fill in (sections 2, 3 and 5)
 DEPLOY_ENV=dev docker compose -p cdktn-dev up -d --build
 docker compose -p cdktn-dev exec cdktn-backend bash   # working directory: /app
 npm install
+cdktn get    # generates .gen/ (Azure DevOps provider, cdktf.json); again after changing it
 ```
 
 For another environment use its own project name, for example
@@ -83,6 +91,7 @@ Set these values in the same `.env.<env>` file as the credentials (section 2;
 | `AZURE_APPGW_SSL_CERT_PASSWORD` | Password of the Application Gateway PFX certificate (section 4) |
 | `GOOGLE_AZURE_VPN_PRESHARED_KEY` | Pre-shared key of the Google Cloud ↔ Azure VPN tunnels |
 | `ECS_WORKER_POSTGRES_PASSWORD` | `POSTGRES_PASSWORD` environment variable of the ECS `worker-service` |
+| `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID` | Object ID of the "DevOpsInfrastructure" service principal (Azure CI/CD, section 5 "Azure", step 10). Not secret, but tenant-specific and kept out of Git |
 
 Docker Compose reads `.env.<env>`: wrap values that contain `$` in **single**
 quotes (otherwise `$...` is expanded as a variable and the value is cut off,
@@ -158,10 +167,30 @@ for the resources you enable:
           "ecr:SetRepositoryPolicy"
         ],
         "Resource": "*"
+      },
+      {
+        "Effect": "Allow",
+        "Action": ["codeconnections:ListConnections"],
+        "Resource": "*"
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "codeconnections:GetConnection",
+          "codeconnections:ListTagsForResource",
+          "codeconnections:PassConnection",
+          "codeconnections:UseConnection"
+        ],
+        "Resource": "arn:aws:codeconnections:ap-northeast-1:*:connection/*"
       }
     ]
   }
   ```
+
+  The `codeconnections` statements let cdktn look up the GitHub connection
+  by name (`codeConnectionName`) and attach it to the CodeBuild project and
+  its webhook. Without them `cdktn diff` fails with `not authorized to
+  perform: codeconnections:ListConnections`.
 
 ### Google Cloud
 
@@ -486,6 +515,102 @@ name and the country shown can differ) and separate lists of organizations.
    The GitHub App connection has the type `GitHub` and the scheme
    `InstallationToken`.
 
+8. Add the service principal that runs cdktn to the organization. Creating
+   the build agent pool (Managed DevOps Pool) registers it in the
+   organization, so the identity of cdktn (`ARM_CLIENT_ID` in `.env.<env>`)
+   must be a member with the permissions below. `.env.<env>` does not change.
+   1. Find its display name on the host (the container has no Azure CLI;
+      `az login` first). The value of `ARM_CLIENT_ID` is not printed:
+
+      ```bash
+      cd <repository root>
+      ARM_CLIENT_ID="$(grep '^ARM_CLIENT_ID=' .env.<env> | cut -d= -f2- | tr -d "\"'")"
+      az ad sp show --id "$ARM_CLIENT_ID" --query displayName --output tsv
+      unset ARM_CLIENT_ID
+      ```
+
+      Or in the Azure portal: **Microsoft Entra ID** → **App registrations**
+      → **All applications**, the entry whose **Application (client) ID**
+      equals `ARM_CLIENT_ID`. A principal created with `az ad sp
+      create-for-rbac` is named `azure-cli-<date>`; you can rename it there
+      (for example `cdktn-dev`) before adding it — the ID does not change.
+   2. `https://dev.azure.com/$ADO_ORG` → **Organization settings** →
+      **Users** → **Add users**: **Users or Service Principals**: the display
+      name; **Access level**: **Basic**; **Add to projects**: `$ADO_PROJECT`;
+      **Azure DevOps Groups**: **Project Administrators** → **Add** (the
+      e-mail invitation does not apply to service principals).
+   3. **Organization settings** → **Pipelines** → **Agent pools** →
+      **Security** → **Add**: the service principal, role
+      **Administrator**.
+   4. The project → **Project settings** → **Service connections** →
+      `github.com_$GITHUB_OWNER` → **⋮** → **Security** → **User
+      permissions** (tab **Project**) → **Add**: the service principal, role
+      **Administrator** (needed to permit the pipeline to use the
+      connection). The list then shows it with the access **Assigned**.
+      Leave **Pipeline permissions** ("No permitted pipelines") as it is: the
+      pipeline is permitted when it is created.
+
+   Steps 8.3 and 8.4 are the expected minimum; if the first deploy of the
+   Azure CI/CD reports missing permissions, add them and update this guide.
+
+9. Register the resource providers of the build agents. **Once per
+   subscription**, before the first deploy of the Azure CI/CD. With the
+   Azure CLI signed in with your account (the Azure portal Cloud Shell, `>_`
+   at the top, or a machine with `az login`):
+
+   ```bash
+   az provider register --namespace Microsoft.DevOpsInfrastructure
+   az provider register --namespace Microsoft.DevCenter
+   ```
+
+   The commands return at once with "Registering is still on-going";
+   registration usually takes a few minutes (up to about 15). Wait until both
+   are `Registered`:
+
+   ```bash
+   for ns in Microsoft.DevOpsInfrastructure Microsoft.DevCenter; do
+     until [ "$(az provider show --namespace "$ns" --query registrationState -o tsv 2>/dev/null)" = "Registered" ]; do
+       echo "$ns: waiting..."; sleep 30
+     done
+     echo "$ns: Registered"
+   done
+   ```
+
+   A `SyntaxWarning` printed by the Azure CLI itself (for example with
+   Python 3.14) is harmless. If a provider stays `Registering` for more than
+   30 minutes, check it in the portal.
+
+   Or in the portal: **Subscriptions** → the subscription → **Settings** →
+   **Resource providers** → select `Microsoft.DevOpsInfrastructure` →
+   **Register**; the same for `Microsoft.DevCenter`; wait until the status is
+   **Registered**.
+10. Write the object ID of the **DevOpsInfrastructure** service principal to
+    `.env.<env>`. **Once per Microsoft Entra tenant** (the service principal
+    and its ID do not change; environments in the same tenant use the same
+    value), when preparing `.env.<env>` — before starting the container
+    (section 1). The Managed DevOps Pool joins its agents to the VNet through
+    this service principal, so it needs Reader and Network Contributor on the
+    VNet; cdktn assigns both itself before creating the pool.
+    1. After step 9 (the service principal appears in the tenant when
+       `Microsoft.DevOpsInfrastructure` is registered; if nothing is printed,
+       wait a few minutes and run it again):
+
+       ```bash
+       az ad sp list --display-name DevOpsInfrastructure --query "[0].id" -o tsv
+       ```
+
+       Or in the portal: **Microsoft Entra ID** → **Enterprise applications**
+       → remove the filter **Application type == Enterprise Applications** →
+       search `DevOpsInfrastructure` → **Object ID**.
+    2. Add it to `.env.<env>`: `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID=<object ID>`.
+
+    Without it, synth prints a warning and creating the pool fails unless the
+    two roles were assigned by hand.
+11. Add `azure-pipelines.yml` to the application repository (build, push to
+    the ACR, `az containerapp update`). cdktn creates the pipeline, its
+    variables and its permissions; the pipeline starts on pushes to
+    `cicdTrigger.branches`.
+
 #### Write the values to the cdktn config
 
 | Value | File | Item |
@@ -494,7 +619,8 @@ name and the country shown can differ) and separate lists of organizations.
 | Branches that start the build | `config/cicd.ts` | `cicdTrigger.branches` (`byEnv`; default `main`) |
 | `$AWS_CONNECTION_NAME` | `config/aws/cicd/cicdsettings.ts` | `codebuild.codeConnectionName` (`byEnv`; default `multicloud-github`). The ARN is looked up by name at plan time |
 | `$GCP_CONNECTION_NAME` | `config/google/cicdsettings.ts` | `githubTrigger.connectionName` (the connection must be in the region of `cloudbuildPrivatePool.location`, `$GCP_REGION`) |
-| `$ADO_ORG`, `$ADO_PROJECT`, the service connection name from step 7 (`github.com_$GITHUB_OWNER`) | Azure CI/CD config | Not implemented yet |
+| `$ADO_ORG`, `$ADO_PROJECT`, the service connection name from step 7 (`github.com_$GITHUB_OWNER`) | `config/azure/cicd.ts` | `organization`, `project`, `githubServiceConnectionName` (`byEnv`). The service principal of step 8 needs no config value (cdktn signs in with `ARM_CLIENT_ID` / `ARM_CLIENT_SECRET` / `ARM_TENANT_ID`) |
+| Object ID of step 10 | `.env.<env>` | `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID` |
 
 Without `codeConnectionName`, synth prints a warning and the CodeBuild
 project is created without a webhook (it cannot read the private

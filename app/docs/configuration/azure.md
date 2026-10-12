@@ -184,6 +184,30 @@ Names that must be unique in Azure use `envScopedName()`: Key Vault, ACR, databa
 | `subnetName` | Subnet of the private endpoint | subnet `name` | **Required** | |
 | `adminEnabled` | Admin user | `boolean` | — | |
 
+## CI/CD: Azure Pipelines (`cicd.ts`, `azureDevOpsConfig`, feature `cicd`)
+
+The pipeline runs `azure-pipelines.yml` of the application repository (`config/cicd.ts`) on a Managed DevOps Pool (build agents created by Microsoft on demand, joined to the VNet), pushes the image to the ACR and updates the Container App. The manual steps (organization, project, GitHub connection, service principal membership, resource providers, DevOpsInfrastructure object ID) are in [getting-started.md](../getting-started.md). Requires `cdktn get` (Azure DevOps provider in `.gen/`).
+
+| Item | Description | Allowed values | Default | Notes |
+|---|---|---|---|---|
+| `organization`, `project` | Azure DevOps organization and project | names, `byEnv` | `otazoman-multicloud`, `multicloud-api` | Must exist; cdktn signs in with `ARM_CLIENT_ID` / `ARM_CLIENT_SECRET` / `ARM_TENANT_ID`, which must be an organization member |
+| `githubServiceConnectionName` | GitHub service connection (GitHub App) of the project | name, `byEnv` | `github.com_Otazoman` | Looked up by name |
+| `devOpsInfrastructurePrincipalId` | Object ID of the DevOpsInfrastructure service principal | from `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID` | — (warning) | cdktn grants it Reader and Network Contributor on the VNet before creating the pool |
+| `pool.name` | Pool (Azure resource and Azure DevOps agent pool) | string | `multicloud-devops-pool` | Default pool of the pipeline |
+| `pool.devCenterName`, `pool.devCenterProjectName` | Dev Center and project the pool belongs to | strings | `multicloud-devcenter`, `multicloud-devcenter-project` | No charge |
+| `pool.subnetName` | Subnet of the agents | subnet `name` | `devops-pool-subnet` (`10.2.60.0/24`) | Delegated to `Microsoft.DevOpsInfrastructure/pools`, NAT gateway attached |
+| `pool.vmSize`, `pool.image` | Agent VM size and well-known image | strings | `Standard_D2ads_v5`, `ubuntu-24.04` | The image includes Docker and the Azure CLI |
+| `pool.maximumConcurrency` | Agents at the same time (and parallelism) | number | `1` | One self-hosted parallel job is free |
+| `pool.standbyAgents` | Agents kept ready while idle | number | `0` | `0`: VMs exist (and are billed) only while a job runs |
+| `pool.identityName` | User-assigned identity of the agents | string | `multicloud-devops-pool-identity` | Gets AcrPush on the ACR and Contributor on the target Container App; passed as `AZURE_CLIENT_ID` |
+| `pipeline.build` | Create the pipeline (and the pool) | `boolean` | `true` | |
+| `pipeline.name`, `pipeline.ymlPath` | Pipeline name; build definition in the repository | strings | `multicloud-api-deploy`, `azure-pipelines.yml` | Starts on pushes to `cicdTrigger.branches` (`config/cicd.ts`) |
+| `pipeline.deployTarget.containerAppName` | Container App the pipeline deploys to | `name` in `containerapps.ts` (`build: true`) | `backend-api-service` | Terraform ignores its image; it pulls from the ACR with its own identity |
+| `pipeline.deployTarget.acrName` | Registry | `name` in `devops_acr_config.ts` | `mycompanyacr001` (via `envScopedName`) | |
+| `pipeline.deployTarget.pullIdentityName` | Identity the Container App pulls with | string | `backend-api-service-acr-pull` | AcrPull only |
+
+Pipeline variables set by cdktn: `AZURE_CLIENT_ID`, `ACR_NAME`, `ACR_LOGIN_SERVER`, `RESOURCE_GROUP`, `CONTAINER_APP_NAME`.
+
 ## Monitoring (`azuremonitor.ts`)
 
 ### Log Analytics and action groups (`azureMonitorConfig`)

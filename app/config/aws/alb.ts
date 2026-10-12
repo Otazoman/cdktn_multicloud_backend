@@ -29,7 +29,7 @@ export const albConfigs: AwsAlbSettings[] = [
   // 1. Pattern: AWS Managed Certificate (Auto-request via DNS validation)
   {
     name: "managed-https-alb",
-    build: true,
+    build: false,
     internal: false,
     securityGroupNames: ["alb-sg"],
     subnetNames: ["my-aws-vpc-public-subnet1a", "my-aws-vpc-public-subnet1c"],
@@ -75,14 +75,14 @@ export const albConfigs: AwsAlbSettings[] = [
     targetGroups: [
       {
         name: "managed-api-tg-blue",
-        port: 80,
+        port: 8080,
         protocol: "HTTP",
         targetType: "ip",
         healthCheckPath: "/",
       },
       {
         name: "managed-api-tg-green",
-        port: 80,
+        port: 8080,
         protocol: "HTTP",
         targetType: "ip",
         healthCheckPath: "/",
@@ -98,7 +98,7 @@ export const albConfigs: AwsAlbSettings[] = [
   // 2. Pattern: Plain HTTP (Public IP access for Blue/Green)
   {
     name: "plain-http-alb",
-    build: false,
+    build: true,
     internal: false,
     securityGroupNames: ["alb-sg"],
     subnetNames: ["my-aws-vpc-public-subnet1a", "my-aws-vpc-public-subnet1c"],
@@ -138,14 +138,14 @@ export const albConfigs: AwsAlbSettings[] = [
     targetGroups: [
       {
         name: "managed-api-tg-blue",
-        port: 80,
+        port: 8080,
         protocol: "HTTP",
         targetType: "ip",
         healthCheckPath: "/",
       },
       {
         name: "managed-api-tg-green",
-        port: 80,
+        port: 8080,
         protocol: "HTTP",
         targetType: "ip",
         healthCheckPath: "/",

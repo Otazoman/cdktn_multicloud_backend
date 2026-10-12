@@ -3,7 +3,9 @@
   "app": "npx ts-node app.ts",
   "projectId": "a3f8dca8-0314-4fe6-91c4-f9c863a7a6e6",
   "sendCrashReports": "false",
-  "terraformProviders": [],
+  "terraformProviders": [
+    "microsoft/azuredevops@~> 1.16"
+  ],
   "terraformModules": [],
   "context": {}
 }

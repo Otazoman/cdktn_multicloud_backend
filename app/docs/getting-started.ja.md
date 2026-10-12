@@ -27,11 +27,15 @@
 - 設定（設定ファイルの `byEnv`、6 章）
 - state（`state/<環境名>/terraform.tfstate`）
 
+`.env.<環境名>` は、その環境のコンテナを起動する**前に**用意します。コンテナは起動するときにだけ `.env.<環境名>` を読み込むためです。クラウド側の準備（5 章）で調べる値（Azure の CI/CD の DevOpsInfrastructure のオブジェクト ID など）も、ここに含めます。後から値を足した場合は、コンテナを起動し直します（`DEPLOY_ENV=<環境名> docker compose -p cdktn-<環境名> up -d`）。
+
 ```bash
 cp .env.sample .env                        # ツールのバージョン（ビルド引数）
+cp .env.ENV.sample .env.dev                # 値を書く（2 章、3 章、5 章）
 DEPLOY_ENV=dev docker compose -p cdktn-dev up -d --build
 docker compose -p cdktn-dev exec cdktn-backend bash   # 作業ディレクトリ: /app
 npm install
+cdktn get    # .gen/ を生成する（Azure DevOps の provider、cdktf.json）。cdktf.json を変えたら再実行
 ```
 
 別の環境では、別のプロジェクト名を使います（例: `DEPLOY_ENV=prod docker compose -p cdktn-prod up -d`）。どのコンテナも `app/` を共有しているため、2 つの環境で同時に synth や deploy をしないでください（`cdktf.out/` が共有されています）。環境名の一覧は `config/environment.ts` の `ENVIRONMENTS` にあります。環境を増やすときは、そこに追加し、`.env.<環境名>` を作ります。
@@ -65,6 +69,7 @@ npm install
 | `AZURE_APPGW_SSL_CERT_PASSWORD` | Application Gateway の PFX 証明書のパスワード（4 章） |
 | `GOOGLE_AZURE_VPN_PRESHARED_KEY` | Google Cloud ↔ Azure の VPN トンネルの事前共有鍵 |
 | `ECS_WORKER_POSTGRES_PASSWORD` | ECS の `worker-service` の環境変数 `POSTGRES_PASSWORD` |
+| `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID` | サービスプリンシパル「DevOpsInfrastructure」のオブジェクト ID（Azure の CI/CD、5 章「Azure」の手順 10）。秘密の値ではないが、テナントごとの値なので Git に入れない |
 
 `.env.<環境名>` は Docker Compose が読みます。次の値は引用符で囲んでください。
 
@@ -137,10 +142,27 @@ cdktn が使う IAM ユーザーに、有効にするリソースの権限に加
           "ecr:SetRepositoryPolicy"
         ],
         "Resource": "*"
+      },
+      {
+        "Effect": "Allow",
+        "Action": ["codeconnections:ListConnections"],
+        "Resource": "*"
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "codeconnections:GetConnection",
+          "codeconnections:ListTagsForResource",
+          "codeconnections:PassConnection",
+          "codeconnections:UseConnection"
+        ],
+        "Resource": "arn:aws:codeconnections:ap-northeast-1:*:connection/*"
       }
     ]
   }
   ```
+
+  `codeconnections` の 2 つは、cdktn が GitHub の接続を名前（`codeConnectionName`）で探し、CodeBuild のプロジェクトと webhook に設定するための権限です。ないと、`cdktn diff` が `not authorized to perform: codeconnections:ListConnections` で失敗します。
 
 ### Google Cloud
 
@@ -390,6 +412,57 @@ App をインストールするには、GitHub のリポジトリの管理者権
 
    GitHub App の接続は、種類が `GitHub`、認証方式が `InstallationToken` です。
 
+8. cdktn を実行するサービスプリンシパルを、組織に追加します。ビルドのエージェントプール（Managed DevOps Pool）は作成時に組織に登録されるため、cdktn の ID（`.env.<環境名>` の `ARM_CLIENT_ID`）が、下の権限を持つメンバーである必要があります。`.env.<環境名>` は変更しません。
+   1. ホストで表示名を調べます（コンテナには Azure CLI がありません。先に `az login` します）。`ARM_CLIENT_ID` の値は表示されません。
+
+      ```bash
+      cd <リポジトリの直下>
+      ARM_CLIENT_ID="$(grep '^ARM_CLIENT_ID=' .env.<環境名> | cut -d= -f2- | tr -d "\"'")"
+      az ad sp show --id "$ARM_CLIENT_ID" --query displayName --output tsv
+      unset ARM_CLIENT_ID
+      ```
+
+      Azure ポータルで調べる場合は、**Microsoft Entra ID** → **アプリの登録** → **すべてのアプリケーション** で、**アプリケーション (クライアント) ID** が `ARM_CLIENT_ID` と同じものの表示名です。`az ad sp create-for-rbac` で作ったサービスプリンシパルの名前は `azure-cli-<日時>` です。分かりやすい名前（例: `cdktn-dev`）に変える場合は、追加する前にそこで変えます（ID は変わりません）。
+   2. `https://dev.azure.com/$ADO_ORG` → **Organization settings** → **Users** → **Add users** を開き、**Users or Service Principals** に表示名、**Access level** に **Basic**、**Add to projects** に `$ADO_PROJECT`、**Azure DevOps Groups** に **Project Administrators** を指定して **Add** を選びます（メールの招待はサービスプリンシパルには関係ありません）。
+   3. **Organization settings** → **Pipelines** → **Agent pools** → **Security** → **Add** で、サービスプリンシパルにロール **Administrator** を付けます。
+   4. プロジェクト → **Project settings** → **Service connections** → `github.com_$GITHUB_OWNER` → **⋮** → **Security** → **User permissions**（**Project** タブ）→ **Add** で、サービスプリンシパルにロール **Administrator** を付けます（パイプラインにこの接続の利用を許可するために必要）。一覧に、Access が **Assigned** で表示されます。**Pipeline permissions**（「No permitted pipelines」）はそのままにします。パイプラインを作るときに許可されます。
+
+   8.3 と 8.4 は、必要と見込まれる最小限の権限です。Azure の CI/CD の最初の deploy で権限が足りないと表示されたら、追加して、この手順書を更新してください。
+
+9. ビルドのエージェントのリソースプロバイダーを登録します。**サブスクリプションごとに 1 回**、Azure の CI/CD を初めて deploy する前に行います。あなたのアカウントでサインインした Azure CLI（Azure ポータルの Cloud Shell（上部の `>_`）か、`az login` した端末）で実行します。
+
+   ```bash
+   az provider register --namespace Microsoft.DevOpsInfrastructure
+   az provider register --namespace Microsoft.DevCenter
+   ```
+
+   コマンドはすぐに「Registering is still on-going」と表示して終わります。登録は通常数分（長いと 15 分ほど）かかります。2 つとも `Registered` になるまで待ちます。
+
+   ```bash
+   for ns in Microsoft.DevOpsInfrastructure Microsoft.DevCenter; do
+     until [ "$(az provider show --namespace "$ns" --query registrationState -o tsv 2>/dev/null)" = "Registered" ]; do
+       echo "$ns: waiting..."; sleep 30
+     done
+     echo "$ns: Registered"
+   done
+   ```
+
+   Azure CLI 自身が出す `SyntaxWarning`（Python 3.14 の環境などで出ます）は無視してかまいません。30 分以上 `Registering` のままの場合は、ポータルで状態を確認してください。
+
+   画面で行う場合は、**サブスクリプション** → 対象のサブスクリプション → **設定** → **リソース プロバイダー** → `Microsoft.DevOpsInfrastructure` を選び **登録** を選びます。`Microsoft.DevCenter` も同じように登録し、状態が **Registered** になるまで待ちます。
+10. サービスプリンシパル **DevOpsInfrastructure** のオブジェクト ID を `.env.<環境名>` に書きます。**Microsoft Entra のテナントごとに 1 回**の作業です（このサービスプリンシパルと ID は変わらず、同じテナントの環境では同じ値を使います）。`.env.<環境名>` を用意するとき、つまりコンテナを起動する前（1 章）に行います。Managed DevOps Pool は、このサービスプリンシパルを通してエージェントを VNet に接続するため、VNet に対する閲覧者とネットワーク共同作成者の権限が必要です。この 2 つは、cdktn がプールを作る前に自動で割り当てます。
+    1. 手順 9 の後に、次を実行します（`Microsoft.DevOpsInfrastructure` の登録でテナントに現れます。何も表示されない場合は、数分待ってからもう一度実行します）。
+
+       ```bash
+       az ad sp list --display-name DevOpsInfrastructure --query "[0].id" -o tsv
+       ```
+
+       画面で調べる場合は、**Microsoft Entra ID** → **エンタープライズ アプリケーション** → フィルター **アプリケーションの種類 == エンタープライズ アプリケーション** を外す → `DevOpsInfrastructure` を検索 → **オブジェクト ID** です。
+    2. `.env.<環境名>` に `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID=<オブジェクト ID>` を追加します。
+
+    書かない場合は synth で警告が出て、2 つの権限を手作業で付けていない限り、プールの作成は失敗します。
+11. アプリのリポジトリに `azure-pipelines.yml`（ビルド、ACR への push、`az containerapp update`）を追加します。パイプライン、その変数と利用許可は cdktn が作ります。パイプラインは `cicdTrigger.branches` への push で起動します。
+
 #### cdktn の設定ファイルに値を書く
 
 | 値 | ファイル | 項目 |
@@ -398,7 +471,8 @@ App をインストールするには、GitHub のリポジトリの管理者権
 | ビルドを起動するブランチ | `config/cicd.ts` | `cicdTrigger.branches`（`byEnv`。既定は `main`） |
 | `$AWS_CONNECTION_NAME` | `config/aws/cicd/cicdsettings.ts` | `codebuild.codeConnectionName`（`byEnv`。既定は `multicloud-github`）。ARN は plan のときに名前から引きます |
 | `$GCP_CONNECTION_NAME` | `config/google/cicdsettings.ts` | `githubTrigger.connectionName`（接続は `cloudbuildPrivatePool.location` のリージョン、つまり `$GCP_REGION` に作ります） |
-| `$ADO_ORG`、`$ADO_PROJECT`、手順 7 のサービス接続の名前（`github.com_$GITHUB_OWNER`） | Azure の CI/CD の設定 | 未実装 |
+| `$ADO_ORG`、`$ADO_PROJECT`、手順 7 のサービス接続の名前（`github.com_$GITHUB_OWNER`） | `config/azure/cicd.ts` | `organization`、`project`、`githubServiceConnectionName`（`byEnv`）。手順 8 のサービスプリンシパルは設定ファイルへの記載不要（cdktn は `ARM_CLIENT_ID` / `ARM_CLIENT_SECRET` / `ARM_TENANT_ID` でサインインする） |
+| 手順 10 のオブジェクト ID | `.env.<環境名>` | `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID` |
 
 `codeConnectionName` を空にすると、synth が警告を表示し、CodeBuild のプロジェクトは webhook なしで作られます（プライベートのリポジトリを読めません）。
 

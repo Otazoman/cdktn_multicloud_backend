@@ -1,4 +1,5 @@
 import { DnsARecord } from "@cdktn/provider-azurerm/lib/dns-a-record";
+import { RoleAssignment } from "@cdktn/provider-azurerm/lib/role-assignment";
 
 import {
   azureAcaConfigs,
@@ -17,6 +18,8 @@ import { LoadBalancerDnsInfo } from "../common";
 import { resourceName, idPart } from "../../utils/naming";
 import { addTerraformDependency } from "../../utils/terraformDependency";
 import { AzureBuildContext } from "./context";
+import { azureCicdDeployTarget } from "./cicd";
+import { createAzureIdentityWithRoles } from "../../constructs/iam/azureidentity";
 import { ContainerAppEnvironment } from "@cdktn/provider-azurerm/lib/container-app-environment";
 
 /** 6-7. Container Apps, Application Gateway and DNS A-records (feature: containers) */
@@ -60,11 +63,37 @@ export function createAzureContainers(ctx: AzureBuildContext): void {
             );
           }
 
+          // Deploy target of the Azure pipeline: CI/CD updates the image,
+          // which the app pulls from the ACR with an AcrPull-only identity.
+          let registry: { server: string; identityId: string } | undefined;
+          let pullRoles: RoleAssignment[] = [];
+          const cicdTarget = azureCicdDeployTarget();
+          const isCicdTarget = cicdTarget?.containerAppName === config.name;
+          if (cicdTarget && isCicdTarget) {
+            const acr = acrRegistryMap.get(cicdTarget.acrName);
+            if (!acr) {
+              throw new Error(
+                `Container App "${config.name}" (CI/CD deploy target): ACR "${cicdTarget.acrName}" ` +
+                  `not found (or build: false) in config/azure/devops_acr_config.ts`,
+              );
+            }
+            const pull = createAzureIdentityWithRoles(scope, azureProvider, {
+              name: cicdTarget.pullIdentityName,
+              resourceGroupName: config.resourceGroupName,
+              location: config.location,
+              grants: [{ key: "acr-pull", role: "AcrPull", scope: acr.id }],
+            });
+            registry = { server: acr.loginServer, identityId: pull.identity.id };
+            pullRoles = pull.roleAssignments;
+          }
+
           const aca = createAzureContainerAppResources(
             scope,
             azureProvider,
             {
               ...config,
+              ignoreImageChanges: isCicdTarget,
+              registry,
               infrastructureSubnetId: subnet?.id,
               environmentLogs:
                 envSettings.logs && workspaceId
@@ -90,6 +119,8 @@ export function createAzureContainers(ctx: AzureBuildContext): void {
           acrRegistryMap.forEach((registry) => {
             addTerraformDependency(aca.app, registry);
           });
+          // The pull role must exist before the app pulls from the ACR
+          pullRoles.forEach((role) => addTerraformDependency(aca.app, role));
 
           containerApps.set(config.name, aca.app);
 

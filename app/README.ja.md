@@ -49,6 +49,7 @@
 | コマンド | 内容 |
 |---|---|
 | `npm install` | 依存パッケージをインストールする |
+| `cdktn get` | `cdktf.json` の provider のコードを `.gen/` に生成する（Azure DevOps）。`npm install` の後と、`cdktf.json` を変えた後に実行する |
 | `cdktn synth` | Terraform の設定を `cdktf.out/` に生成する |
 | `cdktn diff` | plan を表示する |
 | `cdktn deploy` | 適用する |

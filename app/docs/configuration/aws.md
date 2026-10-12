@@ -139,7 +139,7 @@ Only PostgreSQL (5432) is opened in `myaws-db-sg`.
 | `certificateConfig.enabled` | Use a certificate | `boolean` | — | |
 | `certificateConfig.mode` | How the certificate is obtained | `"AWS_MANAGED"` (ACM, DNS validation), `"IMPORT"` (files) | — | |
 | `certificateConfig.domains` | Domains | strings | — | First = main name, others = SANs |
-| `certificateConfig.validationZone` | Public zone for DNS validation | zone name | — | `AWS_MANAGED` only; needs `features.dns` |
+| `certificateConfig.validationZone` | Public zone for DNS validation | zone name | — | `AWS_MANAGED` only; needs `features.dns`. Without a certificate, an HTTPS listener makes synth print a warning and the deploy fails (AWS requires a certificate); use the plain-HTTP pattern (`build`) or `IMPORT` instead |
 | `certificateConfig.certificatePath`, `privateKeyPath`, `certificateChainPath` | Files to import | paths | — | `IMPORT` only; missing files give a warning and no certificate |
 | `listenerConfig` | Main listener | `{ name, port, protocol, sslPolicy?, defaultAction }` | **Required** | `protocol` `HTTP` or `HTTPS`. The certificate is attached automatically |
 | `additionalListeners[]` | Other listeners (HTTP redirect, blue/green test listener) | same as `listenerConfig`, plus `key?` | — | |

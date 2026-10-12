@@ -91,11 +91,11 @@ export const clouds: Record<CloudId, CloudSettings> = {
   aws: {
     enabled: true,
     features: {
-      vms: true,
+      vms: false,
       dbs: false,
       storage: false,
-      containers: false,
-      cicd: false,
+      containers: true,
+      cicd: true,
       dns: false,
       alerting: false,
       logArchive: false,
@@ -104,11 +104,11 @@ export const clouds: Record<CloudId, CloudSettings> = {
   google: {
     enabled: true,
     features: {
-      vms: true,
+      vms: false,
       dbs: false,
       storage: false,
-      containers: false,
-      cicd: false,
+      containers: true,
+      cicd: true,
       dns: false,
       alerting: false,
       logArchive: false,
@@ -117,11 +117,11 @@ export const clouds: Record<CloudId, CloudSettings> = {
   azure: {
     enabled: true,
     features: {
-      vms: true,
+      vms: false,
       dbs: false,
       storage: false,
-      containers: false,
-      cicd: false,
+      containers: true,
+      cicd: true,
       dns: false,
       alerting: true,
       logArchive: false,

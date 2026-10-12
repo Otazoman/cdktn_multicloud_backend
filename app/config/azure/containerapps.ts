@@ -67,10 +67,12 @@ export const azureAcaConfigs = [
     environmentName: "main-env",
     // Private DNS zone VNet link name (internal environments)
     privateDnsVnetLinkName: "aca-vnet-link",
-    image: "nginx:latest",
+    // Placeholder until CI/CD deploys the API (which listens on 8080);
+    // this image also listens on 8080.
+    image: "nginxinc/nginx-unprivileged:stable",
     cpu: 0.25,
     memory: "0.5Gi",
-    targetPort: 80,
+    targetPort: 8080,
     internal: true,
     externalEnabled: true,
     subnetName: "aca-subnet",

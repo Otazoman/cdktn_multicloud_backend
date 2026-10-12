@@ -86,6 +86,21 @@ export function createAwsContainers(ctx: AwsBuildContext): void {
           }
         }
 
+        // An HTTPS listener without a certificate is rejected by AWS at
+        // deploy time; warn at synth time instead.
+        if (!certificateArn) {
+          const httpsListeners = [config.listenerConfig, ...(config.additionalListeners ?? [])]
+            .filter((l) => l.protocol === "HTTPS" && !l.certificateArn)
+            .map((l) => l.name ?? `port ${l.port}`);
+          if (httpsListeners.length > 0) {
+            console.warn(
+              `⚠️  Warning: ALB "${config.name}" has HTTPS listeners (${httpsListeners.join(", ")}) ` +
+                `but no certificate (certificateConfig in config/aws/alb.ts; AWS_MANAGED needs ` +
+                `features.dns). The deploy will fail: AWS requires a certificate for HTTPS listeners.`,
+            );
+          }
+        }
+
         const albResources = createAwsAlbResources(
           scope,
           awsProvider,

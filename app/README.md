@@ -52,6 +52,7 @@ Run inside the container from this directory.
 | Command | Description |
 |---|---|
 | `npm install` | Install dependencies |
+| `cdktn get` | Generate the provider bindings of `cdktf.json` into `.gen/` (Azure DevOps). Run after `npm install` and after changing `cdktf.json` |
 | `cdktn synth` | Generate Terraform configuration into `cdktf.out/` |
 | `cdktn diff` | Show the plan |
 | `cdktn deploy` | Apply |

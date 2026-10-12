@@ -225,6 +225,13 @@ export const securityGroups = [
     },
     ingress: [
       {
+        fromPort: 8080,
+        toPort: 8080,
+        protocol: "tcp",
+        cidrBlocks: ["10.0.0.0/16"],
+        description: "Allow API (container port 8080) from the ALB",
+      },
+      {
         fromPort: 80,
         toPort: 80,
         protocol: "tcp",
