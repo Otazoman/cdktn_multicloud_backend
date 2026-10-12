@@ -177,6 +177,7 @@ Only PostgreSQL (5432) is opened in `myaws-db-sg`.
 | `build`, `name`, `key` | Create; ECR / project name; address key | | **Required**; key = `name` | |
 | `ecr.imageRetentionInDays` | Expire images after N days | number | **Required** | |
 | `ecr.scanOnPush` | Scan on push | `boolean` | **Required** | |
+| `ecr.forceDelete` | Delete the repository with its images on destroy | `boolean` | `true` | `false`: destroy fails while the repository contains images (CI/CD pushes images) |
 | `codebuild.computeType`, `image`, `type`, `privilegedMode` | Build environment | e.g. `BUILD_GENERAL1_SMALL`; image; `LINUX_CONTAINER`; `boolean` | **Required** | `privilegedMode` is needed for Docker builds |
 | `codebuild.securityGroupNames`, `subnetNames` | VPC placement | names | **Required** | |
 | `codebuild.repositoryUrl` | Source repository | URL | `appRepositoryUrl` (`config/cicd.ts`) | |

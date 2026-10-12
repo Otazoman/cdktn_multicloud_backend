@@ -270,6 +270,19 @@ Cloud SQL を削除している間に、プライベート サービス アク�
 
 Container Apps の destroy は、1 回目に失敗することがあります。`cdktn destroy` をもう一度実行してください。
 
+### AWS — ECR: リポジトリが空でない
+
+```
+Error: ECR Repository (<name>) not empty, consider using force_delete: ... RepositoryNotEmptyException
+```
+
+CI/CD は ECR のリポジトリにイメージを push します。イメージが入っているリポジトリは削除できません。`ecr.forceDelete`（`config/aws/cicd/cicdsettings.ts`、既定は `true`）を指定すると、リポジトリをイメージごと削除します。この設定は `cdktn deploy` の後に有効になります。この設定より前に deploy したリポジトリ（または `false` のもの）は、手で削除してから、もう一度 destroy してください。
+
+```bash
+aws ecr delete-repository --repository-name <name> --force --region ap-northeast-1
+cdktn destroy
+```
+
 ### AWS — Aurora / RDS: CloudWatch のロググループが残る
 
 Aurora / RDS は、削除の途中で CloudWatch のロググループを作り直します。そのため、`destroy` の後に次のロググループが残ることがあります。手動で削除してください。

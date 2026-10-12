@@ -16,6 +16,11 @@ export interface CicdConfig {
   ecr: {
     imageRetentionInDays: number;
     scanOnPush: boolean;
+    /**
+     * Delete the repository together with its images on destroy. Default:
+     * true (CI/CD pushes images; a repository with images cannot be deleted).
+     */
+    forceDelete?: boolean;
   };
   codebuild: {
     computeType: string;
@@ -65,6 +70,7 @@ export function createAwsCicdResources(
   const repository = new EcrRepository(scope, `ecr-${config.key ?? config.name}`, {
     provider,
     name: config.name,
+    forceDelete: config.ecr.forceDelete ?? true,
     imageScanningConfiguration: {
       scanOnPush: config.ecr.scanOnPush,
     },

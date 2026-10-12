@@ -362,6 +362,23 @@ If it happens:
 Destroying Container Apps can fail on the first attempt. Run `cdktn destroy`
 again.
 
+### AWS — ECR: repository not empty
+
+```
+Error: ECR Repository (<name>) not empty, consider using force_delete: ... RepositoryNotEmptyException
+```
+
+CI/CD pushes images to the ECR repository, and a repository with images
+cannot be deleted. `ecr.forceDelete` (`config/aws/cicd/cicdsettings.ts`,
+default `true`) deletes the images with the repository. It takes effect after
+a `cdktn deploy`: a repository deployed before this setting existed (or with
+`false`) must be deleted by hand, then destroy again:
+
+```bash
+aws ecr delete-repository --repository-name <name> --force --region ap-northeast-1
+cdktn destroy
+```
+
 ### AWS — Aurora / RDS: CloudWatch log groups remain
 
 Aurora / RDS recreate their CloudWatch log groups while being deleted, so the

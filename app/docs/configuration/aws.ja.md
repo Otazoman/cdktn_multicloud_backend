@@ -177,6 +177,7 @@
 | `build`、`name`、`key` | 作る、ECR / プロジェクトの名前、アドレスのキー | | **必須**、key = `name` | |
 | `ecr.imageRetentionInDays` | N 日たったイメージを削除する | 数値 | **必須** | |
 | `ecr.scanOnPush` | プッシュ時にスキャンする | `boolean` | **必須** | |
+| `ecr.forceDelete` | destroy のときに、リポジトリをイメージごと削除する | `boolean` | `true` | `false`: リポジトリにイメージがある間は destroy が失敗する（CI/CD がイメージを push する） |
 | `codebuild.computeType`、`image`、`type`、`privilegedMode` | ビルドの環境 | 例: `BUILD_GENERAL1_SMALL`、イメージ、`LINUX_CONTAINER`、`boolean` | **必須** | Docker のビルドには `privilegedMode` が必要 |
 | `codebuild.securityGroupNames`、`subnetNames` | VPC 内の配置 | 名前 | **必須** | |
 | `codebuild.repositoryUrl` | ソースのリポジトリ | URL | `appRepositoryUrl`（`config/cicd.ts`） | |

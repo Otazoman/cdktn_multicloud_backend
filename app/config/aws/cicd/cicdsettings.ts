@@ -15,6 +15,9 @@ export const awsCicdConfigs = [
     ecr: {
       imageRetentionInDays: 30,
       scanOnPush: true,
+      // true: destroy deletes the repository with its images (false: the
+      // destroy fails while images remain)
+      forceDelete: true,
     },
     codebuild: {
       computeType: "BUILD_GENERAL1_SMALL",
