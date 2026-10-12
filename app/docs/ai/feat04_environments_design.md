@@ -151,6 +151,17 @@ docker compose -p cdktn-dev exec cdktn-backend bash   # 中では今までどお
 | 5 | #5: API コンテナの設定。**ポートは 2026-10-12 に対応**（アプリは 8080: ECS `api-service` のポートと ALB のターゲットグループを 8080、`ecs-sg` に 8080 を追加、Container Apps `backend-api-service` の `targetPort` を 8080、仮のイメージを 8080 で待ち受ける `nginxinc/nginx-unprivileged:stable` に変更。Cloud Run は元から 8080。ヘルスチェックの `/` はアプリの liveness と一致）。**残り**: シークレットの受け渡し、DB 接続の環境変数、readiness（`/readyz`）を使うか | FEAT-01 §9 #5 |
 | 6 | 起動条件の値を環境ごとに決める（`cicdTrigger.branches` の stg / prod） | ユーザーの判断。今は全環境 `main` |
 
+### 7.2.1 dev への deploy の結果（2026-10-12）
+
+AWS・Google・Azure を有効にして deploy（VPN・VM は無効）。Application Gateway などは作成できたが、次の権限エラーで止まり、その後 destroy した。再開の前に対応する（解決したら getting-started の権限の記述を英語版・日本語版とも直す）。
+
+| クラウド | エラー | 原因（推定） | 対応案（ユーザーの作業） |
+|---|---|---|---|
+| AWS | CodeBuild の CreateProject で `OAuthProviderException: User is not authorized to access connection` | cdktn の IAM ユーザーに `codeconnections:GetConnectionToken` がない。旧名 `codestar-connections:*` の確認の可能性も。または GitHub App の対象にリポジトリがない | IAM ユーザーのポリシーに `GetConnectionToken` と `codestar-connections` の同じ権限を追加（リソースは両方の ARN 形式）。接続が Available で、AWS Connector for GitHub の対象に `multipleclouds-api-app` があるか確認 |
+| Google | `artifactregistry.repositories.setIamPolicy`、プロジェクトの IAM ポリシーの更新、`iam.serviceAccounts.setIamPolicy` が 403 | cdktn のサービスアカウントは編集者などで、IAM ポリシーを変更できない | cdktn のサービスアカウントに `roles/resourcemanager.projectIamAdmin`、`roles/artifactregistry.admin`、`roles/iam.serviceAccountAdmin` を付ける（または、ビルド用サービスアカウントへの権限付与を手作業にして cdktn から外す。**方針はユーザーの判断待ち**） |
+
+**再 deploy の結果（2026-10-12）**: 3 クラウドとも成功。対応した内容: AWS は IAM ユーザーに `GetConnectionToken`・webhook の権限・`codestar-connections` を追加し、GitHub の AWS Connector for GitHub の権限の承認（Review request）で webhook のエラーが解消。Google は cdktn のサービスアカウント（キーの `client_email`）に 3 つのロール（最初は App Engine の既定のサービスアカウントに誤って付けたので外した）。Azure は Log Analytics のテーブルの保存期間のコードの不具合（`total_retention_in_days` 未指定）を修正。すべて getting-started（英語版・日本語版）に反映済み。次は CI/CD の通しの確認（アプリのリポジトリへの push）。アプリは起動時に `CLOUD_ID`・`DB_*` が必須のため、FEAT-01 #5 の前はデプロイの段階で失敗する見込み（ビルドと push までの確認になる）。
+
 ### 7.3 そのほかの残課題
 
 | 項目 | 内容 |

@@ -169,7 +169,7 @@ One peering connection with several non-overlapping reserved ranges.
 
 | Item | Description | Allowed values | Default | Notes |
 |---|---|---|---|---|
-| `googleUseLogBuckets` | Route `logs: true` resources to the log buckets below | `boolean` | `true` | `false`: logs stay in `_Default` (30 days); useful for environments destroyed and deployed again within 7 days |
+| `googleUseLogBuckets` | Route `logs: true` resources to the log buckets below | `boolean`, `byEnv` | `dev`: `false`; others: `true` | `false`: no log buckets or sinks; logs stay in `_Default` (30 days). For environments destroyed and deployed again within 7 days (a deleted bucket ID cannot be reused for 7 days) |
 | `googleLogBucketsConfig[].key` | Key referenced by `logBucket` | string | **Required** | Only referenced buckets are created |
 | `bucketId` | Bucket ID | string | `<PROJECT_NAME>-google-logs-<key>` | A deleted ID cannot be reused for 7 days |
 | `location` | Location | region | **Required** | Cannot be changed after creation |

@@ -169,7 +169,7 @@
 
 | 項目名 | 設定する内容 | 設定できる値 | 指定がない場合のデフォルト値 | 備考 |
 |---|---|---|---|---|
-| `googleUseLogBuckets` | `logs: true` のリソースのログを、下のログバケットに送る | `boolean` | `true` | `false`: ログは `_Default`（30 日）に残る。destroy から 7 日以内にもう一度 deploy する環境で便利 |
+| `googleUseLogBuckets` | `logs: true` のリソースのログを、下のログバケットに送る | `boolean`、`byEnv` | `dev`: `false`、ほか: `true` | `false`: ログバケットとシンクを作らず、ログは `_Default`（30 日）に残る。destroy から 7 日以内にもう一度 deploy する環境向け（削除したバケットの ID は 7 日間再利用できないため） |
 | `googleLogBucketsConfig[].key` | `logBucket` から参照するキー | 文字列 | **必須** | 参照されたバケットだけが作られる |
 | `bucketId` | バケットの ID | 文字列 | `<PROJECT_NAME>-google-logs-<key>` | 削除した ID は 7 日間再利用できない |
 | `location` | ロケーション | リージョン | **必須** | 作成後は変えられない |

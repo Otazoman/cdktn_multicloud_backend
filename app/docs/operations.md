@@ -82,7 +82,7 @@ set where they are stored.
   bucket within the 7 days (`gcloud logging buckets undelete <bucket ID>
   --location=<location>`, then `terraform untaint` the bucket if the failed
   deploy marked it tainted). For environments that are destroyed and deployed
-  again often, set `googleUseLogBuckets = false`: logs then stay in the
+  again often (as `dev` by default), set `googleUseLogBuckets` to `false`: logs then stay in the
   `_Default` bucket (30 days) and no log buckets are created. The bucket
   location cannot be changed after creation, and retention beyond 30 days is
   charged.
@@ -190,6 +190,11 @@ machine only.
 
 ### Prerequisites
 
+- A work VM exists in each cloud whose secrets you set: enable
+  `clouds.<cloud>.features.vms` in `config/commonsettings.ts` and deploy. The
+  Azure Key Vault is reachable only through its private endpoint, so the Azure
+  values can only be set from the Azure VM (inside the VNet). You can disable
+  `vms` again afterwards.
 - The work VMs have the AWS CLI v2, the Google Cloud CLI and the Azure CLI
   (installed by `scripts/vm_init.sh` when the VM is created). Check with
   `aws --version`, `gcloud --version`, `az version`.

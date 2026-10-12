@@ -49,6 +49,17 @@ const mutable: object[] = [
 ];
 const snapshots = mutable.map((o) => ({ ...o }));
 
+// The tests check the log bucket mode. dev (DEPLOY_ENV of the tests) keeps
+// its logs in _Default (googleUseLogBuckets), so switch the buckets on here.
+const loggingSettings = cloudlogging as { googleUseLogBuckets: boolean };
+const useLogBucketsOriginal = loggingSettings.googleUseLogBuckets;
+beforeAll(() => {
+  loggingSettings.googleUseLogBuckets = true;
+});
+afterAll(() => {
+  loggingSettings.googleUseLogBuckets = useLogBucketsOriginal;
+});
+
 afterEach(() => {
   mutable.forEach((o, i) => {
     Object.keys(o).forEach((k) => delete (o as any)[k]);

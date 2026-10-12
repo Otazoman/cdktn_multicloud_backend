@@ -64,7 +64,7 @@ cdktn destroy
 - Google Cloud: 削除したログバケットは 7 日間 `DELETE_REQUESTED` の状態になり、その ID は再利用できません。destroy から 7 日以内にもう一度 deploy するには、次のどれかを行います。
   - `config/google/cloudlogging.ts` で別の `bucketId` を指定する。
   - 7 日以内にバケットを復元する（`gcloud logging buckets undelete <バケット ID> --location=<ロケーション>`。失敗した deploy でバケットが tainted になっていれば、`terraform untaint` も行う）。
-  - destroy と deploy を頻繁に繰り返す環境では、`googleUseLogBuckets = false` にする。ログは `_Default` バケット（30 日）に残り、ログバケットは作られません。
+  - destroy と deploy を頻繁に繰り返す環境では、`googleUseLogBuckets` を `false` にする（`dev` は既定で `false`）。ログは `_Default` バケット（30 日）に残り、ログバケットは作られません。
 
   バケットのロケーションは作成後に変えられません。30 日を超える保存は課金されます。
 - Azure: VPN ゲートウェイのログは、共有の `AzureDiagnostics` テーブルにしか送れません。そのため、このテーブルの保存期間は、「Azure 診断」モードでログを送るすべてのリソースに適用されます。`tableRetention` から項目を削除すると、そのテーブルはワークスペースの保存期間に戻ります。
@@ -134,6 +134,7 @@ cdktn に渡した値（`CHANGE_ME` と、`.env.<環境名>` の DB の管理者
 
 ### 前提
 
+- 値を入れるクラウドに、作業用の VM があること。`config/commonsettings.ts` の `clouds.<cloud>.features.vms` を有効にして deploy します。Azure の Key Vault にはプライベートエンドポイントからしか接続できないため、Azure の値は Azure の VM（VNet の中）からしか入れられません。作業が終わったら、`vms` を無効に戻してもかまいません。
 - 作業用の VM に、AWS CLI v2、Google Cloud CLI、Azure CLI が入っていること（VM の作成時に `scripts/vm_init.sh` がインストールします）。`aws --version`、`gcloud --version`、`az version` で確認します。
 - 自分のアカウントに、次の権限があること。
   - AWS: シークレットに対する `secretsmanager:PutSecretValue` と `secretsmanager:GetSecretValue`。

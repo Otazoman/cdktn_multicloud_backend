@@ -172,6 +172,9 @@ export class AzureMonitorResources extends Construct {
             workspaceId: this.logAnalyticsWorkspace!.id,
             name: tableName,
             retentionInDays,
+            // Total retention (interactive + archive). Left unset, Azure
+            // rejects the update; the same value means no archive period.
+            totalRetentionInDays: retentionInDays,
           });
         },
       );

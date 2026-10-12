@@ -151,7 +151,10 @@ for the resources you enable:
           "codebuild:DeleteProject",
           "codebuild:UpdateProject",
           "codebuild:BatchGetProjects",
-          "codebuild:ListProjects"
+          "codebuild:ListProjects",
+          "codebuild:CreateWebhook",
+          "codebuild:UpdateWebhook",
+          "codebuild:DeleteWebhook"
         ],
         "Resource": "*"
       },
@@ -170,18 +173,29 @@ for the resources you enable:
       },
       {
         "Effect": "Allow",
-        "Action": ["codeconnections:ListConnections"],
+        "Action": [
+          "codeconnections:ListConnections",
+          "codestar-connections:ListConnections"
+        ],
         "Resource": "*"
       },
       {
         "Effect": "Allow",
         "Action": [
           "codeconnections:GetConnection",
+          "codeconnections:GetConnectionToken",
           "codeconnections:ListTagsForResource",
           "codeconnections:PassConnection",
-          "codeconnections:UseConnection"
+          "codeconnections:UseConnection",
+          "codestar-connections:GetConnection",
+          "codestar-connections:GetConnectionToken",
+          "codestar-connections:PassConnection",
+          "codestar-connections:UseConnection"
         ],
-        "Resource": "arn:aws:codeconnections:ap-northeast-1:*:connection/*"
+        "Resource": [
+          "arn:aws:codeconnections:ap-northeast-1:*:connection/*",
+          "arn:aws:codestar-connections:ap-northeast-1:*:connection/*"
+        ]
       }
     ]
   }
@@ -190,7 +204,11 @@ for the resources you enable:
   The `codeconnections` statements let cdktn look up the GitHub connection
   by name (`codeConnectionName`) and attach it to the CodeBuild project and
   its webhook. Without them `cdktn diff` fails with `not authorized to
-  perform: codeconnections:ListConnections`.
+  perform: codeconnections:ListConnections`, and creating the CodeBuild
+  project fails with `OAuthProviderException: User is not authorized to
+  access connection` (CodeBuild gets the connection token with the caller's
+  permissions: `GetConnectionToken`). The `codestar-connections` actions are
+  the older name of the same service.
 
 ### Google Cloud
 
@@ -202,7 +220,7 @@ Enable the APIs for the features you use:
 | Cloud Run | Cloud Run Admin API, IAM API, Artifact Registry API, Cloud Build API, Serverless VPC Access API, Cloud Filestore API |
 | Filestore | Cloud Filestore API |
 | Secret Manager (with Cloud SQL) | Secret Manager API |
-| CI/CD | Cloud Build API, Secret Manager API (GitHub connection), Artifact Registry API, Cloud Run Admin API |
+| CI/CD | Cloud Build API, Secret Manager API (GitHub connection), Artifact Registry API, Cloud Run Admin API, IAM API, Service Networking API (the private pool uses Private Service Access) |
 
 ```bash
 PROJECT=your-project-id
@@ -222,6 +240,37 @@ gcloud projects add-iam-policy-binding "$PROJECT" \
 The service account used by cdktn needs the **Network Administrator** role for
 Cloud SQL (the Editor role is not sufficient).
 
+For CI/CD, cdktn grants roles to the build service account
+(`cloudbuild-deployer`), which needs permission to change IAM policies (the
+Editor role cannot). Grant the service account used by cdktn these roles, as
+the project owner (without them the deploy fails with
+`setIamPolicy ... denied` / `Policy update access denied`):
+
+```bash
+CDKTN_SA=<email of the service account used by cdktn>   # client_email of its key
+for role in roles/resourcemanager.projectIamAdmin roles/artifactregistry.admin roles/iam.serviceAccountAdmin; do
+  gcloud projects add-iam-policy-binding "$PROJECT" \
+    --member="serviceAccount:$CDKTN_SA" --role="$role" --condition=None
+done
+```
+
+`roles/resourcemanager.projectIamAdmin` can change any IAM binding of the
+project; grant it only to the cdktn service account. Make sure `CDKTN_SA` is
+the `client_email` of the key file that `GOOGLE_CLOUD_KEYFILE_JSON` points to
+(not, for example, the App Engine default service account
+`<project>@appspot.gserviceaccount.com`), and check the result — the three
+roles must be listed:
+
+```bash
+gcloud projects get-iam-policy "$PROJECT" --flatten="bindings[].members" \
+  --filter="bindings.members:serviceAccount:$CDKTN_SA" --format="value(bindings.role)"
+```
+
+A change can take a few minutes to take effect. If the roles were granted to
+another account by mistake, remove them there (`gcloud projects
+remove-iam-policy-binding` with the same `--member`, `--role` and
+`--condition=None`).
+
 ### Azure
 
 - **Container Apps**: register the `Microsoft.App` resource provider.
@@ -232,10 +281,15 @@ Cloud SQL (the Editor role is not sufficient).
   az provider show --namespace Microsoft.App --query registrationState
   ```
 
-- **Key Vault** (created with Azure Database): cdktn assigns the role
-  `Key Vault Secrets Officer` on the vault, so the identity that runs cdktn
-  needs permission to create role assignments (Owner or User Access
-  Administrator on the resource group).
+- **Role assignments**: cdktn creates role assignments, so the identity that
+  runs cdktn (`ARM_CLIENT_ID`) needs permission to create them: **Owner** or
+  **User Access Administrator** on the subscription (or on the resource
+  group and the resources it contains). They are used by:
+  - Key Vault (created with Azure Database): `Key Vault Secrets Officer` on
+    the vault.
+  - CI/CD: AcrPush on the ACR and Contributor on the target Container App
+    (build agents), AcrPull on the ACR (the Container App), Reader and
+    Network Contributor on the VNet (DevOpsInfrastructure).
 
 ### Public DNS sub-domain delegation
 
@@ -345,6 +399,19 @@ You need admin permission on the GitHub repository to install the apps.
      --connection-arn "$AWS_CONNECTION_ARN" \
      --query Connection.ConnectionStatus --output text
    ```
+
+4. Check that the app can read the repository: GitHub **Settings** →
+   **Applications** → **Installed GitHub Apps** → **AWS Connector for
+   GitHub** → **Configure** → **Repository access** includes `$GITHUB_REPO`.
+   Otherwise creating the CodeBuild project fails with `OAuthProviderException`.
+   On the same page, accept the pending permission request of the app
+   (**Review request**) if it is shown. Without it, creating the webhook
+   fails with `OAuthProviderException: Failed to create webhook. GitHub API
+   limit reached or permission issue` (confirmed: accepting the request
+   fixed it).
+5. Give the IAM user that runs cdktn the `codeconnections` permissions of
+   "CodeBuild / ECR" in the AWS section above (including
+   `GetConnectionToken`).
 
 #### Google Cloud: Cloud Build GitHub connection (2nd gen)
 
@@ -694,12 +761,28 @@ use `shareKey`, Container Apps environments use `environmentKey`.
 
 Inside the container of the environment (section 1):
 
+Before the first deploy, check the preparation of the features you enabled:
+
+| Feature | Check |
+|---|---|
+| All | `.env.<env>` filled before the container was started (section 1); `npm install` and `cdktn get` done in the container |
+| AWS CI/CD | CodeConnections connection `AVAILABLE`, the repository in the GitHub App, the `codebuild` / `ecr` / `codeconnections` permissions of the IAM user (section 5, "AWS") |
+| Google CI/CD | APIs enabled (including Service Networking), GitHub connection `COMPLETE`, the three IAM roles of the cdktn service account (section 5, "Google Cloud") |
+| Azure CI/CD | Steps 1–10 of "Azure: Azure DevOps ..." (organization, project, GitHub service connection, service principal in the organization, resource providers, `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID`), role assignment permission (section 5, "Azure"), `azure-pipelines.yml` in the application repository |
+| AWS HTTPS load balancer | A certificate: `features.dns` for AWS-managed certificates, or certificate files (`IMPORT`); otherwise use the plain-HTTP pattern (synth warns) |
+
 ```bash
 echo "$DEPLOY_ENV"      # the environment of this container
 npx tsc --noEmit -p .   # type check
 cdktn diff              # review the plan
 cdktn deploy
 ```
+
+If the deploy stops with a permission error (`AccessDenied`, `not
+authorized`, `403`, `setIamPolicy ... denied`), add the permission named in
+the message and run `cdktn deploy` again: the resources already created are
+in the state and are not created twice. Then add the missing permission to
+this guide.
 
 The state is written to `state/<env>/terraform.tfstate` (ignored by Git; keep
 it on the work machine).

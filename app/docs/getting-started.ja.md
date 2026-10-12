@@ -126,7 +126,10 @@ cdktn が使う IAM ユーザーに、有効にするリソースの権限に加
           "codebuild:DeleteProject",
           "codebuild:UpdateProject",
           "codebuild:BatchGetProjects",
-          "codebuild:ListProjects"
+          "codebuild:ListProjects",
+          "codebuild:CreateWebhook",
+          "codebuild:UpdateWebhook",
+          "codebuild:DeleteWebhook"
         ],
         "Resource": "*"
       },
@@ -145,24 +148,35 @@ cdktn が使う IAM ユーザーに、有効にするリソースの権限に加
       },
       {
         "Effect": "Allow",
-        "Action": ["codeconnections:ListConnections"],
+        "Action": [
+          "codeconnections:ListConnections",
+          "codestar-connections:ListConnections"
+        ],
         "Resource": "*"
       },
       {
         "Effect": "Allow",
         "Action": [
           "codeconnections:GetConnection",
+          "codeconnections:GetConnectionToken",
           "codeconnections:ListTagsForResource",
           "codeconnections:PassConnection",
-          "codeconnections:UseConnection"
+          "codeconnections:UseConnection",
+          "codestar-connections:GetConnection",
+          "codestar-connections:GetConnectionToken",
+          "codestar-connections:PassConnection",
+          "codestar-connections:UseConnection"
         ],
-        "Resource": "arn:aws:codeconnections:ap-northeast-1:*:connection/*"
+        "Resource": [
+          "arn:aws:codeconnections:ap-northeast-1:*:connection/*",
+          "arn:aws:codestar-connections:ap-northeast-1:*:connection/*"
+        ]
       }
     ]
   }
   ```
 
-  `codeconnections` の 2 つは、cdktn が GitHub の接続を名前（`codeConnectionName`）で探し、CodeBuild のプロジェクトと webhook に設定するための権限です。ないと、`cdktn diff` が `not authorized to perform: codeconnections:ListConnections` で失敗します。
+  `codeconnections` の 2 つは、cdktn が GitHub の接続を名前（`codeConnectionName`）で探し、CodeBuild のプロジェクトと webhook に設定するための権限です。ないと、`cdktn diff` が `not authorized to perform: codeconnections:ListConnections` で失敗し、CodeBuild のプロジェクトの作成が `OAuthProviderException: User is not authorized to access connection` で失敗します（CodeBuild は呼び出し元の権限で接続のトークンを取得するため、`GetConnectionToken` が必要です）。`codestar-connections` は、同じサービスの旧名です。
 
 ### Google Cloud
 
@@ -174,7 +188,7 @@ cdktn が使う IAM ユーザーに、有効にするリソースの権限に加
 | Cloud Run | Cloud Run Admin API、IAM API、Artifact Registry API、Cloud Build API、Serverless VPC Access API、Cloud Filestore API |
 | Filestore | Cloud Filestore API |
 | Secret Manager（Cloud SQL と一緒に使う） | Secret Manager API |
-| CI/CD | Cloud Build API、Secret Manager API（GitHub との接続）、Artifact Registry API、Cloud Run Admin API |
+| CI/CD | Cloud Build API、Secret Manager API（GitHub との接続）、Artifact Registry API、Cloud Run Admin API、IAM API、Service Networking API（プライベートプールがプライベート サービス アクセスを使うため） |
 
 ```bash
 PROJECT=your-project-id
@@ -193,6 +207,25 @@ gcloud projects add-iam-policy-binding "$PROJECT" \
 
 Cloud SQL を使う場合、cdktn が使うサービスアカウントには **Network Administrator**（ネットワーク管理者）のロールが必要です（編集者のロールでは足りません）。
 
+CI/CD では、cdktn がビルド用のサービスアカウント（`cloudbuild-deployer`）にロールを付けます。そのため、cdktn が使うサービスアカウントには、IAM ポリシーを変更する権限が必要です（編集者のロールにはありません）。プロジェクトの所有者として、次のロールを付けてください（ないと、deploy が `setIamPolicy ... denied` / `Policy update access denied` で失敗します）。
+
+```bash
+CDKTN_SA=<cdktn が使うサービスアカウントのメールアドレス>   # キーの client_email
+for role in roles/resourcemanager.projectIamAdmin roles/artifactregistry.admin roles/iam.serviceAccountAdmin; do
+  gcloud projects add-iam-policy-binding "$PROJECT" \
+    --member="serviceAccount:$CDKTN_SA" --role="$role" --condition=None
+done
+```
+
+`roles/resourcemanager.projectIamAdmin` は、プロジェクトのどの IAM の設定も変更できる強い権限です。cdktn のサービスアカウントにだけ付けてください。`CDKTN_SA` は、`GOOGLE_CLOUD_KEYFILE_JSON` が指すキーのファイルの `client_email` です（App Engine の既定のサービスアカウント `<プロジェクト>@appspot.gserviceaccount.com` などと取り違えないでください）。付けた後、3 つのロールが表示されることを確認します。
+
+```bash
+gcloud projects get-iam-policy "$PROJECT" --flatten="bindings[].members" \
+  --filter="bindings.members:serviceAccount:$CDKTN_SA" --format="value(bindings.role)"
+```
+
+反映まで数分かかることがあります。誤って別のアカウントに付けた場合は、そのアカウントから外してください（`gcloud projects remove-iam-policy-binding` に、同じ `--member`、`--role`、`--condition=None` を指定します）。
+
 ### Azure
 
 - **Container Apps**: リソースプロバイダー `Microsoft.App` を登録します。
@@ -203,7 +236,9 @@ Cloud SQL を使う場合、cdktn が使うサービスアカウントには **N
   az provider show --namespace Microsoft.App --query registrationState
   ```
 
-- **Key Vault**（Azure Database と一緒に作られます）: cdktn は Key Vault に `Key Vault Secrets Officer` のロールを割り当てます。そのため、cdktn を実行する ID には、ロールを割り当てる権限（リソースグループの所有者、またはユーザー アクセス管理者）が必要です。
+- **ロールの割り当て**: cdktn はロールの割り当てを作ります。そのため、cdktn を実行する ID（`ARM_CLIENT_ID`）には、ロールを割り当てる権限が必要です。サブスクリプション（またはリソースグループとその中のリソース）に対する**所有者**か**ユーザー アクセス管理者**を付けてください。使われる場面は次のとおりです。
+  - Key Vault（Azure Database と一緒に作られます）: Key Vault に対する `Key Vault Secrets Officer`。
+  - CI/CD: ACR に対する AcrPush とデプロイ先の Container Apps に対する共同作成者（ビルドのエージェント）、ACR に対する AcrPull（Container Apps）、VNet に対する閲覧者とネットワーク共同作成者（DevOpsInfrastructure）。
 
 ### 公開 DNS のサブドメインの委任
 
@@ -304,6 +339,9 @@ App をインストールするには、GitHub のリポジトリの管理者権
      --connection-arn "$AWS_CONNECTION_ARN" \
      --query Connection.ConnectionStatus --output text
    ```
+
+4. App がリポジトリを読めることを確認します。GitHub の **Settings** → **Applications** → **Installed GitHub Apps** → **AWS Connector for GitHub** → **Configure** の **Repository access** に `$GITHUB_REPO` が含まれていること。含まれていないと、CodeBuild のプロジェクトの作成が `OAuthProviderException` で失敗します。同じ画面で、App の権限の承認を求める表示（**Review request**）があれば承認します。承認していないと、webhook の作成が `OAuthProviderException: Failed to create webhook. GitHub API limit reached or permission issue` で失敗します（承認で解消することを確認済み）。
+5. cdktn を実行する IAM ユーザーに、上の「AWS」の「CodeBuild / ECR」の `codeconnections` の権限（`GetConnectionToken` を含む）を付けます。
 
 #### Google Cloud: Cloud Build の GitHub 接続（第 2 世代）
 
@@ -523,12 +561,24 @@ build: byEnv({ default: false, stg: true }),   // 既定値 + 違う環境だけ
 
 その環境のコンテナ（1 章）の中で実行します。
 
+最初の deploy の前に、有効にした機能の準備ができているかを確認します。
+
+| 機能 | 確認すること |
+|---|---|
+| すべて | `.env.<環境名>` を、コンテナを起動する前に用意したこと（1 章）。コンテナの中で `npm install` と `cdktn get` を実行したこと |
+| AWS の CI/CD | CodeConnections の接続が `AVAILABLE`、GitHub App の対象にリポジトリがある、IAM ユーザーに `codebuild` / `ecr` / `codeconnections` の権限がある（5 章「AWS」） |
+| Google の CI/CD | API を有効にした（Service Networking を含む）、GitHub の接続が `COMPLETE`、cdktn のサービスアカウントに 3 つの IAM のロールがある（5 章「Google Cloud」） |
+| Azure の CI/CD | 「Azure: Azure DevOps ...」の手順 1〜10（組織、プロジェクト、GitHub のサービス接続、組織へのサービスプリンシパルの追加、リソースプロバイダー、`AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID`）、ロールを割り当てる権限（5 章「Azure」）、アプリのリポジトリの `azure-pipelines.yml` |
+| AWS の HTTPS のロードバランサー | 証明書があること（AWS マネージド証明書なら `features.dns`、または証明書ファイル（`IMPORT`））。ない場合は HTTP のパターンを使う（synth で警告が出る） |
+
 ```bash
 echo "$DEPLOY_ENV"      # このコンテナの環境
 npx tsc --noEmit -p .   # 型チェック
 cdktn diff              # plan を確認する
 cdktn deploy
 ```
+
+deploy が権限のエラー（`AccessDenied`、`not authorized`、`403`、`setIamPolicy ... denied`）で止まった場合は、メッセージに出ている権限を付けて、もう一度 `cdktn deploy` を実行します。作成済みのリソースは state に記録されているので、二重には作られません。足りなかった権限は、この手順書に追記してください。
 
 state は `state/<環境名>/terraform.tfstate` に書き込まれます（Git の管理外。作業端末で管理してください）。
 

@@ -1,3 +1,4 @@
+import { byEnv } from "../environment";
 import { LOCATION } from "./common";
 
 /**
@@ -24,8 +25,11 @@ import { LOCATION } from "./common";
  * sinks are created) - e.g. for environments that are destroyed and deployed
  * again within 7 days. `logs: false` resources are excluded from _Default
  * either way.
+ *
+ * dev is destroyed and deployed again often: a deleted bucket ID cannot be
+ * reused for 7 days, so dev keeps its logs in _Default.
  */
-export const googleUseLogBuckets: boolean = true;
+export const googleUseLogBuckets: boolean = byEnv({ default: true, dev: false });
 
 export interface GoogleLogBucketConfig {
   /** Logical key referenced from logBucket */
