@@ -11,6 +11,15 @@ export interface CloudRunContainerConfig {
   image: string;
   port: number;
   environment?: { name: string; value: string }[];
+  /**
+   * Variables read from Secret Manager (latest version) when an instance
+   * starts. The service account needs secretmanager.secretAccessor on them.
+   */
+  secretEnvironment?: { name: string; secret: string }[];
+  /** HTTP path of the startup probe (default: TCP on the port) */
+  startupProbePath?: string;
+  /** HTTP path of the liveness probe (default: none) */
+  livenessProbePath?: string;
   cpu?: string;
   memory?: string;
 }
@@ -88,10 +97,24 @@ export function createGoogleCloudRunResources(
           ports: {
             containerPort: config.container.port,
           },
-          env: config.container.environment?.map((e) => ({
-            name: e.name,
-            value: e.value,
-          })),
+          env: envBlocks(config.container),
+          startupProbe: config.container.startupProbePath
+            ? {
+                httpGet: { path: config.container.startupProbePath },
+                periodSeconds: 5,
+                timeoutSeconds: 3,
+                // Up to 2 minutes for the instance to become ready
+                failureThreshold: 24,
+              }
+            : undefined,
+          livenessProbe: config.container.livenessProbePath
+            ? {
+                httpGet: { path: config.container.livenessProbePath },
+                periodSeconds: 30,
+                timeoutSeconds: 3,
+                failureThreshold: 3,
+              }
+            : undefined,
           resources: {
             limits: {
               cpu: config.container.cpu || "0.5",
@@ -136,4 +159,16 @@ export function createGoogleCloudRunResources(
   }
 
   return { service };
+}
+
+/** Plain and Secret Manager environment variables of the container. */
+function envBlocks(container: CloudRunContainerConfig) {
+  const env = [
+    ...(container.environment ?? []).map((e) => ({ name: e.name, value: e.value })),
+    ...(container.secretEnvironment ?? []).map((e) => ({
+      name: e.name,
+      valueSource: { secretKeyRef: { secret: e.secret, version: "latest" } },
+    })),
+  ];
+  return env.length > 0 ? env : undefined;
 }

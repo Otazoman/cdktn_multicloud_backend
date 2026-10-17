@@ -28,6 +28,16 @@ export interface AzureContainerAppConfig {
   externalEnabled: boolean;
   subnetName: string;
   env?: { name: string; value: string }[];
+  /**
+   * Key Vault secrets of the app (versionless secret IDs, read with a
+   * user-assigned identity that has "Key Vault Secrets User"), and the
+   * variables set from them. The secrets must exist when a revision starts.
+   */
+  keyVaultSecrets?: { name: string; keyVaultSecretId: string; identityId: string }[];
+  secretEnv?: { name: string; secretName: string }[];
+  /** HTTP paths of the readiness / liveness probes on targetPort (default: none) */
+  readinessProbePath?: string;
+  livenessProbePath?: string;
   minReplicas?: number;
   maxReplicas?: number;
   /**
@@ -120,18 +130,30 @@ export function createAzureContainerAppResources(
   }
 
   // 2. Container App (This must be created for each service)
+  const identityIds = [
+    ...new Set([
+      ...(config.registry ? [config.registry.identityId] : []),
+      ...(config.keyVaultSecrets ?? []).map((s) => s.identityId),
+    ]),
+  ];
   const app = new ContainerApp(scope, `aca-app-${config.key ?? config.name}`, {
     provider,
     name: config.name,
     resourceGroupName: config.resourceGroupName,
     containerAppEnvironmentId: environment.id,
     revisionMode: "Single",
-    identity: config.registry
-      ? { type: "UserAssigned", identityIds: [config.registry.identityId] }
-      : undefined,
+    identity:
+      identityIds.length > 0
+        ? { type: "UserAssigned", identityIds }
+        : undefined,
     registry: config.registry
       ? [{ server: config.registry.server, identity: config.registry.identityId }]
       : undefined,
+    secret: config.keyVaultSecrets?.map((s) => ({
+      name: s.name,
+      keyVaultSecretId: s.keyVaultSecretId,
+      identity: s.identityId,
+    })),
 
     template: {
       container: [
@@ -140,7 +162,16 @@ export function createAzureContainerAppResources(
           image: config.image,
           cpu: config.cpu,
           memory: config.memory,
-          env: config.env,
+          env:
+            config.env || config.secretEnv
+              ? [...(config.env ?? []), ...(config.secretEnv ?? [])]
+              : undefined,
+          readinessProbe: config.readinessProbePath
+            ? [{ transport: "HTTP", port: config.targetPort, path: config.readinessProbePath }]
+            : undefined,
+          livenessProbe: config.livenessProbePath
+            ? [{ transport: "HTTP", port: config.targetPort, path: config.livenessProbePath }]
+            : undefined,
         },
       ],
       minReplicas: config.minReplicas ?? 0,

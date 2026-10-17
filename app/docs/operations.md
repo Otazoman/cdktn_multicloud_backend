@@ -184,6 +184,17 @@ Secret names (default names; see the config files):
 | API role password (`DB_PASSWORD`) | `multicloud-aws-secret-db-api-password` | `multicloud-google-secret-db-api-password` | `db-api-password` |
 | Replication role password | `multicloud-aws-secret-db-repl-password` | `multicloud-google-secret-db-repl-password` | `db-repl-password` |
 
+The API role password is **the same on every node**: set the same value in
+the `db-api-password` secret of every cloud. Each cloud's API container
+reads it for `DB_PASSWORD` and every `DB_<NODE>_PASSWORD`
+(`config/apicontainer.ts`; application repository: getting-started). The
+replication passwords are one per node.
+
+Azure: the Container App references the Key Vault secret only when
+`apiContainerConfig.azureSecretReady` is `true`; a Container App cannot
+start while a referenced secret does not exist. Deploy with `false`, set
+`db-api-password` from the Azure VM, then set `true` and deploy again.
+
 The values passed to cdktn (`CHANGE_ME`, and the database admin passwords in
 `.env.<env>`) are kept in the Terraform state; keep the state on the work
 machine only.

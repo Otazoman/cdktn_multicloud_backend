@@ -19,10 +19,11 @@ export function createAzureSecretResources(ctx: AzureBuildContext): void {
     );
   }
 
-  const { privateEndpoint } = createAzureKeyVault(scope, azureProvider, {
+  const { keyVault, privateEndpoint } = createAzureKeyVault(scope, azureProvider, {
     ...azureKeyVaultConfig,
     subnetId: subnet.id,
     virtualNetwork: azureVnetResources.vnet as VirtualNetwork,
   });
   addTerraformDependency(privateEndpoint, subnet);
+  ctx.keyVault = keyVault;
 }

@@ -36,7 +36,7 @@ export function createAwsCicd(ctx: AwsBuildContext): void {
         );
 
         // ECS service the build deploys to (buildspec.yml)
-        let deploy: { clusterName: string; serviceName: string; containerName: string; passRoleArns: string[] } | undefined;
+        let deploy: { clusterName: string; serviceName: string; containerName: string; taskFamily: string; passRoleArns: string[] } | undefined;
         if (config.deployTarget) {
           const label = `CodeBuild project "${config.name}" (deployTarget)`;
           const ecs = awsEcsConfigs.find(
@@ -52,6 +52,8 @@ export function createAwsCicd(ctx: AwsBuildContext): void {
             clusterName: ecs.clusterName,
             serviceName: ecs.name,
             containerName: ecs.containerName,
+            // The task definition family is the service name (constructs/container/awsecs.ts)
+            taskFamily: ecs.name,
             passRoleArns: [
               getIamRoleArn(ecs.executionRoleName, label),
               getIamRoleArn(ecs.taskRoleName, label),

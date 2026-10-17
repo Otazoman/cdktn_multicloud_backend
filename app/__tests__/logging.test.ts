@@ -18,6 +18,7 @@ import {
   findDependencyCycle,
   synthCase,
 } from "../scripts/dev/synthMatrix";
+import { resourceName } from "../utils/naming";
 
 const resourcesOf = (synth: any, type: string): any[] =>
   Object.values(synth.resource?.[type] ?? {});
@@ -93,10 +94,13 @@ describe("logging: defaults (logs on)", () => {
 
   test("Google: VPN and Cloud Run logs go to their buckets and are excluded from _Default", () => {
     const buckets = resourcesOf(synth, "google_logging_project_bucket_config");
-    expect(buckets.map((b) => b.bucket_id).sort()).toEqual([
-      expect.stringMatching(/-google-logs-cloudrun$/),
-      expect.stringMatching(/-google-logs-vpn$/),
-    ]);
+    // The IDs come from cloudlogging.ts (bucketId, or the default name).
+    expect(buckets.map((b) => b.bucket_id).sort()).toEqual(
+      ["cloudrun", "vpn"].map((key) => {
+        const bucket = googleLogBucketsConfig.find((b) => b.key === key);
+        return resourceName(bucket?.bucketId, "google", "logs", key);
+      }),
+    );
     buckets.forEach((b) => {
       expect(b).toMatchObject({
         location: "asia-northeast1",

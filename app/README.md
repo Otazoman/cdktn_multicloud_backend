@@ -60,9 +60,6 @@ Run inside the container from this directory.
 | `npx tsc --noEmit -p .` | Type check |
 | `npx jest __tests__/synth-matrix.test.ts` | Regression test: synthesizes every env × VPN connection pattern and checks invariants |
 
-`__tests__/app-test.ts` compares against an old snapshot and currently fails; it
-is kept for reference only.
-
 ### Comparing synthesized output (refactoring)
 
 ```bash

@@ -39,6 +39,11 @@ export interface ContainerConfig {
   containerPort: number;
   hostPort: number;
   environment?: { name: string; value: string }[];
+  /**
+   * Variables read from Secrets Manager when a task starts (valueFrom: secret
+   * ARN). The execution role needs secretsmanager:GetSecretValue on them.
+   */
+  secrets?: { name: string; valueFrom: string }[];
 }
 
 /**
@@ -160,6 +165,7 @@ export function createAwsEcsFargateResources(
             },
           },
           environment: config.containerConfig.environment,
+          secrets: config.containerConfig.secrets,
         },
       ]),
       tags: config.tags,

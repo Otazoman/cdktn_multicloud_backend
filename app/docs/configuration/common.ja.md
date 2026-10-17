@@ -76,6 +76,22 @@ ASN は、各クラウドの `vpn.ts` に書きます。
 | `appRepository.owner`、`appRepository.name` | アプリの GitHub のリポジトリ | 文字列 | `Otazoman`、`multipleclouds-api-app` | `appRepositoryUrl` はこれから作られる |
 | `cicdTrigger.branches` | push（マージされたプルリクエスト）でビルドを起動するブランチ | ブランチ名そのもの、`byEnv` | dev `["dev"]`、stg `["staging"]`、prod `["prod"]` | クラウドごとに正規表現に変換される |
 
+## API コンテナ（`config/apicontainer.ts`）
+
+API コンテナの設定（FEAT-01 §9 #5）。各クラウドの CI/CD のデプロイ先（ECS サービス、Cloud Run サービス、Container App）に、そのクラウドの `dbs` 機能が有効なときに適用します。ノードは `dbs` が有効なクラウドです。各 API には `CLOUD_ID`、`DB_HOST`、`DB_NAME`、`DB_USER`、`DB_SSLMODE`、`PEER_NODES`、`DB_<NODE>_HOST` を平文の変数として、`DB_PASSWORD` とすべての `DB_<NODE>_PASSWORD` を自クラウドのシークレット `db-api-password` から渡します（ECS は `secrets` と実行ロールへの読み取り権限、Cloud Run はシークレットの参照と既定の Compute サービスアカウントへの読み取り権限、Container Apps は Key Vault の参照とユーザー割り当てのマネージド ID への「Key Vault Secrets User」）。
+
+| 項目 | 説明 | 指定できる値 | 既定 | 備考 |
+|---|---|---|---|---|
+| `database.name` | 各ノードの API のデータベース | 文字列 | `appdb` | アプリのスクリプトは全ノードで1つの名前を使う |
+| `database.user` | API が接続するロール | 文字列 | `app_api` | アプリの `scripts/api-role-setup.sh` が作る |
+| `database.sslMode` | `DB_SSLMODE` | `disable`、`require`、`verify-full` | `require` | |
+| `database.hosts.<cloud>` | 各ノードのデータベースのアドレス（すべてのクラウドから接続できるもの） | プライベート DNS 名 | `rds-postgres.aws.inner`、`cloudsql-postgres.google.inner`、`postgres-prod.azure.inner` | プライベート DNS のレコードと合わせる |
+| `passwordSecretKey` | `app_api` のパスワードのシークレット | `config/<cloud>/secrets.ts` のキー | `db-api-password` | すべてのクラウドで同じ値 |
+| `azureSecretReady` | Container App から Key Vault のシークレットを参照する | `boolean`、`byEnv` | `false` | Azure の VM からシークレットを設定した後に `true`（[operations.ja.md](../operations.ja.md) の「シークレット」） |
+| `readinessProbe` | `/readyz` を readiness（ALB のターゲットグループ、Cloud Run の startup probe、Container Apps の readiness probe）、`/healthz` を liveness に使う | `boolean`、`byEnv` | `false` | 仮のイメージは `/` にしか応答しない。CI/CD が API をデプロイした後に `true` |
+
+ECS サービスはタスク定義の変更を無視します（CI/CD が新しいリビジョンをデプロイするため）。環境変数を変えると、ファミリーの新しいリビジョンとして登録され、アプリの `buildspec.yml` が次のデプロイでそれを元にします（`TASK_FAMILY`）。
+
 ## 命名
 
 | 項目名 | 設定する内容 | 設定できる値 | 指定がない場合のデフォルト値 | 備考 |

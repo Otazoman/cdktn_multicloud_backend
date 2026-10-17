@@ -130,6 +130,14 @@ API と論理レプリケーション（FEAT-01）が使う DB のパスワー�
 | API のロールのパスワード（`DB_PASSWORD`） | `multicloud-aws-secret-db-api-password` | `multicloud-google-secret-db-api-password` | `db-api-password` |
 | レプリケーションのロールのパスワード | `multicloud-aws-secret-db-repl-password` | `multicloud-google-secret-db-repl-password` | `db-repl-password` |
 
+API のロールのパスワードは**全ノードで同じ**です。すべてのクラウドの `db-api-password` に同じ値を設定します。
+各クラウドの API コンテナは、これを `DB_PASSWORD` とすべての `DB_<NODE>_PASSWORD` に使います
+（`config/apicontainer.ts`。アプリのリポジトリの getting-started）。レプリケーションのパスワードはノードごとです。
+
+Azure: Container App が Key Vault のシークレットを参照するのは `apiContainerConfig.azureSecretReady` が `true` の
+ときだけです。参照するシークレットがないと Container App は起動できません。`false` で deploy し、Azure の VM から
+`db-api-password` を設定してから、`true` にしてもう一度 deploy します。
+
 cdktn に渡した値（`CHANGE_ME` と、`.env.<環境名>` の DB の管理者パスワード）は、Terraform の state に残ります。state は作業端末だけに置いてください。
 
 ### 前提

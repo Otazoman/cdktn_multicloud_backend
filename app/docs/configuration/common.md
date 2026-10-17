@@ -76,6 +76,22 @@ Shared by the CI/CD of every cloud (feature `cicd`). The build definitions are i
 | `appRepository.owner`, `appRepository.name` | GitHub repository of the application | strings | `Otazoman`, `multipleclouds-api-app` | `appRepositoryUrl` is built from it |
 | `cicdTrigger.branches` | Branches whose pushes (merged pull requests) start the build | exact branch names, `byEnv` | dev `["dev"]`, stg `["staging"]`, prod `["prod"]` | Turned into a regular expression per cloud |
 
+## API container (`config/apicontainer.ts`)
+
+Settings of the API container (FEAT-01 §9 #5), applied to the CI/CD deploy target of each cloud (ECS service, Cloud Run service, Container App) when the cloud's `dbs` feature is enabled. The nodes are the clouds whose `dbs` is enabled; each API gets `CLOUD_ID`, `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_SSLMODE`, `PEER_NODES` and `DB_<NODE>_HOST` as plain variables, and `DB_PASSWORD` and every `DB_<NODE>_PASSWORD` from its own cloud's `db-api-password` secret (ECS `secrets` with the execution role allowed to read it; Cloud Run secret references with the default compute service account allowed to read it; Container Apps Key Vault reference with a user-assigned identity, "Key Vault Secrets User").
+
+| Item | Description | Allowed values | Default | Notes |
+|---|---|---|---|---|
+| `database.name` | Database of the API on every node | string | `appdb` | The application scripts use one name for every node |
+| `database.user` | Role the API connects as | string | `app_api` | Created by the application's `scripts/api-role-setup.sh` |
+| `database.sslMode` | `DB_SSLMODE` | `disable`, `require`, `verify-full` | `require` | |
+| `database.hosts.<cloud>` | Database address of each node, reachable from every cloud | private DNS names | `rds-postgres.aws.inner`, `cloudsql-postgres.google.inner`, `postgres-prod.azure.inner` | Keep in line with the private DNS records |
+| `passwordSecretKey` | Secret of the `app_api` password | key in `config/<cloud>/secrets.ts` | `db-api-password` | Same value on every cloud |
+| `azureSecretReady` | Reference the Key Vault secret from the Container App | `boolean`, `byEnv` | `false` | Set `true` after the secret is set from the Azure VM ([operations.md](../operations.md), "Secrets") |
+| `readinessProbe` | `/readyz` as readiness (ALB target groups, Cloud Run startup probe, Container Apps readiness probe) and `/healthz` as liveness | `boolean`, `byEnv` | `false` | The placeholder images answer only `/`: set `true` after CI/CD has deployed the API |
+
+The ECS service ignores task definition changes (CI/CD deploys new revisions). A changed environment is registered as a new revision of the family, which the application's `buildspec.yml` uses as the base of its next deployment (`TASK_FAMILY`).
+
 ## Naming
 
 | Item | Description | Allowed values | Default | Notes |

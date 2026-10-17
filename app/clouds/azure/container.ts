@@ -7,7 +7,13 @@ import {
   azureAcaEnvironmentSettings,
   azureAppGwConfigs,
 } from "../../config/azure/azuresettings";
+import { apiContainerConfig } from "../../config/apicontainer";
 import { isFeatureEnabled } from "../../config/features";
+import {
+  API_LIVENESS_PATH,
+  API_READINESS_PATH,
+  apiContainerSettings,
+} from "../apicontainer";
 import { createAzureContainerAppResources } from "../../constructs/container/azureaca";
 import {
   createAzureAcaPrivateDnsResources,
@@ -87,11 +93,58 @@ export function createAzureContainers(ctx: AzureBuildContext): void {
             pullRoles = pull.roleAssignments;
           }
 
+          // The API (config/apicontainer.ts): the app CI/CD deploys to, when
+          // Azure has a database. The password comes from the Key Vault
+          // secret, which is set from the Azure VM: referenced only once
+          // azureSecretReady (a missing secret stops the revision).
+          const api = isCicdTarget ? apiContainerSettings("azure") : undefined;
+          let keyVaultSecrets:
+            | { name: string; keyVaultSecretId: string; identityId: string }[]
+            | undefined;
+          let secretEnv: { name: string; secretName: string }[] | undefined;
+          let secretRoles: RoleAssignment[] = [];
+          if (api && apiContainerConfig.azureSecretReady) {
+            if (!ctx.keyVault) {
+              throw new Error(
+                `Container App "${config.name}" (API): the Key Vault (dbs feature) is required ` +
+                  `by apiContainerConfig.azureSecretReady`,
+              );
+            }
+            const secretName = apiContainerConfig.passwordSecretKey;
+            const reader = createAzureIdentityWithRoles(scope, azureProvider, {
+              name: resourceName(undefined, "azure", "identity", `${config.name}-secrets`),
+              resourceGroupName: config.resourceGroupName,
+              location: config.location,
+              grants: [
+                {
+                  key: "kv-secrets-user",
+                  role: "Key Vault Secrets User",
+                  scope: ctx.keyVault.id,
+                },
+              ],
+            });
+            keyVaultSecrets = [
+              {
+                name: secretName,
+                keyVaultSecretId: `${ctx.keyVault.vaultUri}secrets/${secretName}`,
+                identityId: reader.identity.id,
+              },
+            ];
+            secretEnv = api.passwordVariables.map((name) => ({ name, secretName }));
+            secretRoles = reader.roleAssignments;
+          }
+          const probes = api && apiContainerConfig.readinessProbe;
+
           const aca = createAzureContainerAppResources(
             scope,
             azureProvider,
             {
               ...config,
+              env: api ? [...(config.env ?? []), ...api.environment] : config.env,
+              keyVaultSecrets,
+              secretEnv,
+              readinessProbePath: probes ? API_READINESS_PATH : undefined,
+              livenessProbePath: probes ? API_LIVENESS_PATH : undefined,
               ignoreImageChanges: isCicdTarget,
               registry,
               infrastructureSubnetId: subnet?.id,
@@ -121,6 +174,8 @@ export function createAzureContainers(ctx: AzureBuildContext): void {
           });
           // The pull role must exist before the app pulls from the ACR
           pullRoles.forEach((role) => addTerraformDependency(aca.app, role));
+          // ... and the Key Vault role before it reads the secret
+          secretRoles.forEach((role) => addTerraformDependency(aca.app, role));
 
           containerApps.set(config.name, aca.app);
 

@@ -1,11 +1,15 @@
+import { IamRolePolicy } from "@cdktn/provider-aws/lib/iam-role-policy";
 import { Route53Record } from "@cdktn/provider-aws/lib/route53-record";
 import * as fs from "fs";
 
 import {
   albConfigs,
+  awsCicdConfigs,
   awsEcsClusterSettings,
   awsEcsConfigs,
 } from "../../config/aws/awssettings";
+import { apiContainerConfig } from "../../config/apicontainer";
+import { apiContainerSettings } from "../apicontainer";
 import { isFeatureEnabled } from "../../config/features";
 import { createAwsCertificate } from "../../constructs/certificates/awsacm";
 import {
@@ -139,6 +143,12 @@ export function createAwsContainers(ctx: AwsBuildContext): void {
 
     // ECS (ALB ARNs now available)
     if (awsEcsConfigs) {
+      // ECS services deployed by CI/CD run the API
+      const apiServiceNames = new Set(
+        awsCicdConfigs
+          .filter((c) => c.build && c.deployTarget)
+          .map((c) => c.deployTarget.ecsServiceName),
+      );
       awsEcsConfigs
         .filter((c) => c.build)
         .forEach((config) => {
@@ -239,6 +249,47 @@ export function createAwsContainers(ctx: AwsBuildContext): void {
             requestCountResourceLabel = `${albRes.alb.arnSuffix}/${albRes.targetGroups[config.targetGroupName].arnSuffix}`;
           }
 
+          // The API (config/apicontainer.ts): the ECS service CI/CD deploys
+          // to, when AWS has a database. The password comes from Secrets
+          // Manager, read by the execution role when a task starts.
+          const api = apiServiceNames.has(config.name)
+            ? apiContainerSettings("aws")
+            : undefined;
+          let apiSecretPolicy: IamRolePolicy | undefined;
+          let apiSecrets: { name: string; valueFrom: string }[] | undefined;
+          if (api) {
+            const secret = ctx.dbSecrets?.get(apiContainerConfig.passwordSecretKey);
+            if (!secret) {
+              throw new Error(
+                `ECS service "${config.name}" (API): secret "${apiContainerConfig.passwordSecretKey}" ` +
+                  `not found in config/aws/secrets.ts`,
+              );
+            }
+            apiSecrets = api.passwordVariables.map((name) => ({
+              name,
+              valueFrom: secret.arn,
+            }));
+            apiSecretPolicy = new IamRolePolicy(
+              scope,
+              `ecs-api-secret-policy-${idPart(config.name)}`,
+              {
+                provider: awsProvider,
+                name: `${config.name}-read-db-api-password`,
+                role: iamResources.createdRoles[config.executionRoleName].name,
+                policy: JSON.stringify({
+                  Version: "2012-10-17",
+                  Statement: [
+                    {
+                      Effect: "Allow",
+                      Action: ["secretsmanager:GetSecretValue"],
+                      Resource: [secret.arn],
+                    },
+                  ],
+                }),
+              },
+            );
+          }
+
           const logGroupName = config.cloudwatchLogGroupName as string;
           const logGroup = getLogGroup(
             logGroupName,
@@ -260,7 +311,10 @@ export function createAwsContainers(ctx: AwsBuildContext): void {
               memory: parseInt(config.memory),
               containerPort: config.port,
               hostPort: config.port,
-              environment: config.environment,
+              environment: api
+                ? [...(config.environment ?? []), ...api.environment]
+                : config.environment,
+              secrets: apiSecrets,
             },
             targetGroupArn,
             targetGroupArnGreen,
@@ -282,6 +336,9 @@ export function createAwsContainers(ctx: AwsBuildContext): void {
           addTerraformDependency(ecs.service, awsVpcResources.vpc);
           addTerraformDependency(ecs.taskDefinition, iamResources);
           addTerraformDependency(ecs.taskDefinition, logGroup);
+          if (apiSecretPolicy) {
+            addTerraformDependency(ecs.service, apiSecretPolicy);
+          }
         });
     }
 

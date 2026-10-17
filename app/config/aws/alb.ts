@@ -1,5 +1,10 @@
 import type { AlbConfig } from "../../constructs/loadbalancer/awsalb";
+import { apiContainerConfig } from "../apicontainer";
 import { PUBLIC_DOMAIN } from "./common";
+
+// Health check of the API target groups: readiness (/readyz) once the API
+// image is deployed, "/" before (config/apicontainer.ts readinessProbe)
+const apiHealthCheckPath = apiContainerConfig.readinessProbe ? "/readyz" : "/";
 
 /**
  * ALB settings: the construct's AlbConfig with security group / subnet
@@ -78,14 +83,14 @@ export const albConfigs: AwsAlbSettings[] = [
         port: 8080,
         protocol: "HTTP",
         targetType: "ip",
-        healthCheckPath: "/",
+        healthCheckPath: apiHealthCheckPath,
       },
       {
         name: "managed-api-tg-green",
         port: 8080,
         protocol: "HTTP",
         targetType: "ip",
-        healthCheckPath: "/",
+        healthCheckPath: apiHealthCheckPath,
       },
     ],
     listenerRules: [],
@@ -141,14 +146,14 @@ export const albConfigs: AwsAlbSettings[] = [
         port: 8080,
         protocol: "HTTP",
         targetType: "ip",
-        healthCheckPath: "/",
+        healthCheckPath: apiHealthCheckPath,
       },
       {
         name: "managed-api-tg-green",
         port: 8080,
         protocol: "HTTP",
         targetType: "ip",
-        healthCheckPath: "/",
+        healthCheckPath: apiHealthCheckPath,
       },
     ],
     listenerRules: [],

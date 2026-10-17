@@ -1,3 +1,4 @@
+import { SecretManagerSecret } from "@cdktn/provider-google/lib/secret-manager-secret";
 import { CloudRunV2Service } from "@cdktn/provider-google/lib/cloud-run-v2-service";
 import { ComputeSubnetwork } from "@cdktn/provider-google/lib/compute-subnetwork";
 import { ITerraformDependable } from "cdktn";
@@ -19,4 +20,6 @@ export interface GoogleBuildContext {
   psaDependencies: ITerraformDependable[] | undefined;
   /** Cloud Run services by name, set by the containers feature */
   cloudRunServices: Record<string, CloudRunV2Service>;
+  /** Secret Manager secrets by key (config/google/secrets.ts), set by the dbs feature */
+  dbSecrets?: Map<string, SecretManagerSecret>;
 }

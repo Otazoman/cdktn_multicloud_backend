@@ -6,6 +6,6 @@ import { GoogleBuildContext } from "./context";
 /** 4.5. Secret Manager secrets of the databases (feature: dbs) */
 export function createGoogleSecretResources(ctx: GoogleBuildContext): void {
   if (isFeatureEnabled("google", "dbs")) {
-    createGoogleSecrets(ctx.scope, ctx.googleProvider, googleSecretsConfig);
+    ctx.dbSecrets = createGoogleSecrets(ctx.scope, ctx.googleProvider, googleSecretsConfig);
   }
 }

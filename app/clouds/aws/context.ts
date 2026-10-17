@@ -1,5 +1,6 @@
 import { AwsProvider } from "@cdktn/provider-aws/lib/provider";
 import { Route53Zone } from "@cdktn/provider-aws/lib/route53-zone";
+import { SecretsmanagerSecret } from "@cdktn/provider-aws/lib/secretsmanager-secret";
 import { Construct } from "constructs";
 import { AwsIamResources } from "../../constructs/iam/awsiam";
 import { AwsCloudWatchResources } from "../../constructs/observability/awscloudwatch";
@@ -20,4 +21,6 @@ export interface AwsBuildContext {
     logGroupName: string,
     contextLabel: string,
   ) => AwsCloudWatchResources["createdLogGroups"][string];
+  /** Secrets Manager secrets by key (config/aws/secrets.ts), set by the dbs feature */
+  dbSecrets?: Map<string, SecretsmanagerSecret>;
 }

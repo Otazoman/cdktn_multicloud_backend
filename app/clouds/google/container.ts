@@ -1,4 +1,12 @@
+import { DataGoogleProject } from "@cdktn/provider-google/lib/data-google-project";
 import { DnsRecordSet } from "@cdktn/provider-google/lib/dns-record-set";
+import { SecretManagerSecretIamMember } from "@cdktn/provider-google/lib/secret-manager-secret-iam-member";
+import { apiContainerConfig } from "../../config/apicontainer";
+import {
+  API_LIVENESS_PATH,
+  API_READINESS_PATH,
+  apiContainerSettings,
+} from "../apicontainer";
 import { resourceName, idPart } from "../../utils/naming";
 import { Resource as NullResource } from "@cdktn/provider-null/lib/resource";
 
@@ -102,6 +110,45 @@ export function createGoogleContainers(ctx: GoogleBuildContext): void {
               ]
             : undefined;
 
+          // The API (config/apicontainer.ts): the service CI/CD deploys to,
+          // when Google Cloud has a database. It runs as the default compute
+          // service account (CI/CD acts as it: constructs/cicd/googlecicd.ts),
+          // which may read only the password secret.
+          const api = cicdTargets.has(config.name)
+            ? apiContainerSettings("google")
+            : undefined;
+          let apiSecretAccess: SecretManagerSecretIamMember | undefined;
+          let secretEnvironment: { name: string; secret: string }[] | undefined;
+          if (api) {
+            const secret = ctx.dbSecrets?.get(apiContainerConfig.passwordSecretKey);
+            if (!secret) {
+              throw new Error(
+                `Cloud Run service "${config.name}" (API): secret "${apiContainerConfig.passwordSecretKey}" ` +
+                  `not found in config/google/secrets.ts`,
+              );
+            }
+            const project = new DataGoogleProject(
+              scope,
+              `run-api-project-${idPart(config.name)}`,
+              { provider: googleProvider, projectId: config.project },
+            );
+            apiSecretAccess = new SecretManagerSecretIamMember(
+              scope,
+              `run-api-secret-access-${idPart(config.name)}`,
+              {
+                provider: googleProvider,
+                secretId: secret.id,
+                role: "roles/secretmanager.secretAccessor",
+                member: `serviceAccount:${project.number}-compute@developer.gserviceaccount.com`,
+              },
+            );
+            secretEnvironment = api.passwordVariables.map((name) => ({
+              name,
+              secret: secret.secretId,
+            }));
+          }
+          const probes = api && apiContainerConfig.readinessProbe;
+
           const res = createGoogleCloudRunResources(scope, googleProvider, {
             ...config,
             container: {
@@ -109,6 +156,10 @@ export function createGoogleContainers(ctx: GoogleBuildContext): void {
               port: config.port,
               cpu: config.cpu,
               memory: config.memory,
+              environment: api?.environment,
+              secretEnvironment,
+              startupProbePath: probes ? API_READINESS_PATH : undefined,
+              livenessProbePath: probes ? API_LIVENESS_PATH : undefined,
             },
             vpcSubnetId: subnetConstruct?.id,
             networkId: googleVpcResources.vpc.id,
@@ -120,6 +171,10 @@ export function createGoogleContainers(ctx: GoogleBuildContext): void {
             addTerraformDependency(res.service, subnetConstruct);
           }
           addTerraformDependency(res.service, googleVpcResources.vpc);
+          // Cloud Run checks the access to the secrets when it creates a revision
+          if (apiSecretAccess) {
+            addTerraformDependency(res.service, apiSecretAccess);
+          }
 
           cloudRunServices[config.name] = res.service;
         });

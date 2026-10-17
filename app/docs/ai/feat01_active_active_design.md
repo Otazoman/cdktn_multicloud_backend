@@ -105,8 +105,9 @@ CI/CD が新しいイメージでコンテナを更新すると、Terraform の�
 | アプリが決める値 | `GRAPHIQL_ENABLED`、`DB_POOL_MAX`、`DB_SSLMODE` | アプリのリポジトリのファイル（例: `config/app.env`、Git 管理） | イメージの中 | 起動時にファイルから読む（`node --env-file-if-exists`。同じ名前の環境変数があればそちらが優先） |
 | 秘密の値 | API 用・レプリケーション用のパスワード | 各クラウドのシークレットストア | 同左 | コンテナ定義にはシークレットへの参照だけを持たせる（#5） |
 
-- ECS はタスク定義を Terraform に無視させているため、インフラが決める値を後から変えても cdktn deploy では反映されない（§12.4。#5 で扱いを決める）。
-- Container Apps は、参照する Key Vault のシークレットがないとリビジョンを起動できないため、最初の deploy では参照を付けず、値を入れた後で付ける順番にする（#5 で具体化）。
+- ECS はタスク定義を Terraform に無視させているため、インフラが決める値を後から変えても cdktn deploy では反映されない（§12.4）。**対応（2026-10-17、#5）**: cdktn が登録するファミリーの新しいリビジョンを、アプリの `buildspec.yml` が次のデプロイの元にする（CodeBuild の環境変数 `TASK_FAMILY`）。
+- Container Apps は、参照する Key Vault のシークレットがないとリビジョンを起動できないため、最初の deploy では参照を付けず、値を入れた後で付ける順番にする。**対応（2026-10-17、#5）**: `config/apicontainer.ts` の `azureSecretReady`（既定 `false`）。
+- **API の `app_api` パスワードは全ノード共通（2026-10-17 決定。アプリの FEATURE-PLAN §5 の案 A'）**: 各 API は全ノードのパスワードを持つため、分けても漏洩時の影響は変わらない。すべてのクラウドの `db-api-password` に同じ値を VM から入れ、各コンテナは自クラウドのものを `DB_PASSWORD` とすべての `DB_<NODE>_PASSWORD` に使う。新しいシークレットの入れ物は不要。Azure Key Vault は非公開のまま。
 
 ## 8. ネットワーク・DB の前提
 
@@ -127,7 +128,7 @@ CI/CD が新しいイメージでコンテナを更新すると、Terraform の�
 | 2 | **（Cloud Run は CI/CD の設定とつないだ 2026-10-11。Container Apps は #4 の Azure と一緒に）** Cloud Run / Container Apps で、CI/CD が更新するイメージを Terraform に無視させる（§6.1）。**対象は CI/CD の設定（Cloud Build トリガー・ACR Tasks）でデプロイ先に指定したサービスから自動で決める（決定）**。construct に `ignoreImageChanges` を追加済み。CI/CD の設定とつなぐのは #4 | `constructs/container/googlecloudrun.ts`、`constructs/container/azureaca.ts` | Cloud Run: `template[0].containers[0].image`、`client`、`client_version`。Container Apps: `template[0].container[0].image` を無視（`ignoreImageChanges` が true のサービスのみ） |
 | 3 | **（実装済み 2026-10-11）** シークレットの入れ物とダミーの初期値（§7）。Azure は Key Vault を新規作成（シークレットは作らない）。あわせて `scripts/vm_init.sh` に 3 つの CLI のインストールを追加し、`wait_for_apt_lock` の不具合（未定義の `log` と空の `LOCK_FILES` で、ロックを待っていなかった）を修正 | `config/<cloud>/secrets.ts`、`clouds/<cloud>/secrets.ts`、`constructs/secrets/*`（新規）、`clouds/<cloud>/index.ts`、`scripts/vm_init.sh`、`docs/operations.md`、`docs/getting-started.md` | DB 機能が有効なクラウドに、シークレット（AWS・Google 各 2）または Key Vault 一式（Azure）が加わる |
 | 4 | CI/CD の受け皿: AWS（webhook、デプロイ権限）、Google（トリガー・権限）、Azure（Managed DevOps Pool + Azure Pipelines） | `constructs/cicd/*`、`config/<cloud>/cicd*`、`config/cicd.ts` | リソースの追加・変更。**AWS・Google は実装済み（2026-10-11）**: 共通設定 `config/cicd.ts`（アプリのリポジトリ、起動するブランチを byEnv）。AWS は CodeConnections の ARN（byEnv）で source を読み、webhook（PUSH、HEAD_REF）、`deployTarget`（ECS サービス名）から `ECS_CLUSTER` / `ECS_SERVICE` / `CONTAINER_NAME` とデプロイ権限（サービスロールへのインラインポリシー）。Google は第2世代の接続（gcloud で作成）にリポジトリを登録し、専用のサービスアカウントで動くトリガー（置換変数 `_REGION` / `_AR_REPOSITORY` / `_SERVICE` / `_WORKER_POOL`）。`deployTarget` の Cloud Run に #2 の `ignoreImageChanges` を自動で付ける。**Azure も実装済み（2026-10-12）**: Managed DevOps Pool と Azure Pipelines（`azuredevops` provider、`cdktn get` で生成）。詳細は `feat04_environments_design.md` §7 |
-| 5 | API コンテナの設定（ポート、ヘルスチェックのパス、シークレットの受け渡し） | `config/aws/ecs.ts`、`config/google/cloudrun.ts`、`config/azure/containerapps.ts` | 設定しだい |
+| 5 | **（実装済み 2026-10-17、未 deploy）** API コンテナの設定。`config/apicontainer.ts`（新規）で、`dbs` が有効なクラウドをノードとし、CI/CD のデプロイ先のコンテナに `CLOUD_ID`・`DB_*`・`PEER_NODES`・`DB_<NODE>_HOST` と、`db-api-password` の参照（`DB_PASSWORD`・`DB_<NODE>_PASSWORD`）を設定。ECS は `secrets` と実行ロールへの `GetSecretValue`、Cloud Run はシークレットの参照と既定の Compute SA への `secretAccessor`、Container Apps は Key Vault の参照とユーザー割り当て ID（`Key Vault Secrets User`、`azureSecretReady` のとき）。`readinessProbe`（既定 `false`、API のデプロイ後に `true`）で ALB のヘルスチェック・Cloud Run の startup / liveness probe・Container Apps の readiness / liveness probe を `/readyz`・`/healthz` に。ECS の環境変数の反映は `TASK_FAMILY`（上記 §7.1）。テスト `__tests__/apicontainer.test.ts` | `config/apicontainer.ts`、`clouds/apicontainer.ts`、`clouds/<cloud>/container.ts`・`secrets.ts`・`context.ts`、`constructs/container/*`、`constructs/cicd/awscicd.ts`、`config/aws/alb.ts` | API のデプロイ先に環境変数・シークレットの参照・権限が加わる。他のサービスは変わらない |
 | 6 | （必要なら）レプリケーション設定用のコンテナジョブの実行環境 | 各クラウドのコンテナ construct | リソース追加 |
 
 ## 10. 決めていただきたいこと

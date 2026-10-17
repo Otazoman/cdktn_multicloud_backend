@@ -54,6 +54,8 @@ export interface CicdConfig {
     clusterName: string;
     serviceName: string;
     containerName: string;
+    /** Task definition family; buildspec.yml builds on its latest revision */
+    taskFamily: string;
     /** Task execution / task roles passed to ECS with the new revision */
     passRoleArns: string[];
   };
@@ -121,6 +123,7 @@ export function createAwsCicdResources(
       { name: "ECS_CLUSTER", value: config.deploy.clusterName, type: "PLAINTEXT" },
       { name: "ECS_SERVICE", value: config.deploy.serviceName, type: "PLAINTEXT" },
       { name: "CONTAINER_NAME", value: config.deploy.containerName, type: "PLAINTEXT" },
+      { name: "TASK_FAMILY", value: config.deploy.taskFamily, type: "PLAINTEXT" },
     );
   }
 
