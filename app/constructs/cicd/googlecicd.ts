@@ -3,6 +3,7 @@ import { ArtifactRegistryRepositoryIamMember } from "@cdktn/provider-google/lib/
 import { CloudRunV2ServiceIamMember } from "@cdktn/provider-google/lib/cloud-run-v2-service-iam-member";
 import { CloudbuildTrigger } from "@cdktn/provider-google/lib/cloudbuild-trigger";
 import { CloudbuildWorkerPool } from "@cdktn/provider-google/lib/cloudbuild-worker-pool";
+import { CloudRunV2JobIamMember } from "@cdktn/provider-google/lib/cloud-run-v2-job-iam-member";
 import { Cloudbuildv2Repository } from "@cdktn/provider-google/lib/cloudbuildv2-repository";
 import { DataGoogleProject } from "@cdktn/provider-google/lib/data-google-project";
 import { ProjectIamMember } from "@cdktn/provider-google/lib/project-iam-member";
@@ -62,7 +63,12 @@ export interface GoogleCicdConfig {
      * Cloud Run service the build deploys to (passed as _SERVICE). It must
      * run as the default compute service account.
      */
-    deploy?: { cloudRunServiceName: string; location: string };
+    deploy?: {
+      cloudRunServiceName: string;
+      location: string;
+      /** Cloud Run job that runs the same image (passed as _PRUNE_JOB) */
+      journalPruneJobName?: string;
+    };
   };
   tags?: { [key: string]: string };
 }
@@ -199,6 +205,20 @@ export function createGoogleCicdResources(
         }),
       );
       substitutions._SERVICE = trigger.deploy.cloudRunServiceName;
+      // ... and updates the image of the job that runs the same image
+      if (trigger.deploy.journalPruneJobName) {
+        grants.push(
+          new CloudRunV2JobIamMember(scope, `gcp-cb-sa-${id}-job-developer`, {
+            provider,
+            project: config.project,
+            location: trigger.deploy.location,
+            name: trigger.deploy.journalPruneJobName,
+            role: "roles/run.developer",
+            member,
+          }),
+        );
+        substitutions._PRUNE_JOB = trigger.deploy.journalPruneJobName;
+      }
     }
 
     const repository = new Cloudbuildv2Repository(scope, `gcp-cb-repo-${id}`, {

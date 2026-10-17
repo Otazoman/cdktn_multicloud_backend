@@ -77,6 +77,7 @@ export function createGoogleCicd(ctx: GoogleBuildContext): void {
                 ? {
                     cloudRunServiceName: target.cloudRunServiceName,
                     location: gcpRunConfigs.find((r) => r.name === target.cloudRunServiceName)!.location,
+                    journalPruneJobName: ctx.journalPruneJobs[target.cloudRunServiceName]?.name,
                   }
                 : undefined,
             },

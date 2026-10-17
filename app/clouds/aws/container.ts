@@ -1,4 +1,6 @@
+import { IamRole } from "@cdktn/provider-aws/lib/iam-role";
 import { IamRolePolicy } from "@cdktn/provider-aws/lib/iam-role-policy";
+import { SchedulerSchedule } from "@cdktn/provider-aws/lib/scheduler-schedule";
 import { Route53Record } from "@cdktn/provider-aws/lib/route53-record";
 import * as fs from "fs";
 
@@ -9,7 +11,11 @@ import {
   awsEcsConfigs,
 } from "../../config/aws/awssettings";
 import { apiContainerConfig } from "../../config/apicontainer";
-import { apiContainerSettings } from "../apicontainer";
+import {
+  apiContainerSettings,
+  JOURNAL_PRUNE_COMMAND,
+  journalPruneEnvironment,
+} from "../apicontainer";
 import { isFeatureEnabled } from "../../config/features";
 import { createAwsCertificate } from "../../constructs/certificates/awsacm";
 import {
@@ -22,7 +28,7 @@ import { LoadBalancerDnsInfo } from "../common";
 
 import { addTerraformDependency } from "../../utils/terraformDependency";
 import { AwsBuildContext } from "./context";
-import { idPart } from "../../utils/naming";
+import { idPart, resourceName } from "../../utils/naming";
 
 /** 6-7. ACM certificates, ALB, ECS and DNS A-records (feature: containers) */
 export function createAwsContainers(ctx: AwsBuildContext): void {
@@ -338,6 +344,92 @@ export function createAwsContainers(ctx: AwsBuildContext): void {
           addTerraformDependency(ecs.taskDefinition, logGroup);
           if (apiSecretPolicy) {
             addTerraformDependency(ecs.service, apiSecretPolicy);
+          }
+
+          // Journal pruning job (config/apicontainer.ts journalPrune): runs
+          // the latest revision of the API's task definition, which CI/CD
+          // registers with each deployed image, with the command overridden.
+          if (api && apiContainerConfig.journalPrune.enabled) {
+            const prune = apiContainerConfig.journalPrune;
+            const jobName = resourceName(prune.names.aws, "aws", "journal-prune");
+            const schedulerRole = new IamRole(scope, `journal-prune-scheduler-role-${idPart(config.name)}`, {
+              provider: awsProvider,
+              name: `${jobName}-scheduler`,
+              assumeRolePolicy: JSON.stringify({
+                Version: "2012-10-17",
+                Statement: [
+                  {
+                    Effect: "Allow",
+                    Principal: { Service: "scheduler.amazonaws.com" },
+                    Action: "sts:AssumeRole",
+                  },
+                ],
+              }),
+            });
+            const schedulerPolicy = new IamRolePolicy(
+              scope,
+              `journal-prune-scheduler-policy-${idPart(config.name)}`,
+              {
+                provider: awsProvider,
+                name: "run-journal-prune-task",
+                role: schedulerRole.name,
+                policy: JSON.stringify({
+                  Version: "2012-10-17",
+                  Statement: [
+                    {
+                      Effect: "Allow",
+                      Action: ["ecs:RunTask"],
+                      Resource: [
+                        ecs.taskDefinition.arnWithoutRevision,
+                        `${ecs.taskDefinition.arnWithoutRevision}:*`,
+                      ],
+                    },
+                    {
+                      Effect: "Allow",
+                      Action: ["iam:PassRole"],
+                      Resource: [executionRoleArn, taskRoleArn],
+                    },
+                  ],
+                }),
+              },
+            );
+            const schedule = new SchedulerSchedule(scope, `journal-prune-${idPart(config.name)}`, {
+              provider: awsProvider,
+              name: jobName,
+              scheduleExpression: prune.schedules.aws,
+              scheduleExpressionTimezone: prune.timeZone,
+              flexibleTimeWindow: { mode: "OFF" },
+              target: {
+                arn: ecs.cluster.arn,
+                roleArn: schedulerRole.arn,
+                retryPolicy: { maximumRetryAttempts: 2 },
+                ecsParameters: {
+                  // Without a revision: the latest ACTIVE revision
+                  taskDefinitionArn: ecs.taskDefinition.arnWithoutRevision,
+                  launchType: "FARGATE",
+                  networkConfiguration: {
+                    // Like the service (constructs/container/awsecs.ts)
+                    assignPublicIp: true,
+                    securityGroups: config.securityGroupNames.map(
+                      (name) => awsVpcResources.securityGroupMapping[name],
+                    ),
+                    subnets: config.subnetNames.map(
+                      (name) => awsVpcResources.subnetsByName[name].id,
+                    ),
+                  },
+                },
+                input: JSON.stringify({
+                  containerOverrides: [
+                    {
+                      name: config.containerName,
+                      command: JOURNAL_PRUNE_COMMAND,
+                      environment: journalPruneEnvironment(),
+                    },
+                  ],
+                }),
+              },
+            });
+            addTerraformDependency(schedule, schedulerPolicy);
           }
         });
     }

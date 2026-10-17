@@ -1,3 +1,4 @@
+import { CloudRunV2Job } from "@cdktn/provider-google/lib/cloud-run-v2-job";
 import { SecretManagerSecret } from "@cdktn/provider-google/lib/secret-manager-secret";
 import { CloudRunV2Service } from "@cdktn/provider-google/lib/cloud-run-v2-service";
 import { ComputeSubnetwork } from "@cdktn/provider-google/lib/compute-subnetwork";
@@ -22,4 +23,6 @@ export interface GoogleBuildContext {
   cloudRunServices: Record<string, CloudRunV2Service>;
   /** Secret Manager secrets by key (config/google/secrets.ts), set by the dbs feature */
   dbSecrets?: Map<string, SecretManagerSecret>;
+  /** Journal pruning jobs by the Cloud Run service whose image they run, set by the containers feature */
+  journalPruneJobs: Record<string, CloudRunV2Job>;
 }

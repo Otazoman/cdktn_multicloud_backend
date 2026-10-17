@@ -85,10 +85,18 @@ Settings of the API container (FEAT-01 §9 #5), applied to the CI/CD deploy targ
 | `database.name` | Database of the API on every node | string | `appdb` | The application scripts use one name for every node |
 | `database.user` | Role the API connects as | string | `app_api` | Created by the application's `scripts/api-role-setup.sh` |
 | `database.sslMode` | `DB_SSLMODE` | `disable`, `require`, `verify-full` | `require` | |
-| `database.hosts.<cloud>` | Database address of each node, reachable from every cloud | private DNS names | `rds-postgres.aws.inner`, `cloudsql-postgres.google.inner`, `postgres-prod.azure.inner` | Keep in line with the private DNS records |
+| `database.hosts.<cloud>` | Database address of each node, reachable from every cloud | private DNS names | `aurora-postgres.aws.inner`, `cloudsql-postgres.google.inner`, `postgres-prod.azure.inner` | Keep in line with the private DNS records |
 | `passwordSecretKey` | Secret of the `app_api` password | key in `config/<cloud>/secrets.ts` | `db-api-password` | Same value on every cloud |
 | `azureSecretReady` | Reference the Key Vault secret from the Container App | `boolean`, `byEnv` | `false` | Set `true` after the secret is set from the Azure VM ([operations.md](../operations.md), "Secrets") |
 | `readinessProbe` | `/readyz` as readiness (ALB target groups, Cloud Run startup probe, Container Apps readiness probe) and `/healthz` as liveness | `boolean`, `byEnv` | `false` | The placeholder images answer only `/`: set `true` after CI/CD has deployed the API |
+
+| `journalPrune.enabled` | Scheduled job that deletes old write-journal rows (application `node dist/prune.js`), on every cloud with a database | `boolean`, `byEnv` | `false` | Set `true` after CI/CD has deployed the API: Google Cloud and Azure create the job with the API service's current image. Azure also needs `azureSecretReady`. Google Cloud needs the Cloud Scheduler API |
+| `journalPrune.retentionDays` | `JOURNAL_RETENTION_DAYS` of the job | days | `30` | Also how long idempotency keys work |
+| `journalPrune.schedules.<cloud>` | Daily schedule per cloud, in each cloud's syntax | cron | AWS `cron(0 3 * * ? *)`, Google `20 3 * * *` (in `timeZone`), Azure `40 18 * * *` (UTC) | Different times per cloud; only the primary deletes |
+| `journalPrune.timeZone` | Time zone of the AWS and Google Cloud schedules | IANA name | `Asia/Tokyo` | Container Apps jobs use UTC |
+| `journalPrune.names.<cloud>` | Job names | string | `<PROJECT_NAME>-<cloud>-journal-prune` | |
+
+The jobs run the API's image with the API's settings: AWS EventBridge Scheduler runs the latest revision of the API's task definition with the command overridden (no CI/CD step); Google Cloud Scheduler starts a Cloud Run job, and Azure a scheduled Container Apps job, whose images CI/CD updates with the API's (`_PRUNE_JOB`, `PRUNE_JOB_NAME`).
 
 The ECS service ignores task definition changes (CI/CD deploys new revisions). A changed environment is registered as a new revision of the family, which the application's `buildspec.yml` uses as the base of its next deployment (`TASK_FAMILY`).
 

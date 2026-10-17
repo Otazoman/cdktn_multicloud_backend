@@ -229,7 +229,8 @@ SERVICE_ACCOUNT=your-sa@your-project-id.iam.gserviceaccount.com
 
 gcloud config set project "$PROJECT"
 gcloud services enable run.googleapis.com iam.googleapis.com \
-  artifactregistry.googleapis.com cloudbuild.googleapis.com
+  artifactregistry.googleapis.com cloudbuild.googleapis.com \
+  cloudscheduler.googleapis.com
 
 gcloud projects add-iam-policy-binding "$PROJECT" \
   --member="user:${USER_EMAIL}" --role="roles/run.admin"

@@ -22,10 +22,11 @@ export const apiContainerConfig = {
     /**
      * Address of each node's database, reachable from every cloud through
      * the VPN and the private DNS zones (config/<cloud>/privatezone.ts,
-     * config/azure/azuredatabase/databases.ts cnameRecordName).
+     * config/azure/azuredatabase/databases.ts cnameRecordName). AWS: the
+     * Aurora cluster (writer) endpoint.
      */
     hosts: {
-      aws: "rds-postgres.aws.inner",
+      aws: "aurora-postgres.aws.inner",
       google: "cloudsql-postgres.google.inner",
       azure: "postgres-prod.azure.inner",
     } as Record<CloudId, string>,
@@ -50,4 +51,33 @@ export const apiContainerConfig = {
    * been deployed by CI/CD.
    */
   readinessProbe: byEnv<boolean>({ default: false }),
+  /**
+   * Scheduled job that deletes old write-journal rows (application
+   * src/prune.ts: `node dist/prune.js`). Created on every cloud with a
+   * database, with the API's image, settings and network; only the primary
+   * deletes, so running it on every cloud keeps it going during an outage.
+   */
+  journalPrune: {
+    /**
+     * Set true after CI/CD has deployed the API: Google Cloud and Azure
+     * create the job with the API service's current image (CI/CD updates it
+     * afterwards); AWS runs the latest revision of the API's task definition.
+     * Azure also needs azureSecretReady.
+     */
+    enabled: byEnv<boolean>({ default: false }),
+    /** JOURNAL_RETENTION_DAYS: how long writes and idempotency keys are kept */
+    retentionDays: 30,
+    /** Daily, at different times per cloud (each cloud's own syntax) */
+    schedules: {
+      /** EventBridge Scheduler, in timeZone */
+      aws: "cron(0 3 * * ? *)",
+      /** Cloud Scheduler (unix cron), in timeZone */
+      google: "20 3 * * *",
+      /** Container Apps Jobs: UTC only (03:40 in Asia/Tokyo) */
+      azure: "40 18 * * *",
+    },
+    timeZone: "Asia/Tokyo",
+    /** Job names (omitted: <PROJECT_NAME>-<cloud>-journal-prune) */
+    names: {} as Partial<Record<CloudId, string>>,
+  },
 };

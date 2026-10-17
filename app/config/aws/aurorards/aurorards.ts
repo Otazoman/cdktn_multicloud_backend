@@ -2,7 +2,9 @@
 export const rdsConfigs = [
   // PostgreSQL (parameter file path)
   {
-    build: true,
+    // Not used: the API and the replication use the Aurora cluster below
+    // (config/apicontainer.ts)
+    build: false,
     identifier: "rds-postgres-instance",
     // Names of resources created for this database (omitted: default name)
     names: {

@@ -110,6 +110,7 @@ export const createGoogleResources = (
     // storage / dbs / cicd that creates the PSA connection
     psaDependencies: undefined,
     cloudRunServices: {},
+    journalPruneJobs: {},
   };
 
   createGooglePublicDns(ctx);

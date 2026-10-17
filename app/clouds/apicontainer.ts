@@ -43,6 +43,14 @@ export function apiContainerSettings(cloud: CloudId): ApiContainerSettings | und
   };
 }
 
+/** Command of the journal pruning job (apiContainerConfig.journalPrune). */
+export const JOURNAL_PRUNE_COMMAND = ["node", "dist/prune.js"];
+
+/** Environment of the journal pruning job, in addition to the API's. */
+export const journalPruneEnvironment = (): { name: string; value: string }[] => [
+  { name: "JOURNAL_RETENTION_DAYS", value: String(apiContainerConfig.journalPrune.retentionDays) },
+];
+
 /** Readiness / liveness paths of the API (apiContainerConfig.readinessProbe). */
 export const API_READINESS_PATH = "/readyz";
 export const API_LIVENESS_PATH = "/healthz";

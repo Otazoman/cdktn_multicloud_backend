@@ -1,3 +1,4 @@
+import { ContainerAppJob } from "@cdktn/provider-azurerm/lib/container-app-job";
 import { KeyVault } from "@cdktn/provider-azurerm/lib/key-vault";
 import { Providers } from "../../providers/providers";
 import { ContainerApp } from "@cdktn/provider-azurerm/lib/container-app";
@@ -26,4 +27,6 @@ export interface AzureBuildContext {
   logArchive?: { storageAccount: StorageAccount; environments: string[] };
   /** Key Vault of the database secrets (config/azure/secrets.ts), set by the dbs feature */
   keyVault?: KeyVault;
+  /** Journal pruning jobs by the Container App whose image they run, set by the containers feature */
+  journalPruneJobs: Map<string, ContainerAppJob>;
 }

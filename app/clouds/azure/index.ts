@@ -125,6 +125,7 @@ export const createAzureResources = (
     publicZones,
     acrRegistryMap,
     containerApps,
+    journalPruneJobs: new Map(),
     azureMonitor,
   };
 

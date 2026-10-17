@@ -1,4 +1,9 @@
+import { CloudRunV2Job } from "@cdktn/provider-google/lib/cloud-run-v2-job";
+import { CloudRunV2JobIamMember } from "@cdktn/provider-google/lib/cloud-run-v2-job-iam-member";
+import { CloudSchedulerJob } from "@cdktn/provider-google/lib/cloud-scheduler-job";
+import { DataGoogleCloudRunV2Service } from "@cdktn/provider-google/lib/data-google-cloud-run-v2-service";
 import { DataGoogleProject } from "@cdktn/provider-google/lib/data-google-project";
+import { ServiceAccount } from "@cdktn/provider-google/lib/service-account";
 import { DnsRecordSet } from "@cdktn/provider-google/lib/dns-record-set";
 import { SecretManagerSecretIamMember } from "@cdktn/provider-google/lib/secret-manager-secret-iam-member";
 import { apiContainerConfig } from "../../config/apicontainer";
@@ -6,6 +11,8 @@ import {
   API_LIVENESS_PATH,
   API_READINESS_PATH,
   apiContainerSettings,
+  JOURNAL_PRUNE_COMMAND,
+  journalPruneEnvironment,
 } from "../apicontainer";
 import { resourceName, idPart } from "../../utils/naming";
 import { Resource as NullResource } from "@cdktn/provider-null/lib/resource";
@@ -177,6 +184,109 @@ export function createGoogleContainers(ctx: GoogleBuildContext): void {
           }
 
           cloudRunServices[config.name] = res.service;
+
+          // Journal pruning job (config/apicontainer.ts journalPrune): the
+          // API's image (read from the deployed service; CI/CD updates the
+          // job afterwards), settings and network, started by Cloud Scheduler.
+          if (api && apiContainerConfig.journalPrune.enabled) {
+            const prune = apiContainerConfig.journalPrune;
+            const jobName = resourceName(prune.names.google, "google", "journal-prune");
+            const deployed = new DataGoogleCloudRunV2Service(
+              scope,
+              `journal-prune-api-image-${idPart(config.name)}`,
+              {
+                provider: googleProvider,
+                name: config.name,
+                location: config.location,
+                project: config.project,
+                dependsOn: [res.service],
+              },
+            );
+            const job = new CloudRunV2Job(scope, `journal-prune-${idPart(config.name)}`, {
+              provider: googleProvider,
+              name: jobName,
+              location: config.location,
+              project: config.project,
+              deletionProtection: false,
+              template: {
+                template: {
+                  maxRetries: 1,
+                  timeout: "1800s",
+                  vpcAccess: subnetConstruct
+                    ? {
+                        egress: "ALL_TRAFFIC",
+                        networkInterfaces: [
+                          {
+                            network: googleVpcResources.vpc.id,
+                            subnetwork: subnetConstruct.id,
+                          },
+                        ],
+                      }
+                    : undefined,
+                  containers: [
+                    {
+                      image: deployed.template.get(0).containers.get(0).image,
+                      command: JOURNAL_PRUNE_COMMAND,
+                      env: [
+                        ...[...(api.environment ?? []), ...journalPruneEnvironment()].map(
+                          (e) => ({ name: e.name, value: e.value }),
+                        ),
+                        ...(secretEnvironment ?? []).map((e) => ({
+                          name: e.name,
+                          valueSource: { secretKeyRef: { secret: e.secret, version: "latest" } },
+                        })),
+                      ],
+                      resources: { limits: { cpu: "1", memory: "512Mi" } },
+                    },
+                  ],
+                },
+              },
+            });
+            job.addOverride("lifecycle", {
+              ignore_changes: ["template[0].template[0].containers[0].image", "client", "client_version"],
+            });
+            if (apiSecretAccess) {
+              addTerraformDependency(job, apiSecretAccess);
+            }
+
+            const invoker = new ServiceAccount(scope, `journal-prune-scheduler-sa-${idPart(config.name)}`, {
+              provider: googleProvider,
+              project: config.project,
+              accountId: "journal-prune-scheduler",
+              displayName: "Starts the journal pruning job",
+            });
+            const invokerRole = new CloudRunV2JobIamMember(
+              scope,
+              `journal-prune-scheduler-invoker-${idPart(config.name)}`,
+              {
+                provider: googleProvider,
+                project: config.project,
+                location: config.location,
+                name: job.name,
+                role: "roles/run.invoker",
+                member: `serviceAccount:${invoker.email}`,
+              },
+            );
+            const scheduler = new CloudSchedulerJob(
+              scope,
+              `journal-prune-scheduler-${idPart(config.name)}`,
+              {
+                provider: googleProvider,
+                project: config.project,
+                region: config.location,
+                name: jobName,
+                schedule: prune.schedules.google,
+                timeZone: prune.timeZone,
+                httpTarget: {
+                  httpMethod: "POST",
+                  uri: `https://run.googleapis.com/v2/projects/${config.project}/locations/${config.location}/jobs/${job.name}:run`,
+                  oauthToken: { serviceAccountEmail: invoker.email },
+                },
+              },
+            );
+            addTerraformDependency(scheduler, invokerRole);
+            ctx.journalPruneJobs[config.name] = job;
+          }
         });
     }
 

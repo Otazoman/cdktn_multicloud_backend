@@ -85,10 +85,18 @@ API コンテナの設定（FEAT-01 §9 #5）。各クラウドの CI/CD のデ�
 | `database.name` | 各ノードの API のデータベース | 文字列 | `appdb` | アプリのスクリプトは全ノードで1つの名前を使う |
 | `database.user` | API が接続するロール | 文字列 | `app_api` | アプリの `scripts/api-role-setup.sh` が作る |
 | `database.sslMode` | `DB_SSLMODE` | `disable`、`require`、`verify-full` | `require` | |
-| `database.hosts.<cloud>` | 各ノードのデータベースのアドレス（すべてのクラウドから接続できるもの） | プライベート DNS 名 | `rds-postgres.aws.inner`、`cloudsql-postgres.google.inner`、`postgres-prod.azure.inner` | プライベート DNS のレコードと合わせる |
+| `database.hosts.<cloud>` | 各ノードのデータベースのアドレス（すべてのクラウドから接続できるもの） | プライベート DNS 名 | `aurora-postgres.aws.inner`、`cloudsql-postgres.google.inner`、`postgres-prod.azure.inner` | プライベート DNS のレコードと合わせる |
 | `passwordSecretKey` | `app_api` のパスワードのシークレット | `config/<cloud>/secrets.ts` のキー | `db-api-password` | すべてのクラウドで同じ値 |
 | `azureSecretReady` | Container App から Key Vault のシークレットを参照する | `boolean`、`byEnv` | `false` | Azure の VM からシークレットを設定した後に `true`（[operations.ja.md](../operations.ja.md) の「シークレット」） |
 | `readinessProbe` | `/readyz` を readiness（ALB のターゲットグループ、Cloud Run の startup probe、Container Apps の readiness probe）、`/healthz` を liveness に使う | `boolean`、`byEnv` | `false` | 仮のイメージは `/` にしか応答しない。CI/CD が API をデプロイした後に `true` |
+
+| `journalPrune.enabled` | 古い変更履歴（ジャーナル）を削除するスケジュール実行のジョブ（アプリの `node dist/prune.js`）。データベースのあるすべてのクラウドに作る | `boolean`、`byEnv` | `false` | CI/CD が API をデプロイした後に `true`（Google Cloud と Azure は、API のサービスの現在のイメージでジョブを作る）。Azure は `azureSecretReady` も必要。Google Cloud は Cloud Scheduler API が必要 |
+| `journalPrune.retentionDays` | ジョブの `JOURNAL_RETENTION_DAYS` | 日数 | `30` | 冪等キーの有効期間でもある |
+| `journalPrune.schedules.<cloud>` | クラウドごとの毎日の実行時刻（各クラウドの書式） | cron | AWS `cron(0 3 * * ? *)`、Google `20 3 * * *`（`timeZone`）、Azure `40 18 * * *`（UTC） | クラウドごとに時刻をずらす。削除するのはプライマリだけ |
+| `journalPrune.timeZone` | AWS と Google Cloud のスケジュールのタイムゾーン | IANA の名前 | `Asia/Tokyo` | Container Apps のジョブは UTC |
+| `journalPrune.names.<cloud>` | ジョブの名前 | 文字列 | `<PROJECT_NAME>-<cloud>-journal-prune` | |
+
+ジョブは API のイメージを API と同じ設定で実行します。AWS は EventBridge Scheduler が API のタスク定義の最新のリビジョンをコマンドを差し替えて実行します（CI/CD の手順は不要）。Google Cloud は Cloud Scheduler が Cloud Run のジョブを、Azure はスケジュール実行の Container Apps のジョブを起動し、これらのイメージは CI/CD が API と一緒に更新します（`_PRUNE_JOB`、`PRUNE_JOB_NAME`）。
 
 ECS サービスはタスク定義の変更を無視します（CI/CD が新しいリビジョンをデプロイするため）。環境変数を変えると、ファミリーの新しいリビジョンとして登録され、アプリの `buildspec.yml` が次のデプロイでそれを元にします（`TASK_FAMILY`）。
 

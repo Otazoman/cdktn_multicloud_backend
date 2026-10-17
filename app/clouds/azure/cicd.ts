@@ -95,7 +95,7 @@ export function createAzurePipelines(ctx: AzureBuildContext): void {
   const target = azureCicdDeployTarget();
   if (!target) return;
 
-  const { scope, providers, azureProvider, azureVnetResources, acrRegistryMap, containerApps } = ctx;
+  const { scope, providers, azureProvider, azureVnetResources, acrRegistryMap, containerApps, journalPruneJobs } = ctx;
   const config = azureDevOpsConfig;
   const label = `Azure pipeline "${config.pipeline.name}" (config/azure/cicd.ts)`;
 
@@ -145,10 +145,13 @@ export function createAzurePipelines(ctx: AzureBuildContext): void {
   addTerraformDependency(pool, subnet);
   vnetRoles.forEach((role) => addTerraformDependency(pool, role));
 
-  // The agents push the image and update the Container App
+  // The agents push the image and update the Container App, and the
+  // journal pruning job that runs the same image
+  const pruneJob = journalPruneJobs.get(target.containerAppName);
   const roles = createAzureRoleAssignments(scope, azureProvider, config.pool.identityName, identity.principalId, [
     { key: "acr-push", role: "AcrPush", scope: registry.id },
     { key: "containerapp", role: "Contributor", scope: app.id },
+    ...(pruneJob ? [{ key: "journal-prune-job", role: "Contributor", scope: pruneJob.id }] : []),
   ]);
 
   // Pipeline (Azure DevOps side)
@@ -169,6 +172,7 @@ export function createAzurePipelines(ctx: AzureBuildContext): void {
         ACR_LOGIN_SERVER: registry.loginServer,
         RESOURCE_GROUP: appConfig.resourceGroupName,
         CONTAINER_APP_NAME: app.name,
+        ...(pruneJob ? { PRUNE_JOB_NAME: pruneJob.name } : {}),
       },
     },
     [pool, ...roles],

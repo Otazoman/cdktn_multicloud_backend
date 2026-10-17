@@ -1,3 +1,5 @@
+import { ContainerAppJob } from "@cdktn/provider-azurerm/lib/container-app-job";
+import { DataAzurermContainerApp } from "@cdktn/provider-azurerm/lib/data-azurerm-container-app";
 import { DnsARecord } from "@cdktn/provider-azurerm/lib/dns-a-record";
 import { RoleAssignment } from "@cdktn/provider-azurerm/lib/role-assignment";
 
@@ -13,6 +15,8 @@ import {
   API_LIVENESS_PATH,
   API_READINESS_PATH,
   apiContainerSettings,
+  JOURNAL_PRUNE_COMMAND,
+  journalPruneEnvironment,
 } from "../apicontainer";
 import { createAzureContainerAppResources } from "../../constructs/container/azureaca";
 import {
@@ -176,6 +180,81 @@ export function createAzureContainers(ctx: AzureBuildContext): void {
           pullRoles.forEach((role) => addTerraformDependency(aca.app, role));
           // ... and the Key Vault role before it reads the secret
           secretRoles.forEach((role) => addTerraformDependency(aca.app, role));
+
+          // Journal pruning job (config/apicontainer.ts journalPrune): the
+          // API's image (read from the deployed app; CI/CD updates the job
+          // afterwards), settings, registry and secret, in the same
+          // environment (VNet).
+          if (api && apiContainerConfig.journalPrune.enabled) {
+            if (!keyVaultSecrets || !secretEnv) {
+              throw new Error(
+                `Container App "${config.name}": the journal pruning job needs the database password ` +
+                  `(apiContainerConfig.azureSecretReady)`,
+              );
+            }
+            const prune = apiContainerConfig.journalPrune;
+            const deployed = new DataAzurermContainerApp(
+              scope,
+              `journal-prune-api-image-${idPart(config.name)}`,
+              {
+                provider: azureProvider,
+                name: aca.app.name,
+                resourceGroupName: config.resourceGroupName,
+                dependsOn: [aca.app],
+              },
+            );
+            const identityIds = [
+              ...new Set([
+                ...(registry ? [registry.identityId] : []),
+                ...keyVaultSecrets.map((s) => s.identityId),
+              ]),
+            ];
+            const job = new ContainerAppJob(scope, `journal-prune-${idPart(config.name)}`, {
+              provider: azureProvider,
+              name: resourceName(prune.names.azure, "azure", "journal-prune"),
+              location: config.location,
+              resourceGroupName: config.resourceGroupName,
+              containerAppEnvironmentId: aca.environment.id,
+              replicaTimeoutInSeconds: 1800,
+              replicaRetryLimit: 1,
+              scheduleTriggerConfig: {
+                cronExpression: prune.schedules.azure,
+                parallelism: 1,
+                replicaCompletionCount: 1,
+              },
+              identity: { type: "UserAssigned", identityIds },
+              registry: registry
+                ? [{ server: registry.server, identity: registry.identityId }]
+                : undefined,
+              secret: keyVaultSecrets.map((s) => ({
+                name: s.name,
+                keyVaultSecretId: s.keyVaultSecretId,
+                identity: s.identityId,
+              })),
+              template: {
+                container: [
+                  {
+                    name: "journal-prune",
+                    image: deployed.template.get(0).container.get(0).image,
+                    command: JOURNAL_PRUNE_COMMAND,
+                    cpu: 0.25,
+                    memory: "0.5Gi",
+                    env: [
+                      ...(api.environment ?? []),
+                      ...journalPruneEnvironment(),
+                      ...secretEnv,
+                    ],
+                  },
+                ],
+              },
+            });
+            job.addOverride("lifecycle", {
+              ignore_changes: ["template[0].container[0].image"],
+            });
+            pullRoles.forEach((role) => addTerraformDependency(job, role));
+            secretRoles.forEach((role) => addTerraformDependency(job, role));
+            ctx.journalPruneJobs.set(config.name, job);
+          }
 
           containerApps.set(config.name, aca.app);
 

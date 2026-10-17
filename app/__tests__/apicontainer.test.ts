@@ -8,7 +8,7 @@ const allFeaturesOn = (FEATURE_SETS.allOn.clouds as any).aws;
 
 /** Synthesizes every cloud and feature with the given API flags. */
 const synthWith = (
-  flags: { azureSecretReady?: boolean; readinessProbe?: boolean } = {},
+  flags: Partial<typeof apiContainerConfig> = {},
   overrides: Record<string, unknown> = FEATURE_SETS.allOn,
 ) => {
   const original = { ...apiContainerConfig };
@@ -41,7 +41,7 @@ describe("API container (config/apicontainer.ts)", () => {
       const container = ecsContainer(synth, "api-service");
       expect(envOf(container.environment)).toEqual({
         CLOUD_ID: "aws",
-        DB_HOST: "rds-postgres.aws.inner",
+        DB_HOST: "aurora-postgres.aws.inner",
         DB_NAME: "appdb",
         DB_USER: "app_api",
         DB_SSLMODE: "require",
@@ -89,7 +89,7 @@ describe("API container (config/apicontainer.ts)", () => {
         CLOUD_ID: "google",
         DB_HOST: "cloudsql-postgres.google.inner",
         PEER_NODES: "aws,azure",
-        DB_AWS_HOST: "rds-postgres.aws.inner",
+        DB_AWS_HOST: "aurora-postgres.aws.inner",
         DB_AZURE_HOST: "postgres-prod.azure.inner",
       });
       const secretEnv = container.env.filter((e: any) => e.value_source);
@@ -176,5 +176,84 @@ describe("API container (config/apicontainer.ts)", () => {
 
     const app = resourcesOf(synth, "azurerm_container_app")["aca-app-backend-api-service"];
     expect(envOf(app.template.container[0].env)).not.toHaveProperty("CLOUD_ID");
+  });
+
+  describe("journalPrune", () => {
+    const enabled = () => ({
+      journalPrune: { ...apiContainerConfig.journalPrune, enabled: true },
+    });
+
+    test("Azure needs azureSecretReady", () => {
+      expect(() => synthWith(enabled())).toThrow("azureSecretReady");
+    });
+
+    describe("enabled", () => {
+      let synth: any;
+      beforeAll(() => {
+        synth = synthWith({ ...enabled(), azureSecretReady: true });
+      });
+
+      test("AWS: EventBridge Scheduler runs the latest API task definition with the prune command", () => {
+        const schedules = Object.values(resourcesOf(synth, "aws_scheduler_schedule"));
+        expect(schedules).toHaveLength(1);
+        const [schedule] = schedules;
+        expect(schedule.schedule_expression).toBe("cron(0 3 * * ? *)");
+        expect(schedule.schedule_expression_timezone).toBe("Asia/Tokyo");
+        expect(schedule.target.ecs_parameters.task_definition_arn).toBe(
+          "${aws_ecs_task_definition.task-def-api-service.arn_without_revision}",
+        );
+        expect(JSON.parse(schedule.target.input)).toEqual({
+          containerOverrides: [
+            {
+              name: "api-container",
+              command: ["node", "dist/prune.js"],
+              environment: [{ name: "JOURNAL_RETENTION_DAYS", value: "30" }],
+            },
+          ],
+        });
+        const policy = Object.values(resourcesOf(synth, "aws_iam_role_policy")).find((p) =>
+          p.policy.includes("ecs:RunTask"),
+        );
+        expect(policy.policy).toContain("iam:PassRole");
+      });
+
+      test("Google Cloud: a Cloud Run job with the API settings, Cloud Scheduler and CI/CD access", () => {
+        const job = Object.values(resourcesOf(synth, "google_cloud_run_v2_job"))[0];
+        const container = job.template.template.containers[0];
+        expect(container.command).toEqual(["node", "dist/prune.js"]);
+        expect(container.image).toContain("data.google_cloud_run_v2_service");
+        expect(envOf(container.env)).toMatchObject({ CLOUD_ID: "google", JOURNAL_RETENTION_DAYS: "30" });
+        expect(container.env.filter((e: any) => e.value_source).map((e: any) => e.name)).toEqual([
+          "DB_PASSWORD",
+          "DB_AWS_PASSWORD",
+          "DB_AZURE_PASSWORD",
+        ]);
+        expect(job.template.template.vpc_access.network_interfaces).toHaveLength(1);
+
+        const scheduler = Object.values(resourcesOf(synth, "google_cloud_scheduler_job"))[0];
+        expect(scheduler.http_target.uri).toMatch(/^https:\/\/run\.googleapis\.com\/v2\/.*:run$/);
+        expect(scheduler.time_zone).toBe("Asia/Tokyo");
+
+        const trigger = Object.values(resourcesOf(synth, "google_cloudbuild_trigger"))[0];
+        expect(trigger.substitutions._PRUNE_JOB).toBeDefined();
+        const roles = Object.values(resourcesOf(synth, "google_cloud_run_v2_job_iam_member")).map(
+          (m) => m.role,
+        );
+        expect(roles.sort()).toEqual(["roles/run.developer", "roles/run.invoker"]);
+      });
+
+      test("Azure: a scheduled Container Apps job with the Key Vault secret and CI/CD access", () => {
+        const job = Object.values(resourcesOf(synth, "azurerm_container_app_job"))[0];
+        expect(job.schedule_trigger_config.cron_expression).toBe("40 18 * * *");
+        expect(job.secret).toHaveLength(1);
+        const container = job.template.container[0];
+        expect(container.command).toEqual(["node", "dist/prune.js"]);
+        expect(container.image).toContain("data.azurerm_container_app");
+        expect(container.env.filter((e: any) => e.secret_name)).toHaveLength(3);
+
+        const pipeline = Object.values(resourcesOf(synth, "azuredevops_build_definition"))[0];
+        expect(JSON.stringify(pipeline.variable)).toContain("PRUNE_JOB_NAME");
+      });
+    });
   });
 });
