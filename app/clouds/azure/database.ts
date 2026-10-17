@@ -64,6 +64,7 @@ export function createAzureDatabaseResources(ctx: AzureBuildContext): void {
         privateDnsZone: dbOutput.privateDnsZone,
         fqdn: dbOutput.fqdn,
         cnameRecordName: buildableDbConfigs[idx]?.cnameRecordName,
+        type: buildableDbConfigs[idx].type,
       }));
     }
   }

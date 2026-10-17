@@ -69,6 +69,8 @@ export interface GoogleResourcesOutput {
     privateIpAddress: string;
     connectionName: string;
     aRecordName: string;
+    /** e.g. POSTGRES_18, MYSQL_8_0 */
+    databaseVersion: string;
   }>;
   /** Filestore instance metadata for Private Zone A-record registration */
   filestoreInstances?: Array<{

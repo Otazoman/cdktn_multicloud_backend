@@ -76,6 +76,7 @@ export interface AzureResourcesOutput {
     privateDnsZone?: AzureDatabaseOutput["privateDnsZone"];
     fqdn: string;
     cnameRecordName?: string;
+    type: "postgresql" | "mysql";
   }>;
   /** Azure Files metadata for Private Zone CNAME registration */
   filesInstances?: Array<{

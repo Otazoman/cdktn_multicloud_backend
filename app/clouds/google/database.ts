@@ -62,6 +62,7 @@ export function createGoogleDatabases(ctx: GoogleBuildContext): void {
         privateIpAddress: sqlRes.sqlInstance.privateIpAddress,
         connectionName: sqlRes.connectionName,
         aRecordName: instanceConfig.aRecordName,
+        databaseVersion: instanceConfig.databaseVersion,
       });
     });
 

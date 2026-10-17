@@ -12,6 +12,20 @@ import type { CloudId } from "./commonsettings";
 import { byEnv } from "./environment";
 
 export const apiContainerConfig = {
+  /**
+   * "cluster": the clouds with a database form one cluster: every API
+   * writes to the primary and the databases replicate (needs useVpn,
+   * hostZones and VPN connections between them; synthesis fails otherwise).
+   * "independent": every cloud runs alone on its own database, with its own
+   * data (no VPN or private DNS needed). Turning independent clouds into a
+   * cluster later keeps the data of one of them only (the others are
+   * re-seeded; application docs/operations.md).
+   */
+  topology: byEnv<"cluster" | "independent">({
+    default: "cluster",
+    // dev runs each cloud alone until the VPN and private DNS are tested
+    dev: "independent",
+  }),
   database: {
     /** Database of the API on every node (the replication scripts use one name) */
     name: "appdb",
@@ -20,12 +34,14 @@ export const apiContainerConfig = {
     /** DB_SSLMODE: disable | require | verify-full */
     sslMode: "require",
     /**
-     * Address of each node's database, reachable from every cloud through
-     * the VPN and the private DNS zones (config/<cloud>/privatezone.ts,
-     * config/azure/azuredatabase/databases.ts cnameRecordName). AWS: the
-     * Aurora cluster (writer) endpoint.
+     * Private DNS name of each node's database, used by the APIs of the other
+     * clouds (DB_<NODE>_HOST) through the VPN; needs hostZones
+     * (config/<cloud>/privatezone.ts, config/azure/azuredatabase/databases.ts
+     * cnameRecordName). AWS: the Aurora cluster (writer) endpoint. An API
+     * reaches its own cloud's database (DB_HOST) by the database's own
+     * endpoint, so one cloud alone needs no VPN or private DNS.
      */
-    hosts: {
+    privateDnsNames: {
       aws: "aurora-postgres.aws.inner",
       google: "cloudsql-postgres.google.inner",
       azure: "postgres-prod.azure.inner",

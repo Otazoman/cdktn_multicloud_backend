@@ -78,14 +78,15 @@ ASN は、各クラウドの `vpn.ts` に書きます。
 
 ## API コンテナ（`config/apicontainer.ts`）
 
-API コンテナの設定（FEAT-01 §9 #5）。各クラウドの CI/CD のデプロイ先（ECS サービス、Cloud Run サービス、Container App）に、そのクラウドの `dbs` 機能が有効なときに適用します。ノードは `dbs` が有効なクラウドです。各 API には `CLOUD_ID`、`DB_HOST`、`DB_NAME`、`DB_USER`、`DB_SSLMODE`、`PEER_NODES`、`DB_<NODE>_HOST` を平文の変数として、`DB_PASSWORD` とすべての `DB_<NODE>_PASSWORD` を自クラウドのシークレット `db-api-password` から渡します（ECS は `secrets` と実行ロールへの読み取り権限、Cloud Run はシークレットの参照と既定の Compute サービスアカウントへの読み取り権限、Container Apps は Key Vault の参照とユーザー割り当てのマネージド ID への「Key Vault Secrets User」）。
+API コンテナの設定（FEAT-01 §9 #5）。各クラウドの CI/CD のデプロイ先（ECS サービス、Cloud Run サービス、Container App）に、そのクラウドの `dbs` 機能が有効なときに適用します。`topology` が `cluster` ならノードは `dbs` が有効なクラウド、`independent` なら各クラウドが単体のノードです（`PEER_NODES` は空）。各 API には `CLOUD_ID`、`DB_HOST`、`DB_NAME`、`DB_USER`、`DB_SSLMODE`、`PEER_NODES`、`DB_<NODE>_HOST` を平文の変数として、`DB_PASSWORD` とすべての `DB_<NODE>_PASSWORD` を自クラウドのシークレット `db-api-password` から渡します。`DB_HOST` は自クラウドの PostgreSQL の接続先です（Aurora のクラスタのエンドポイント、Cloud SQL のプライベート IP、Azure の FQDN。そのクラウドで作る PostgreSQL はちょうど1つであること）。このため、クラウド単体では VPN もプライベート DNS も不要です。`DB_<NODE>_HOST` は他ノードのプライベート DNS 名です（ECS は `secrets` と実行ロールへの読み取り権限、Cloud Run はシークレットの参照と既定の Compute サービスアカウントへの読み取り権限、Container Apps は Key Vault の参照とユーザー割り当てのマネージド ID への「Key Vault Secrets User」）。
 
 | 項目 | 説明 | 指定できる値 | 既定 | 備考 |
 |---|---|---|---|---|
 | `database.name` | 各ノードの API のデータベース | 文字列 | `appdb` | アプリのスクリプトは全ノードで1つの名前を使う |
 | `database.user` | API が接続するロール | 文字列 | `app_api` | アプリの `scripts/api-role-setup.sh` が作る |
 | `database.sslMode` | `DB_SSLMODE` | `disable`、`require`、`verify-full` | `require` | |
-| `database.hosts.<cloud>` | 各ノードのデータベースのアドレス（すべてのクラウドから接続できるもの） | プライベート DNS 名 | `aurora-postgres.aws.inner`、`cloudsql-postgres.google.inner`、`postgres-prod.azure.inner` | プライベート DNS のレコードと合わせる |
+| `topology` | `cluster`：データベースのあるクラウドで1つのクラスタになる（2つ以上なら `useVpn`・`hostZones`・それらの間の VPN 接続が必要。無ければ合成が失敗する）。`independent`：各クラウドが自分のデータで単体で動く | `cluster`、`independent`、`byEnv` | `cluster`。dev は `independent` | 単体のクラウドを後からクラスタにすると、データが残るのは1つのクラウドだけ |
+| `database.privateDnsNames.<cloud>` | 各ノードのデータベースのプライベート DNS 名。他のクラウドの API が使う（`DB_<NODE>_HOST`） | プライベート DNS 名 | `aurora-postgres.aws.inner`、`cloudsql-postgres.google.inner`、`postgres-prod.azure.inner` | クラスタのみ。プライベート DNS のレコードと合わせる |
 | `passwordSecretKey` | `app_api` のパスワードのシークレット | `config/<cloud>/secrets.ts` のキー | `db-api-password` | すべてのクラウドで同じ値 |
 | `azureSecretReady` | Container App から Key Vault のシークレットを参照する | `boolean`、`byEnv` | `false` | Azure の VM からシークレットを設定した後に `true`（[operations.ja.md](../operations.ja.md) の「シークレット」） |
 | `readinessProbe` | `/readyz` を readiness（ALB のターゲットグループ、Cloud Run の startup probe、Container Apps の readiness probe）、`/healthz` を liveness に使う | `boolean`、`byEnv` | `false` | 仮のイメージは `/` にしか応答しない。CI/CD が API をデプロイした後に `true` |

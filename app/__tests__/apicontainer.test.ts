@@ -12,7 +12,8 @@ const synthWith = (
   overrides: Record<string, unknown> = FEATURE_SETS.allOn,
 ) => {
   const original = { ...apiContainerConfig };
-  Object.assign(apiContainerConfig, flags);
+  // The tests describe a cluster unless they set the topology
+  Object.assign(apiContainerConfig, { topology: "cluster" }, flags);
   try {
     return synthCase({ name: "apicontainer", overrides });
   } finally {
@@ -41,7 +42,8 @@ describe("API container (config/apicontainer.ts)", () => {
       const container = ecsContainer(synth, "api-service");
       expect(envOf(container.environment)).toEqual({
         CLOUD_ID: "aws",
-        DB_HOST: "aurora-postgres.aws.inner",
+        // Its own database by the database's endpoint, the others by private DNS
+        DB_HOST: "${aws_rds_cluster.auroraCluster-aurora-postgres-cluster.endpoint}",
         DB_NAME: "appdb",
         DB_USER: "app_api",
         DB_SSLMODE: "require",
@@ -87,7 +89,7 @@ describe("API container (config/apicontainer.ts)", () => {
       const container = service.template.containers[0];
       expect(envOf(container.env)).toMatchObject({
         CLOUD_ID: "google",
-        DB_HOST: "cloudsql-postgres.google.inner",
+        DB_HOST: expect.stringMatching(/^\$\{google_sql_database_instance\..*\.private_ip_address\}$/),
         PEER_NODES: "aws,azure",
         DB_AWS_HOST: "aurora-postgres.aws.inner",
         DB_AZURE_HOST: "postgres-prod.azure.inner",
@@ -121,7 +123,7 @@ describe("API container (config/apicontainer.ts)", () => {
       const container = app.template.container[0];
       expect(envOf(container.env)).toMatchObject({
         CLOUD_ID: "azure",
-        DB_HOST: "postgres-prod.azure.inner",
+        DB_HOST: expect.stringMatching(/^\$\{azurerm_postgresql_flexible_server\..*\.fqdn\}$/),
         PEER_NODES: "aws,google",
       });
       expect(app.secret).toBeUndefined();
@@ -254,6 +256,48 @@ describe("API container (config/apicontainer.ts)", () => {
         const pipeline = Object.values(resourcesOf(synth, "azuredevops_build_definition"))[0];
         expect(JSON.stringify(pipeline.variable)).toContain("PRUNE_JOB_NAME");
       });
+    });
+  });
+
+  describe("topology", () => {
+    const noVpn = { ...FEATURE_SETS.allOn, useVpn: false, hostZones: false };
+
+    test("cluster: several clouds with a database need the VPN and private DNS", () => {
+      expect(() => synthWith({}, noVpn)).toThrow(/useVpn, hostZones/);
+      // ... and every one of them connected
+      expect(() =>
+        synthWith({}, { ...FEATURE_SETS.allOn, awsToGoogle: false, awsToAzure: false }),
+      ).toThrow("not connected: aws");
+    });
+
+    test("cluster: one cloud with a database needs neither", () => {
+      const synth = synthWith({}, {
+        ...noVpn,
+        clouds: {
+          aws: allFeaturesOn,
+          google: { ...allFeaturesOn, features: { ...allFeaturesOn.features, dbs: false } },
+          azure: { ...allFeaturesOn, features: { ...allFeaturesOn.features, dbs: false } },
+        },
+      });
+      const container = ecsContainer(synth, "api-service");
+      expect(envOf(container.environment).PEER_NODES).toBe("");
+      expect(container.secrets.map((s: any) => s.name)).toEqual(["DB_PASSWORD"]);
+    });
+
+    test("independent: every cloud alone, without the VPN or private DNS", () => {
+      const synth = synthWith({ topology: "independent" }, noVpn);
+      const aws = envOf(ecsContainer(synth, "api-service").environment);
+      expect(aws.PEER_NODES).toBe("");
+      expect(aws).not.toHaveProperty("DB_GOOGLE_HOST");
+      const run = resourcesOf(synth, "google_cloud_run_v2_service")["run-web-service-with-lb"]
+        .template.containers[0];
+      expect(envOf(run.env).PEER_NODES).toBe("");
+      expect(run.env.filter((e: any) => e.value_source).map((e: any) => e.name)).toEqual([
+        "DB_PASSWORD",
+      ]);
+      const aca = resourcesOf(synth, "azurerm_container_app")["aca-app-backend-api-service"]
+        .template.container[0];
+      expect(envOf(aca.env)).toMatchObject({ CLOUD_ID: "azure", PEER_NODES: "" });
     });
   });
 });

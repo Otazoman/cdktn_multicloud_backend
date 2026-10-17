@@ -13,6 +13,7 @@ import {
 import { apiContainerConfig } from "../../config/apicontainer";
 import {
   apiContainerSettings,
+  apiLocalDbHost,
   JOURNAL_PRUNE_COMMAND,
   journalPruneEnvironment,
 } from "../apicontainer";
@@ -259,7 +260,18 @@ export function createAwsContainers(ctx: AwsBuildContext): void {
           // to, when AWS has a database. The password comes from Secrets
           // Manager, read by the execution role when a task starts.
           const api = apiServiceNames.has(config.name)
-            ? apiContainerSettings("aws")
+            ? apiContainerSettings("aws", () =>
+                apiLocalDbHost("aws", [
+                  ...(output.dbResources?.auroraClusters ?? []).map((c) => ({
+                    name: c.clusterIdentifier,
+                    host: c.endpoint,
+                  })),
+                  ...(output.dbResources?.rdsInstances ?? []).map((r) => ({
+                    name: r.identifier,
+                    host: r.address,
+                  })),
+                ]),
+              )
             : undefined;
           let apiSecretPolicy: IamRolePolicy | undefined;
           let apiSecrets: { name: string; valueFrom: string }[] | undefined;

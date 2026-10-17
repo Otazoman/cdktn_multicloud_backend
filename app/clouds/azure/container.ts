@@ -15,6 +15,7 @@ import {
   API_LIVENESS_PATH,
   API_READINESS_PATH,
   apiContainerSettings,
+  apiLocalDbHost,
   JOURNAL_PRUNE_COMMAND,
   journalPruneEnvironment,
 } from "../apicontainer";
@@ -101,7 +102,16 @@ export function createAzureContainers(ctx: AzureBuildContext): void {
           // Azure has a database. The password comes from the Key Vault
           // secret, which is set from the Azure VM: referenced only once
           // azureSecretReady (a missing secret stops the revision).
-          const api = isCicdTarget ? apiContainerSettings("azure") : undefined;
+          const api = isCicdTarget
+            ? apiContainerSettings("azure", () =>
+                apiLocalDbHost(
+                  "azure",
+                  (output.dbResources ?? [])
+                    .filter((d) => d.type === "postgresql")
+                    .map((d) => ({ name: d.cnameRecordName ?? d.fqdn, host: d.fqdn })),
+                ),
+              )
+            : undefined;
           let keyVaultSecrets:
             | { name: string; keyVaultSecretId: string; identityId: string }[]
             | undefined;

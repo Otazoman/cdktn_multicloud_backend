@@ -11,6 +11,7 @@ import {
   API_LIVENESS_PATH,
   API_READINESS_PATH,
   apiContainerSettings,
+  apiLocalDbHost,
   JOURNAL_PRUNE_COMMAND,
   journalPruneEnvironment,
 } from "../apicontainer";
@@ -122,7 +123,14 @@ export function createGoogleContainers(ctx: GoogleBuildContext): void {
           // service account (CI/CD acts as it: constructs/cicd/googlecicd.ts),
           // which may read only the password secret.
           const api = cicdTargets.has(config.name)
-            ? apiContainerSettings("google")
+            ? apiContainerSettings("google", () =>
+                apiLocalDbHost(
+                  "google",
+                  (output.cloudSqlInstances ?? [])
+                    .filter((i) => i.databaseVersion.startsWith("POSTGRES"))
+                    .map((i) => ({ name: i.aRecordName, host: i.privateIpAddress })),
+                ),
+              )
             : undefined;
           let apiSecretAccess: SecretManagerSecretIamMember | undefined;
           let secretEnvironment: { name: string; secret: string }[] | undefined;
