@@ -13,16 +13,18 @@
  */
 export const cloudwatchLogGroupsConfig = [
   // --- RDS: rds-postgres-instance (aurorards.ts -> rdsConfigs) ---
-  {
-    name: "/aws/rds/instance/rds-postgres-instance/postgresql",
-    retentionInDays: 30,
-    tags: { Component: "Database", ManagedBy: "CDKTN" },
-  },
-  {
-    name: "/aws/rds/instance/rds-postgres-instance/upgrade",
-    retentionInDays: 30,
-    tags: { Component: "Database", ManagedBy: "CDKTN" },
-  },
+  // Not built (build: false). Restore these when it is built: without them,
+  // RDS creates the log groups itself with no retention limit.
+  // {
+  //   name: "/aws/rds/instance/rds-postgres-instance/postgresql",
+  //   retentionInDays: 30,
+  //   tags: { Component: "Database", ManagedBy: "CDKTN" },
+  // },
+  // {
+  //   name: "/aws/rds/instance/rds-postgres-instance/upgrade",
+  //   retentionInDays: 30,
+  //   tags: { Component: "Database", ManagedBy: "CDKTN" },
+  // },
 
   // --- Aurora: aurora-postgres-cluster (aurorards.ts -> auroraConfigs) ---
   {

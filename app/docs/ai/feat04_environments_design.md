@@ -168,7 +168,7 @@ AWS・Google・Azure を有効にして deploy（VPN・VM は無効）。Applica
 
 | 項目 | 内容 |
 |---|---|
-| テストの失敗 1 件 | `__tests__/logging.test.ts`の「Google: VPN and Cloud Run logs go to their buckets」。`config/google/cloudlogging.ts` に日付付きの `bucketId`（`vpn-log-202610111130` など）が設定され、テストは既定の名前を期待している。CI/CD の変更とは無関係。テストを設定に合わせるか、ユーザーの判断待ち |
+| ~~テストの失敗 1 件~~ | **完了（2026-10-17）**: テストの期待値を設定（`googleLogBucketsConfig`）から求めるように修正。古いスナップショットのテスト `app-test.ts` は削除 |
 | ドキュメント | 利用者向けは英語版と日本語版（`.ja.md`）の 2 本立て。変更するときは両方を直す。Azure の手順（getting-started の「Azure: Azure DevOps」）の手順 6 の途中の画面（New connection の後）はスクリーンショット未確認。stg / prod で行うときに確認して確定する |
 | stg / prod | 環境が決まってから §6 #5 の値を入れる。CI/CD の接続（AWS・Google・Azure）も環境（アカウント）ごとに手作業で作る |
 

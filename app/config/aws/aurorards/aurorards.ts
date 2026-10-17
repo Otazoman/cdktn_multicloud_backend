@@ -42,7 +42,8 @@ export const rdsConfigs = [
     monitoringRoleName: "rds-enhanced-monitoring-role",
     // Logs. Each entry here must have a matching CloudWatch Log Group
     // defined in config/aws/cloudwatchlogs.ts
-    // (name: /aws/rds/instance/rds-postgres-instance/<export-type>).
+    // (name: /aws/rds/instance/rds-postgres-instance/<export-type>; commented
+    // out while this instance is not built).
     enabledCloudwatchLogsExports: ["postgresql", "upgrade"],
     // Auto upgrade
     autoMinorVersionUpgrade: true,
