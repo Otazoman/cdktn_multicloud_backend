@@ -38,7 +38,7 @@
 | 監視・オートスケーリング | AWS / Azure / Google の監視を設定で制御できるようにし、監視（メトリクス）に沿ってオートスケーリングできるようにしたい（FEAT-03）。2026-10-10: アラートとログのアーカイブをクラウドごとに ON/OFF（`features.alerting` / `features.logArchive`）、ログ取得・スケーリングは各リソースの設定で制御。詳細と以降の検討は `docs/ai/feat03_monitoring_design.md` に集約 |
 | プロジェクト名 | `PROJECT_NAME = "multicloud"`（`config/naming.ts` で変更可能） |
 | ドキュメント | この機会に整備する。**ドキュメントは英語**で書く（DOC-03） |
-| 証明書（SEC-01） | 置き換え可能なものなので重要度は低い（ユーザー判断） |
+| 証明書（SEC-01） | ~~置き換え可能なものなので重要度は低い（ユーザー判断）~~ **2026-10-17 に対応済み**（下表 SEC-01） |
 
 ---
 
@@ -172,7 +172,7 @@ app/
 
 | ID | 区分 | 優先度 | 内容 | 根拠（ファイル） | 対応案 | 影響・リスク | 承認 | 状態 |
 |---|---|---|---|---|---|---|---|---|
-| SEC-01 | セキュリティ | P3 | 秘密鍵と PFX が GitHub（origin/main）に push 済み | `multicloudContainer/sslcerts/openssl/server.key`, `multicloudContainer/sslcerts/pfx/azureappgw_certificate.pfx`（コミット `c345854`） | 証明書は置き換え可能なため、必要になった時点で再発行する。履歴の書き換えは行わない | — | — | 見送り（ユーザー判断） |
+| SEC-01 | セキュリティ | P3 | 秘密鍵と PFX が GitHub（origin/main）に push 済み | `multicloudContainer/sslcerts/openssl/server.key`, `multicloudContainer/sslcerts/pfx/azureappgw_certificate.pfx`（コミット `c345854`） | 証明書は置き換え可能なため、必要になった時点で再発行する。履歴の書き換えは行わない | — | — | **完了（2026-10-17、方針を変更）**: リポジトリが公開されていたため、Google 用の鍵・証明書と Azure 用の PFX を再発行し（流出した鍵は使わない）、履歴から `server.key` と 2 つの PFX を削除、作成者のメールを noreply にして強制 push（全コミットの ID が変わった。`c345854` → `30f5261`） |
 | SEC-02 | セキュリティ | P1 | `app/` を git 管理に戻したため、秘密鍵・PFX・公開鍵がコミット対象になっている | `app/sslcerts/openssl/server.key`, `app/sslcerts/pfx/*.pfx`, `app/pubkey/*.pub`（`app/.gitignore` に記載なし） | 今後これ以上 push しないよう、`.gitignore` に `sslcerts/`, `pubkey/`, `authfiles/` を追加し、`.sample` や手順書で代わりに案内する（SEC-01 は見送りでも、増やさない対策として推奨） | なし | 要 | 完了（`app/.gitignore` に追加） |
 | SEC-03 | セキュリティ | P0 | 秘密値が config に直書きされている | `config/azure/applicationgateway.ts:52`（証明書パスワード）、`config/azure/vpn.ts:50`（Google–Azure の PSK） | `.env`（`process.env`）から読む形に変える | `.env.sample` の更新が必要 | 要 | 完了（`.env` 化） |
 | SEC-05 | セキュリティ | P1 | ECS のコンテナ環境変数にパスワードが直書きされている（`POSTGRES_PASSWORD`） | `config/aws/ecs.ts`（worker-service の environment） | `.env`（`process.env`）から読む形にする。本番では Secrets Manager / SSM Parameter Store の `secrets` で渡すことを検討 | Secrets Manager 利用は構成変更・コスト増 | 要 | 完了（`ECS_WORKER_POSTGRES_PASSWORD` として `config/.env` へ。Secrets Manager 化は未検討） |

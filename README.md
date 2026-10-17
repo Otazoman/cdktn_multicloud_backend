@@ -54,3 +54,7 @@ second run; see [app/docs/operations.md](app/docs/operations.md).
 - [VPN](app/docs/networking/vpn.md) — topologies, BGP / APIPA design
 - [Adding a cloud](app/docs/adding-a-cloud.md) — step-by-step guide
 - [Application overview](app/README.md) — directory structure and development commands
+
+## License
+
+[MIT](LICENSE)

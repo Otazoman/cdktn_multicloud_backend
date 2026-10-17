@@ -120,6 +120,27 @@ openssl pkcs12 -export -inkey server.key -in server.crt \
   -out ../pfx/azureappgw_certificate.pfx   # use AZURE_APPGW_SSL_CERT_PASSWORD
 ```
 
+The Azure certificate may instead be one of its own (its own host name and
+key), in the PFX format the Application Gateway has accepted so far:
+
+```bash
+openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
+  -subj "/CN=azuretest.example.com" \
+  -addext "subjectAltName=DNS:azuretest.example.com" \
+  -addext "keyUsage=critical,digitalSignature,keyEncipherment" \
+  -addext "extendedKeyUsage=serverAuth,clientAuth" \
+  -keyout azure.key -out azure.crt
+export AZPW='...'   # AZURE_APPGW_SSL_CERT_PASSWORD of .env.<env>
+openssl pkcs12 -export -inkey azure.key -in azure.crt \
+  -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1 \
+  -passout env:AZPW -out ../pfx/azureappgw_certificate.pfx
+rm azure.key azure.crt
+```
+
+This repository is public: never commit keys or PFX files (`.gitignore`
+excludes them). A key that was pushed once must be replaced: removing it
+later does not remove it from the history.
+
 ## 5. Cloud-side preparation
 
 ### AWS

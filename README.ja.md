@@ -50,3 +50,7 @@ cdktn deploy                   # リソースを作る
 - [クラウドの追加](app/docs/adding-a-cloud.ja.md) — 手順
 - [設定リファレンス](app/docs/configuration/README.ja.md) — すべての設定項目
 - [アプリケーションの概要](app/README.ja.md) — ディレクトリ構成と開発用のコマンド
+
+## ライセンス
+
+[MIT](LICENSE)

@@ -96,6 +96,26 @@ openssl pkcs12 -export -inkey server.key -in server.crt \
   -out ../pfx/azureappgw_certificate.pfx   # AZURE_APPGW_SSL_CERT_PASSWORD を使う
 ```
 
+Azure 用は、独自の証明書（独自のホスト名と鍵）にすることもできます。Application Gateway がこれまで受け付けた
+PFX の形式で作る例：
+
+```bash
+openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
+  -subj "/CN=azuretest.example.com" \
+  -addext "subjectAltName=DNS:azuretest.example.com" \
+  -addext "keyUsage=critical,digitalSignature,keyEncipherment" \
+  -addext "extendedKeyUsage=serverAuth,clientAuth" \
+  -keyout azure.key -out azure.crt
+export AZPW='...'   # .env.<環境名> の AZURE_APPGW_SSL_CERT_PASSWORD
+openssl pkcs12 -export -inkey azure.key -in azure.crt \
+  -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1 \
+  -passout env:AZPW -out ../pfx/azureappgw_certificate.pfx
+rm azure.key azure.crt
+```
+
+このリポジトリは公開されています。鍵や PFX は絶対にコミットしないでください（`.gitignore` で除外しています）。
+一度 push した鍵は、後から削除しても履歴に残るので、作り直す必要があります。
+
 ## 5. クラウド側の準備
 
 ### AWS
