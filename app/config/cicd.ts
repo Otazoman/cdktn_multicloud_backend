@@ -26,7 +26,13 @@ export interface CicdTrigger {
   branches: string[];
 }
 
-/** Build trigger of the current environment (DEPLOY_ENV). */
+/**
+ * Build trigger of the current environment (DEPLOY_ENV). Each environment
+ * deploys its own branch of the application repository; main only keeps the
+ * code released to prod and starts no build.
+ */
 export const cicdTrigger: CicdTrigger = byEnv<CicdTrigger>({
-  default: { branches: ["main"] },
+  dev: { branches: ["dev"] },
+  stg: { branches: ["staging"] },
+  prod: { branches: ["prod"] },
 });

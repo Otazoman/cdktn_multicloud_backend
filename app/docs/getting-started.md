@@ -683,7 +683,7 @@ name and the country shown can differ) and separate lists of organizations.
 | Value | File | Item |
 |---|---|---|
 | `$GITHUB_OWNER`, `$GITHUB_REPO` | `config/cicd.ts` | `appRepository` (shared by every cloud) |
-| Branches that start the build | `config/cicd.ts` | `cicdTrigger.branches` (`byEnv`; default `main`) |
+| Branches that start the build | `config/cicd.ts` | `cicdTrigger.branches` (`byEnv`: dev `dev`, stg `staging`, prod `prod`) |
 | `$AWS_CONNECTION_NAME` | `config/aws/cicd/cicdsettings.ts` | `codebuild.codeConnectionName` (`byEnv`; default `multicloud-github`). The ARN is looked up by name at plan time |
 | `$GCP_CONNECTION_NAME` | `config/google/cicdsettings.ts` | `githubTrigger.connectionName` (the connection must be in the region of `cloudbuildPrivatePool.location`, `$GCP_REGION`) |
 | `$ADO_ORG`, `$ADO_PROJECT`, the service connection name from step 7 (`github.com_$GITHUB_OWNER`) | `config/azure/cicd.ts` | `organization`, `project`, `githubServiceConnectionName` (`byEnv`). The service principal of step 8 needs no config value (cdktn signs in with `ARM_CLIENT_ID` / `ARM_CLIENT_SECRET` / `ARM_TENANT_ID`) |

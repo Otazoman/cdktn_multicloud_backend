@@ -74,7 +74,7 @@ ASN は、各クラウドの `vpn.ts` に書きます。
 | 項目名 | 設定する内容 | 設定できる値 | 指定がない場合のデフォルト値 | 備考 |
 |---|---|---|---|---|
 | `appRepository.owner`、`appRepository.name` | アプリの GitHub のリポジトリ | 文字列 | `Otazoman`、`multipleclouds-api-app` | `appRepositoryUrl` はこれから作られる |
-| `cicdTrigger.branches` | push（マージされたプルリクエスト）でビルドを起動するブランチ | ブランチ名そのもの、`byEnv` | すべての環境で `["main"]` | クラウドごとに正規表現に変換される |
+| `cicdTrigger.branches` | push（マージされたプルリクエスト）でビルドを起動するブランチ | ブランチ名そのもの、`byEnv` | dev `["dev"]`、stg `["staging"]`、prod `["prod"]` | クラウドごとに正規表現に変換される |
 
 ## 命名
 

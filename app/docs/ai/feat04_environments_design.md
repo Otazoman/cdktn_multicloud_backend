@@ -133,7 +133,7 @@ docker compose -p cdktn-dev exec cdktn-backend bash   # 中では今までどお
 
 | クラウド | cdktn 側 | 事前の手作業（getting-started.md の「CI/CD: connect GitHub」） | 設定ファイルの値 |
 |---|---|---|---|
-| 共通 | `config/cicd.ts`（`appRepository` = `Otazoman/multipleclouds-api-app`、`cicdTrigger.branches` = byEnv、既定 `main`）、`utils/branchPattern.ts` | — | 済み |
+| 共通 | `config/cicd.ts`（`appRepository` = `Otazoman/multipleclouds-api-app`、`cicdTrigger.branches` = byEnv: dev `dev`、stg `staging`、prod `prod`（2026-10-17 変更。アプリの FEATURE-PLAN §7）、`utils/branchPattern.ts` | — | 済み |
 | AWS | 実装済み: CodeConnections の接続を**名前から ARN を引く**（データソース `aws_codestarconnections_connection`。ARN はリポジトリに書かない: ユーザーの希望）、webhook（PUSH・HEAD_REF）、`deployTarget`（ECS サービス名）→ `ECS_CLUSTER` / `ECS_SERVICE` / `CONTAINER_NAME` とデプロイ権限（サービスロールへのインラインポリシー） | **完了**（接続 `multicloud-github`、承認済み） | `codebuild.codeConnectionName` = byEnv（既定 `multicloud-github`）。済み |
 | Google | 実装済み: 第2世代のリポジトリ登録、専用サービスアカウント `cloudbuild-deployer` で動くトリガー（置換変数 `_REGION` / `_AR_REPOSITORY` / `_SERVICE` / `_WORKER_POOL`）、`deployTarget` の Cloud Run に `ignoreImageChanges` を自動で付ける | **完了**（接続 `multicloud-github`、`COMPLETE` を確認 2026-10-12） | `githubTrigger.connectionName` = `multicloud-github`。済み |
 | Azure | **実装済み（2026-10-12、方式 (a)）**: Terraform の provider `microsoft/azuredevops@~> 1.16` を `cdktf.json` に追加し `cdktn get` で `.gen/` に生成（Git 管理外。`npm install` の後に `cdktn get`）。Managed DevOps Pool（Dev Center + プロジェクト、サブネット `devops-pool-subnet` 10.2.60.0/24、`Standard_D2ads_v5`、最大 1、待機 0）、エージェントの ID（AcrPush・Container App の Contributor）、パイプライン（`azuredevops` provider: GitHub 接続は名前から検索、変数 5 つ、プールと接続の利用許可、起動ブランチは `cicdTrigger`）、デプロイ先 `backend-api-service` に `ignoreImageChanges` と ACR から取得する専用 ID（AcrPull）。DevOpsInfrastructure の VNet の権限は `.env` の `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID` があれば cdktn が付ける | **完了**: 組織 `otazoman-multicloud`、プロジェクト `multicloud-api`、サービス接続 `github.com_Otazoman`、cdktn のサービスプリンシパルを組織に追加（Users・Agent pools の Administrator・サービス接続の Administrator）。リソースプロバイダーの登録（2026-10-12 完了）、アプリに `azure-pipelines.yml` を追加し `acr-task.yaml` を削除（2026-10-12、未コミット）。**未**: DevOpsInfrastructure のオブジェクト ID を `.env.dev` に書く | `config/azure/cicd.ts`（組織・プロジェクト・接続名は既定値で設定済み） |
@@ -149,7 +149,7 @@ docker compose -p cdktn-dev exec cdktn-backend bash   # 中では今までどお
 | 3 | deploy 後の確認: webhook とトリガーが動くか（`main` への push）、Google のトリガーで `_WORKER_POOL` がプライベートプールを正しく指定するか、AWS の webhook が作れるか | アプリのリポジトリへの push |
 | 4 | Azure の CI/CD（**実装済み 2026-10-12**。残りはオブジェクト ID の設定・deploy・確認）: Managed DevOps Pool（Dev Center + プロジェクト + `azurerm_managed_devops_pool`）、`azuredevops` provider でパイプライン（サービス接続は名前から検索）、Container Apps の `ignoreImageChanges` の接続、ACR へのアクセス権 | **依存の追加 `@cdktn/provider-azuredevops` の承認**。cdktn の実行 ID（サービスプリンシパル）を Azure DevOps の組織のメンバーにする必要（`use_cli` で作業者としてサインインする案もある。要相談）。アプリ側にパイプラインの YAML がない（今は ACR Tasks 用の `acr-task.yaml` のみ）→ アプリのリポジトリに追加が必要 |
 | 5 | #5: API コンテナの設定。**ポートは 2026-10-12 に対応**（アプリは 8080: ECS `api-service` のポートと ALB のターゲットグループを 8080、`ecs-sg` に 8080 を追加、Container Apps `backend-api-service` の `targetPort` を 8080、仮のイメージを 8080 で待ち受ける `nginxinc/nginx-unprivileged:stable` に変更。Cloud Run は元から 8080。ヘルスチェックの `/` はアプリの liveness と一致）。**残り**: シークレットの受け渡し、DB 接続の環境変数、readiness（`/readyz`）を使うか | FEAT-01 §9 #5 |
-| 6 | 起動条件の値を環境ごとに決める（`cicdTrigger.branches` の stg / prod） | ユーザーの判断。今は全環境 `main` |
+| 6 | 起動条件の値を環境ごとに決める（`cicdTrigger.branches` の stg / prod） | **決定・コード変更済み（2026-10-17）**: dev `dev`、stg `staging`、prod `prod`（アプリの `docs/ai/FEATURE-PLAN.md` §7）。dev 環境への deploy は次回の構築時。アプリのリポジトリに `dev`・`staging`・`prod` ブランチを作るまでは、どの push もビルドを起動しない |
 
 ### 7.2.1 dev への deploy の結果（2026-10-12）
 
@@ -161,6 +161,8 @@ AWS・Google・Azure を有効にして deploy（VPN・VM は無効）。Applica
 | Google | `artifactregistry.repositories.setIamPolicy`、プロジェクトの IAM ポリシーの更新、`iam.serviceAccounts.setIamPolicy` が 403 | cdktn のサービスアカウントは編集者などで、IAM ポリシーを変更できない | cdktn のサービスアカウントに `roles/resourcemanager.projectIamAdmin`、`roles/artifactregistry.admin`、`roles/iam.serviceAccountAdmin` を付ける（または、ビルド用サービスアカウントへの権限付与を手作業にして cdktn から外す。**方針はユーザーの判断待ち**） |
 
 **再 deploy の結果（2026-10-12）**: 3 クラウドとも成功。対応した内容: AWS は IAM ユーザーに `GetConnectionToken`・webhook の権限・`codestar-connections` を追加し、GitHub の AWS Connector for GitHub の権限の承認（Review request）で webhook のエラーが解消。Google は cdktn のサービスアカウント（キーの `client_email`）に 3 つのロール（最初は App Engine の既定のサービスアカウントに誤って付けたので外した）。Azure は Log Analytics のテーブルの保存期間のコードの不具合（`total_retention_in_days` 未指定）を修正。すべて getting-started（英語版・日本語版）に反映済み。次は CI/CD の通しの確認（アプリのリポジトリへの push）。アプリは起動時に `CLOUD_ID`・`DB_*` が必須のため、FEAT-01 #5 の前はデプロイの段階で失敗する見込み（ビルドと push までの確認になる）。
+
+**destroy の結果（2026-10-12）**: Google のサブネットは Cloud Run の内部 IP（`serverless-ipv4-*`）の解放待ちで、約 1 時間 30 分後の再実行で削除できた。AWS の ECR は CI/CD が push したイメージが残っていたため、手でリポジトリを削除してから destroy（以後は `ecr.forceDelete`、既定 `true` で不要）。AWS の CI/CD（webhook → CodeBuild → ECR への push）が動いていたことも、このイメージで確認できた。
 
 ### 7.3 そのほかの残課題
 

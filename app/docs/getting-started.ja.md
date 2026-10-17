@@ -506,7 +506,7 @@ App をインストールするには、GitHub のリポジトリの管理者権
 | 値 | ファイル | 項目 |
 |---|---|---|
 | `$GITHUB_OWNER`、`$GITHUB_REPO` | `config/cicd.ts` | `appRepository`（全クラウドで共通） |
-| ビルドを起動するブランチ | `config/cicd.ts` | `cicdTrigger.branches`（`byEnv`。既定は `main`） |
+| ビルドを起動するブランチ | `config/cicd.ts` | `cicdTrigger.branches`（`byEnv`。dev `dev`、stg `staging`、prod `prod`） |
 | `$AWS_CONNECTION_NAME` | `config/aws/cicd/cicdsettings.ts` | `codebuild.codeConnectionName`（`byEnv`。既定は `multicloud-github`）。ARN は plan のときに名前から引きます |
 | `$GCP_CONNECTION_NAME` | `config/google/cicdsettings.ts` | `githubTrigger.connectionName`（接続は `cloudbuildPrivatePool.location` のリージョン、つまり `$GCP_REGION` に作ります） |
 | `$ADO_ORG`、`$ADO_PROJECT`、手順 7 のサービス接続の名前（`github.com_$GITHUB_OWNER`） | `config/azure/cicd.ts` | `organization`、`project`、`githubServiceConnectionName`（`byEnv`）。手順 8 のサービスプリンシパルは設定ファイルへの記載不要（cdktn は `ARM_CLIENT_ID` / `ARM_CLIENT_SECRET` / `ARM_TENANT_ID` でサインインする） |

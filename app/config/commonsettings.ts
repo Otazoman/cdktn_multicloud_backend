@@ -92,7 +92,7 @@ export const clouds: Record<CloudId, CloudSettings> = {
     enabled: true,
     features: {
       vms: true,
-      dbs: false,
+      dbs: true,
       storage: false,
       containers: true,
       cicd: true,
@@ -105,7 +105,7 @@ export const clouds: Record<CloudId, CloudSettings> = {
     enabled: true,
     features: {
       vms: true,
-      dbs: false,
+      dbs: true,
       storage: false,
       containers: true,
       cicd: true,
@@ -118,7 +118,7 @@ export const clouds: Record<CloudId, CloudSettings> = {
     enabled: true,
     features: {
       vms: true,
-      dbs: false,
+      dbs: true,
       storage: false,
       containers: true,
       cicd: true,

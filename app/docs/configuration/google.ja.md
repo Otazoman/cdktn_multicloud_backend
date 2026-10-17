@@ -162,7 +162,7 @@
 | `githubTrigger.filename` | リポジトリ内のビルドの定義 | パス | `cloudbuild.yaml` | |
 | `githubTrigger.serviceAccountId` | ビルドを実行するサービスアカウント（cdktn が作る） | 6〜30 文字 | `cloudbuild-deployer` | `logging.logWriter`、`cloudbuild.workerPoolUser`（プロジェクト）、`artifactregistry.writer`（リポジトリ）が付く |
 | `githubTrigger.deployTarget.cloudRunServiceName` | ビルドがデプロイする Cloud Run のサービス | `cloudrun.ts` のサービスの `name`（`build: true`） | — | `_SERVICE` として渡す。サービスアカウントには、そのサービスへの `run.developer` と、既定の Compute のサービスアカウントへの `iam.serviceAccountUser` が付く。そのサービスのイメージは Terraform が無視する。指定しないと、`cloudbuild.yaml` はデプロイの手順で失敗する |
-| トリガーのブランチ | push でビルドを起動するブランチ | `config/cicd.ts` の `cicdTrigger.branches` | `main` | `_REGION`、`_AR_REPOSITORY`、`_WORKER_POOL` は常に渡す |
+| トリガーのブランチ | push でビルドを起動するブランチ | `config/cicd.ts` の `cicdTrigger.branches` | dev `dev`、stg `staging`、prod `prod` | `_REGION`、`_AR_REPOSITORY`、`_WORKER_POOL` は常に渡す |
 | `tags` | ラベル | マップ | — | |
 
 ## ログ（`cloudlogging.ts`）

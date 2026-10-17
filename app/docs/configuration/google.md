@@ -162,7 +162,7 @@ One peering connection with several non-overlapping reserved ranges.
 | `githubTrigger.filename` | Build definition in the repository | path | `cloudbuild.yaml` | |
 | `githubTrigger.serviceAccountId` | Service account the build runs as (created) | 6–30 characters | `cloudbuild-deployer` | Gets `logging.logWriter`, `cloudbuild.workerPoolUser` (project), `artifactregistry.writer` (repository) |
 | `githubTrigger.deployTarget.cloudRunServiceName` | Cloud Run service the build deploys to | service `name` in `cloudrun.ts` (`build: true`) | — | Passed as `_SERVICE`; the service account gets `run.developer` on the service and `iam.serviceAccountUser` on the default compute service account. Terraform ignores the service's image. Without it, `cloudbuild.yaml` fails at its deploy step |
-| Trigger branches | Pushes to these branches start the build | `cicdTrigger.branches` in `config/cicd.ts` | `main` | `_REGION`, `_AR_REPOSITORY`, `_WORKER_POOL` are always passed |
+| Trigger branches | Pushes to these branches start the build | `cicdTrigger.branches` in `config/cicd.ts` | dev `dev`, stg `staging`, prod `prod` | `_REGION`, `_AR_REPOSITORY`, `_WORKER_POOL` are always passed |
 | `tags` | Labels | map | — | |
 
 ## Logging (`cloudlogging.ts`)

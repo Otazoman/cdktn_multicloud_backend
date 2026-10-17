@@ -74,7 +74,7 @@ Shared by the CI/CD of every cloud (feature `cicd`). The build definitions are i
 | Item | Description | Allowed values | Default | Notes |
 |---|---|---|---|---|
 | `appRepository.owner`, `appRepository.name` | GitHub repository of the application | strings | `Otazoman`, `multipleclouds-api-app` | `appRepositoryUrl` is built from it |
-| `cicdTrigger.branches` | Branches whose pushes (merged pull requests) start the build | exact branch names, `byEnv` | `["main"]` for all environments | Turned into a regular expression per cloud |
+| `cicdTrigger.branches` | Branches whose pushes (merged pull requests) start the build | exact branch names, `byEnv` | dev `["dev"]`, stg `["staging"]`, prod `["prod"]` | Turned into a regular expression per cloud |
 
 ## Naming
 
