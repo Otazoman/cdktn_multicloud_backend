@@ -127,5 +127,6 @@ The ECS service ignores task definition changes (CI/CD deploys new revisions). A
 | `GOOGLE_AZURE_VPN_PRESHARED_KEY` | Pre-shared key | `config/vpn/addressPlan.ts` | |
 | `ECS_WORKER_POSTGRES_PASSWORD` | Sample worker container password | `config/aws/ecs.ts` | |
 | `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID` | Object ID of the DevOpsInfrastructure service principal | `config/azure/cicd.ts` | Azure CI/CD only. Not secret, but tenant-specific: kept out of Git |
+| `AZURE_KEYVAULT_SECRETS_OFFICER_IDS` | Object IDs (comma-separated) allowed to set the Key Vault secrets | `config/azure/secrets.ts` (`secretsOfficerPrincipalIds`) | Not secret, but tenant-specific: kept out of Git |
 
 Quoting: Docker Compose reads `.env.<env>`. Wrap values that contain `$` in **single quotes** (otherwise `$...` is expanded, even inside double quotes), and values that contain ` #` in quotes.

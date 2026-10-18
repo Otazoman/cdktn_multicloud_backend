@@ -127,5 +127,6 @@ ECS サービスはタスク定義の変更を無視します（CI/CD が新し�
 | `GOOGLE_AZURE_VPN_PRESHARED_KEY` | 事前共有鍵 | `config/vpn/addressPlan.ts` | |
 | `ECS_WORKER_POSTGRES_PASSWORD` | サンプルの worker コンテナのパスワード | `config/aws/ecs.ts` | |
 | `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID` | サービスプリンシパル DevOpsInfrastructure のオブジェクト ID | `config/azure/cicd.ts` | Azure の CI/CD のみ。秘密の値ではないが、テナントごとの値なので Git に入れない |
+| `AZURE_KEYVAULT_SECRETS_OFFICER_IDS` | Key Vault のシークレットを設定できるオブジェクト ID（カンマ区切り） | `config/azure/secrets.ts`（`secretsOfficerPrincipalIds`） | 秘密の値ではないが、テナントごとの値なので Git に入れない |
 
 引用符: `.env.<環境名>` は Docker Compose が読みます。`$` を含む値は**シングルクォート**で囲みます（囲まないと、ダブルクォートの中でも `$...` が展開されます）。` #` を含む値も引用符で囲みます。

@@ -25,10 +25,15 @@ export const azureKeyVaultConfig = {
   subnetName: "private-endpoint-subnet",
   /**
    * Principals (object IDs of users / groups) allowed to read and write the
-   * secrets (role "Key Vault Secrets Officer"). The identity that runs cdktn
-   * is always added.
+   * secrets (role "Key Vault Secrets Officer"), e.g. the operators who set
+   * the values from the Azure VM. The identity that runs cdktn is always
+   * added. Comma-separated in AZURE_KEYVAULT_SECRETS_OFFICER_IDS
+   * (.env.<env>): tenant-specific, kept out of this public repository.
    */
-  secretsOfficerPrincipalIds: [] as string[],
+  secretsOfficerPrincipalIds: (process.env.AZURE_KEYVAULT_SECRETS_OFFICER_IDS ?? "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter((id) => id !== ""),
   // Names (omitted: <PROJECT_NAME>-azure-<kind>-<vault name>)
   names: {} as {
     privateEndpoint?: string;

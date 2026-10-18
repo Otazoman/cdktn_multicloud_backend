@@ -42,6 +42,36 @@ Also move the credentials (repository root `.env`) and the secrets
 (`config/.env`) into `.env.<env>` (template: `.env.ENV.sample`), keeping only
 the tool versions in `.env`.
 
+## Build an environment
+
+The infrastructure part of a first deployment (or of a deployment after a
+destroy). The database and the API are the application repository's work
+(its getting-started, "Overview").
+
+| # | Step | Where |
+|---|---|---|
+| 1 | One-time preparation: `.env.<env>` (including `AZURE_KEYVAULT_SECRETS_OFFICER_IDS`, your object ID for the Key Vault), the Google Cloud roles of the cdktn service account and the APIs | [getting-started.md](getting-started.md) |
+| 2 | API container flags of the environment at their first values: `azureSecretReady`, `readinessProbe` and `journalPrune.enabled` `false` (`config/apicontainer.ts`). After a destroy, also the names that cannot be reused yet ("Deploy again after a destroy" below) | Config files |
+| 3 | `cdktn diff`, then `cdktn deploy` ("Deploy" below) | cdktn container |
+| 4 | Set the database secrets of every cloud (the API password is the same value on every cloud) | "Secrets" below; AWS and Google Cloud also from Cloud Shell, Azure only from its VM |
+| 5 | Azure: `azureSecretReady` `true`, then `cdktn deploy` again | Config file, cdktn container |
+
+Why Azure needs a second deploy: a Container App cannot start while a Key
+Vault secret it references does not exist, and the vault is created by the
+first deploy and written only from inside the VNet (cdktn cannot create the
+secret, unlike the dummy values of AWS and Google Cloud). So the first
+deploy creates the vault without the reference, the value is set from the
+Azure VM, and the second deploy adds the reference.
+
+The infrastructure is then ready. Next, in the application repository: set
+up the databases (`scripts/node-setup.sh <cloud>` on each cloud's VM for a
+cloud alone) and deploy the API (merge into the environment's branch). After
+the API runs:
+
+| # | Step | Where |
+|---|---|---|
+| 6 | `readinessProbe` and `journalPrune.enabled` `true`, then `cdktn deploy`: the load balancers and platforms use `/readyz` and `/healthz`, and the journal pruning jobs are created | Config file, cdktn container |
+
 ## Deploy
 
 ```bash
@@ -58,6 +88,24 @@ cdktn destroy
 Some managed services release resources asynchronously, so a destroy may stop
 with errors even though the dependency order is correct. Check the known issues
 below and run `cdktn destroy` again when indicated.
+
+### Deploy again after a destroy
+
+Some names cannot be reused for a while after their resource is deleted, and
+the values stored in deleted resources are gone. Before `cdktn deploy`:
+
+| # | What | Why / how |
+|---|---|---|
+| 1 | Google Cloud: change the Cloud SQL instance `name` (`config/google/cloudsql/cloudsql.ts`) | A deleted instance name cannot be reused for about a week. Use a new date and time suffix (e.g. `cloudsql-postgres-instance-2026-1018-1500`). Nothing else refers to the name: the API gets the instance's address at deploy time, and the private DNS name (`aRecordName`) stays. Commands that name the instance (e.g. `gcloud sql instances describe`) take the new name |
+| 2 | Google Cloud: log bucket IDs, only when `googleUseLogBuckets` is `true` | A deleted bucket ID cannot be reused for 7 days ("Logging" above). dev keeps it `false` |
+| 3 | Azure: the Key Vault name, only if the deploy fails because it exists | The provider purges the soft-deleted vault on destroy. If that did not happen (e.g. no purge permission), purge it: `az keyvault purge --name <vault name>` |
+| 4 | API container flags of the environment (`config/apicontainer.ts`) back to their first-deploy values: `azureSecretReady`, `readinessProbe` and `journalPrune.enabled` `false` | The new Key Vault has no secret yet (a Container App referencing it cannot start), and the containers run the placeholder images until CI/CD deploys the API |
+
+After the deploy, as on the first deployment: set the secrets again
+("Secrets" below; the values were deleted with the stores), set the
+database up again (application repository: getting-started, "Set up the
+databases"), and deploy the API (merge to the environment's branch, or run
+the pipelines again).
 
 ## Logging
 
@@ -217,7 +265,10 @@ machine only.
     getting-started.md).
   - Azure: `Key Vault Secrets Officer` on the vault. cdktn assigns it to the
     identity that runs cdktn and to the object IDs in
-    `secretsOfficerPrincipalIds` (`config/azure/secrets.ts`).
+    `AZURE_KEYVAULT_SECRETS_OFFICER_IDS` (`.env.<env>`, comma-separated; your
+    own: `az ad signed-in-user show --query id -o tsv`). Add yours and deploy
+    before setting the values: without it, `az keyvault secret set` fails
+    with `ForbiddenByRbac`. The assignment can take a few minutes to apply.
 
 ### Sign in and out on a VM
 
@@ -304,35 +355,11 @@ the database uses the new value, then restart the API on that cloud.
 
 ### Use the values for the database scripts
 
-The database scripts of the application repository (`scripts/migrate.sh`,
-`scripts/api-role-setup.sh`, `scripts/replication-setup.sh`) need the
-passwords of every participating database, because each database connects to
-the others. Run them on the Azure VM (the only place that can read the Key
-Vault), signed in to all three clouds, and export the values instead of
-writing them to `replication/nodes.env`:
-
-```bash
-export NODE_AWS_API_PASSWORD="$(aws secretsmanager get-secret-value --region ap-northeast-1 \
-  --secret-id multicloud-aws-secret-db-api-password --query SecretString --output text)"
-export NODE_AWS_REPL_PASSWORD="$(aws secretsmanager get-secret-value --region ap-northeast-1 \
-  --secret-id multicloud-aws-secret-db-repl-password --query SecretString --output text)"
-export NODE_GOOGLE_API_PASSWORD="$(gcloud secrets versions access latest \
-  --secret=multicloud-google-secret-db-api-password)"
-export NODE_GOOGLE_REPL_PASSWORD="$(gcloud secrets versions access latest \
-  --secret=multicloud-google-secret-db-repl-password)"
-export NODE_AZURE_API_PASSWORD="$(az keyvault secret show --vault-name multicloud-kv-001 \
-  --name db-api-password --query value --output tsv)"
-export NODE_AZURE_REPL_PASSWORD="$(az keyvault secret show --vault-name multicloud-kv-001 \
-  --name db-repl-password --query value --output tsv)"
-# Database admin passwords (.env.<env> of cdktn): typed, not echoed
-for n in AWS GOOGLE AZURE; do
-  read -rsp "NODE_${n}_ADMIN_PASSWORD: " v && echo && export "NODE_${n}_ADMIN_PASSWORD=$v"
-done
-```
-
-Then run the scripts in the application repository (see its documentation),
-and sign out of the three clouds when done. Leave out the clouds that do not
-take part in the replication.
+The database scripts belong to the application repository: see its
+getting-started ("Set up the databases"). For a cloud alone,
+`scripts/node-setup.sh <cloud>` reads the API password from the cloud's
+secret store when the cloud's CLI is signed in on the VM. A cluster needs
+the passwords of every node; that repository describes how to gather them.
 
 ### Update the cloud CLIs
 

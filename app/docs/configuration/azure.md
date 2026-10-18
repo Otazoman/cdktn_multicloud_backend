@@ -100,7 +100,7 @@ Names that must be unique in Azure use `envScopedName()`: Key Vault, ACR, databa
 | `softDeleteRetentionDays` | Restore period | 7–90 | `7` | |
 | `purgeProtectionEnabled` | Block purge until retention ends | `boolean` | `false` | |
 | `subnetName` | Subnet of the private endpoint | subnet `name` | `private-endpoint-subnet` | The vault is reachable only through the private endpoint |
-| `secretsOfficerPrincipalIds` | Object IDs allowed to read / write secrets | list of GUIDs | `[]` | Role *Key Vault Secrets Officer*. The identity that runs cdktn is always added; it needs Owner or User Access Administrator to create the role assignment |
+| `secretsOfficerPrincipalIds` | Object IDs allowed to read / write secrets | list of GUIDs, from `AZURE_KEYVAULT_SECRETS_OFFICER_IDS` (`.env.<env>`, comma-separated) | `[]` | Role *Key Vault Secrets Officer*. The identity that runs cdktn is always added; it needs Owner or User Access Administrator to create the role assignment |
 | `names` | Private endpoint, connection, DNS zone group, VNet link names | strings | `<PROJECT_NAME>-azure-<kind>-<vault name>` | |
 | `secretNames` | Secret names used by the CLI procedure | strings | `db-api-password`, `db-repl-password` | cdktn does not create the secrets (see [operations.md](../operations.md)) |
 

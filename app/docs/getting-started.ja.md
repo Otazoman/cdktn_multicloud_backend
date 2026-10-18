@@ -70,6 +70,7 @@ cdktn get    # .gen/ を生成する（Azure DevOps の provider、cdktf.json）
 | `GOOGLE_AZURE_VPN_PRESHARED_KEY` | Google Cloud ↔ Azure の VPN トンネルの事前共有鍵 |
 | `ECS_WORKER_POSTGRES_PASSWORD` | ECS の `worker-service` の環境変数 `POSTGRES_PASSWORD` |
 | `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID` | サービスプリンシパル「DevOpsInfrastructure」のオブジェクト ID（Azure の CI/CD、5 章「Azure」の手順 10）。秘密の値ではないが、テナントごとの値なので Git に入れない |
+| `AZURE_KEYVAULT_SECRETS_OFFICER_IDS` | Azure の VM から Key Vault に DB のシークレットを入れるユーザーのオブジェクト ID（カンマ区切り）。`az ad signed-in-user show --query id -o tsv` で確認できる。ないと `az keyvault secret set` が `ForbiddenByRbac` で失敗する。秘密の値ではないが、テナントごとの値なので Git に入れない |
 
 `.env.<環境名>` は Docker Compose が読みます。次の値は引用符で囲んでください。
 

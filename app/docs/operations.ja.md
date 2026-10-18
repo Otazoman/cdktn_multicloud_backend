@@ -32,6 +32,31 @@ cdktn diff   # その環境のコンテナで: 変更がないことを確認す
 
 あわせて、認証情報（リポジトリ直下の `.env`）と秘密の値（`config/.env`）を `.env.<環境名>`（テンプレート: `.env.ENV.sample`）に移し、`.env` にはツールのバージョンだけを残します。
 
+## 環境を構築する
+
+初回のデプロイ（または destroy の後のデプロイ）のうち、インフラの部分です。データベースと API は、アプリの
+リポジトリの作業です（そのリポジトリの getting-started の「全体の流れ」）。
+
+| # | 作業 | 場所 |
+|---|---|---|
+| 1 | 事前準備（一度だけ）：`.env.<環境名>`（Key Vault 用の自分のオブジェクト ID `AZURE_KEYVAULT_SECRETS_OFFICER_IDS` を含む）、cdktn の Google Cloud のサービスアカウントのロール、有効にする API | [getting-started.ja.md](getting-started.ja.md) |
+| 2 | その環境の API コンテナの設定を初回の値にする：`azureSecretReady`・`readinessProbe`・`journalPrune.enabled` を `false`（`config/apicontainer.ts`）。destroy の後は、まだ再利用できない名前も変える（下の「destroy の後にもう一度 deploy する」） | 設定ファイル |
+| 3 | `cdktn diff` の後、`cdktn deploy`（下の「deploy」） | cdktn のコンテナ |
+| 4 | すべてのクラウドに DB のシークレットを入れる（API のパスワードはすべてのクラウドで同じ値） | 下の「シークレット」。AWS と Google Cloud は Cloud Shell からも可、Azure は VM からのみ |
+| 5 | Azure：`azureSecretReady` を `true` にして、もう一度 `cdktn deploy` | 設定ファイル、cdktn のコンテナ |
+
+Azure だけ2回 deploy する理由：Container App は、参照する Key Vault のシークレットがないと起動できません。Key Vault は
+1回目の deploy で作られ、VNet の中からしか書き込めません（AWS と Google Cloud のダミーの値と違い、cdktn は
+シークレットを作れません）。そのため、1回目で参照なしに Key Vault を作り、Azure の VM から値を入れ、2回目で参照を
+付けます。
+
+これでインフラの準備は完了です。続けて、アプリのリポジトリで、データベースをセットアップし（クラウド単体なら各
+クラウドの VM で `scripts/node-setup.sh <cloud>`）、API をデプロイします（環境のブランチへのマージ）。API が動いたら：
+
+| # | 作業 | 場所 |
+|---|---|---|
+| 6 | `readinessProbe` と `journalPrune.enabled` を `true` にして `cdktn deploy`：ロードバランサーとコンテナ基盤が `/readyz`・`/healthz` を使い、変更履歴の削除ジョブが作られる | 設定ファイル、cdktn のコンテナ |
+
 ## deploy
 
 ```bash
@@ -46,6 +71,19 @@ cdktn destroy
 ```
 
 マネージドサービスの中には、リソースを非同期に解放するものがあります。そのため、依存関係の順序が正しくても、destroy がエラーで止まることがあります。下の既知の問題を確認し、指示があれば `cdktn destroy` をもう一度実行してください。
+
+### destroy の後にもう一度 deploy する
+
+削除したリソースの名前は、しばらく再利用できないものがあります。また、削除したリソースに入れていた値は消えています。`cdktn deploy` の前に：
+
+| # | 対象 | 理由・方法 |
+|---|---|---|
+| 1 | Google Cloud：Cloud SQL のインスタンスの `name` を変える（`config/google/cloudsql/cloudsql.ts`） | 削除したインスタンス名は約1週間再利用できません。末尾の日時を新しくします（例：`cloudsql-postgres-instance-2026-1018-1500`）。この名前を参照している設定は他にありません（API は deploy のときにインスタンスのアドレスを受け取り、プライベート DNS の名前 `aRecordName` は変わりません）。インスタンス名を指定するコマンド（`gcloud sql instances describe` など）は新しい名前で実行します |
+| 2 | Google Cloud：ログのバケットの ID（`googleUseLogBuckets` が `true` のときだけ） | 削除したバケットの ID は 7 日間再利用できません（上の「ログ」）。dev は `false` のままにしています |
+| 3 | Azure：Key Vault の名前（既にあるというエラーで deploy が失敗したときだけ） | provider は destroy のときに論理削除された Key Vault を完全に削除（purge）します。されなかった場合（purge の権限がないなど）は、`az keyvault purge --name <Key Vault の名前>` を実行します |
+| 4 | その環境の API コンテナの設定（`config/apicontainer.ts`）を初回の値に戻す：`azureSecretReady`・`readinessProbe`・`journalPrune.enabled` を `false` | 新しい Key Vault にはまだシークレットがなく（参照する Container App は起動できません）、CI/CD が API をデプロイするまでコンテナは仮のイメージで動くためです |
+
+deploy の後は、初回と同じく、シークレットを入れ直し（下の「シークレット」。値はストアと一緒に削除されています）、データベースをセットアップし直し（アプリのリポジトリの getting-started の「データベースのセットアップ」）、API をデプロイします（環境のブランチへのマージ、またはパイプラインの再実行）。
 
 ## ログ
 
@@ -147,7 +185,7 @@ cdktn に渡した値（`CHANGE_ME` と、`.env.<環境名>` の DB の管理者
 - 自分のアカウントに、次の権限があること。
   - AWS: シークレットに対する `secretsmanager:PutSecretValue` と `secretsmanager:GetSecretValue`。
   - Google Cloud: `roles/secretmanager.secretVersionAdder` と `roles/secretmanager.secretAccessor`（Secret Manager API を有効にしておくこと。getting-started.ja.md を参照）。
-  - Azure: Key Vault に対する `Key Vault Secrets Officer`。cdktn は、cdktn を実行する ID と、`secretsOfficerPrincipalIds`（`config/azure/secrets.ts`）のオブジェクト ID に、このロールを割り当てます。
+  - Azure: Key Vault に対する `Key Vault Secrets Officer`。cdktn は、cdktn を実行する ID と、`.env.<環境名>` の `AZURE_KEYVAULT_SECRETS_OFFICER_IDS`（カンマ区切り。自分の ID は `az ad signed-in-user show --query id -o tsv`）のオブジェクト ID に、このロールを割り当てます。値を入れる前に自分の ID を追加して deploy してください。ないと `az keyvault secret set` が `ForbiddenByRbac` で失敗します。割り当ての反映には数分かかることがあります。
 
 ### VM でのサインインとサインアウト
 
@@ -224,28 +262,10 @@ shred -u ~/db-api-password ~/db-repl-password
 
 ### DB のスクリプトで値を使う
 
-アプリのリポジトリの DB のスクリプト（`scripts/migrate.sh`、`scripts/api-role-setup.sh`、`scripts/replication-setup.sh`）は、参加するすべての DB のパスワードを必要とします。各 DB がほかの DB に接続するためです。Azure の VM（Key Vault を読める唯一の場所）で、3 つのクラウドすべてにサインインして実行します。値は `replication/nodes.env` に書かず、環境変数として export します。
-
-```bash
-export NODE_AWS_API_PASSWORD="$(aws secretsmanager get-secret-value --region ap-northeast-1 \
-  --secret-id multicloud-aws-secret-db-api-password --query SecretString --output text)"
-export NODE_AWS_REPL_PASSWORD="$(aws secretsmanager get-secret-value --region ap-northeast-1 \
-  --secret-id multicloud-aws-secret-db-repl-password --query SecretString --output text)"
-export NODE_GOOGLE_API_PASSWORD="$(gcloud secrets versions access latest \
-  --secret=multicloud-google-secret-db-api-password)"
-export NODE_GOOGLE_REPL_PASSWORD="$(gcloud secrets versions access latest \
-  --secret=multicloud-google-secret-db-repl-password)"
-export NODE_AZURE_API_PASSWORD="$(az keyvault secret show --vault-name multicloud-kv-001 \
-  --name db-api-password --query value --output tsv)"
-export NODE_AZURE_REPL_PASSWORD="$(az keyvault secret show --vault-name multicloud-kv-001 \
-  --name db-repl-password --query value --output tsv)"
-# DB の管理者パスワード（cdktn の .env.<環境名>）: 入力し、画面には表示しない
-for n in AWS GOOGLE AZURE; do
-  read -rsp "NODE_${n}_ADMIN_PASSWORD: " v && echo && export "NODE_${n}_ADMIN_PASSWORD=$v"
-done
-```
-
-その後、アプリのリポジトリのスクリプトを実行し（アプリのドキュメントを参照）、終わったら 3 つのクラウドからサインアウトします。レプリケーションに参加しないクラウドは省きます。
+DB のスクリプトはアプリのリポジトリのものです。そのリポジトリの getting-started（「データベースのセットアップ」）を
+参照してください。クラウド単体なら、`scripts/node-setup.sh <cloud>` が、VM でクラウドの CLI にサインインしていれば
+API のパスワードをそのクラウドのシークレットストアから読み取ります。クラスタではすべてのノードのパスワードが必要で、
+その集め方はアプリのリポジトリに書いています。
 
 ### クラウドの CLI の更新
 

@@ -14,8 +14,18 @@ const synthWith = (
   overrides: Record<string, unknown> = FEATURE_SETS.allOn,
 ) => {
   const original = { ...apiContainerConfig };
-  // The tests describe a cluster unless they set the topology
-  Object.assign(apiContainerConfig, { topology: "cluster" }, flags);
+  // The tests start from a cluster before the first API deployment (the
+  // flags of DEPLOY_ENV may differ) unless they set the values
+  Object.assign(
+    apiContainerConfig,
+    {
+      topology: "cluster",
+      azureSecretReady: false,
+      readinessProbe: false,
+      journalPrune: { ...apiContainerConfig.journalPrune, enabled: false },
+    },
+    flags,
+  );
   // Build the sample services too, to check that only the API changes
   const services = [...awsEcsConfigs, ...gcpRunConfigs];
   const built = services.map((c) => c.build);

@@ -92,6 +92,7 @@ Set these values in the same `.env.<env>` file as the credentials (section 2;
 | `GOOGLE_AZURE_VPN_PRESHARED_KEY` | Pre-shared key of the Google Cloud ↔ Azure VPN tunnels |
 | `ECS_WORKER_POSTGRES_PASSWORD` | `POSTGRES_PASSWORD` environment variable of the ECS `worker-service` |
 | `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID` | Object ID of the "DevOpsInfrastructure" service principal (Azure CI/CD, section 5 "Azure", step 10). Not secret, but tenant-specific and kept out of Git |
+| `AZURE_KEYVAULT_SECRETS_OFFICER_IDS` | Object IDs (comma-separated) of the users who set the database secrets in the Azure Key Vault from the Azure VM: `az ad signed-in-user show --query id -o tsv`. Without it, `az keyvault secret set` fails with `ForbiddenByRbac`. Not secret, but tenant-specific and kept out of Git |
 
 Docker Compose reads `.env.<env>`: wrap values that contain `$` in **single**
 quotes (otherwise `$...` is expanded as a variable and the value is cut off,

@@ -100,7 +100,7 @@ Azure 全体で一意である必要がある名前は `envScopedName()` を使�
 | `softDeleteRetentionDays` | 復元できる期間 | 7〜90 | `7` | |
 | `purgeProtectionEnabled` | 保存期間が終わるまで完全削除を禁止する | `boolean` | `false` | |
 | `subnetName` | プライベートエンドポイントのサブネット | サブネットの `name` | `private-endpoint-subnet` | Key Vault にはプライベートエンドポイントからしか接続できない |
-| `secretsOfficerPrincipalIds` | シークレットを読み書きできるオブジェクト ID | GUID の一覧 | `[]` | ロール *Key Vault Secrets Officer*。cdktn を実行する ID は常に加わる。ロールを割り当てるために、その ID には所有者またはユーザー アクセス管理者が必要 |
+| `secretsOfficerPrincipalIds` | シークレットを読み書きできるオブジェクト ID | GUID の一覧。`.env.<環境名>` の `AZURE_KEYVAULT_SECRETS_OFFICER_IDS`（カンマ区切り）から | `[]` | ロール *Key Vault Secrets Officer*。cdktn を実行する ID は常に加わる。ロールを割り当てるために、その ID には所有者またはユーザー アクセス管理者が必要 |
 | `names` | プライベートエンドポイント、接続、DNS ゾーングループ、VNet リンクの名前 | 文字列 | `<PROJECT_NAME>-azure-<種類>-<Key Vault の名前>` | |
 | `secretNames` | CLI の手順で使うシークレットの名前 | 文字列 | `db-api-password`、`db-repl-password` | cdktn はシークレットを作らない（[operations.ja.md](../operations.ja.md) を参照） |
 
