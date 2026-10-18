@@ -157,7 +157,7 @@
 | `clusterName` | クラスター（最初にそれを使うサービスが作る） | 文字列 | **必須** | |
 | `cpu`、`memory` | タスクのサイズ | Fargate で有効な文字列（`"256"`、`"512"`） | **必須** | |
 | `desiredCount` | タスク数 | 数値 | **必須** | |
-| `deploymentStrategy` | デプロイの方式 | `"ROLLING"`、`"BLUE_GREEN"` | `ROLLING` | |
+| `deploymentStrategy` | デプロイの方式 | `"ROLLING"`、`"BLUE_GREEN"` | `ROLLING` | `BLUE_GREEN`：ECS が ALB のリスナーの優先度 1 のルールを書き換えてトラフィックを切り替えるため、cdktn は作成後にその転送先を変更しない（`alb.ts` の `defaultAction` のターゲットグループを変えても、既存のルールには反映されない） |
 | `bakeTime` | Blue/Green のデプロイを安定とみなすまでの分数 | 数値 | — | |
 | `enableExec` | ECS Exec | `boolean` | `false` | |
 | `autoScaling` | ターゲット追跡 | `{ enabled, minCapacity, maxCapacity, cpuThreshold?, memoryThreshold?, requestCountPerTarget?, scaleInCooldown?, scaleOutCooldown?, cpuPolicyName?, memoryPolicyName?, requestPolicyName? }` | — | `requestCountPerTarget` は `ROLLING` で ALB のターゲットグループがあるときだけ。ポリシー名の既定は `<PROJECT_NAME>-aws-ecs-<cpu\|mem\|req>-scaling-<サービス>` |

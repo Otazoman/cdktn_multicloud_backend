@@ -233,17 +233,37 @@ on the VM.
 | Google Cloud | `gcloud auth login --no-launch-browser`, then `gcloud config set project <project-id>` | `gcloud auth revoke --all` |
 | Azure | `az login --use-device-code`, then `az account set --subscription <subscription-id>` | `az logout` |
 
+Check that you are signed in before using the CLI, and watch for these:
+
+| Cloud | Check | Pitfall |
+|---|---|---|
+| AWS | `aws sts get-caller-identity` | Always add `--remote`. Without it, the sign-in page redirects your own browser to `127.0.0.1` (connection refused) while the command on the VM keeps waiting; stop it with Ctrl+C and run it again with `--remote`. Without signing in, commands fail with `NoCredentials` |
+| Google Cloud | `gcloud config list account` (your account, not `…-compute@developer.gserviceaccount.com`) | Until you sign in, gcloud uses the VM's default service account, whose access scopes do not allow these commands: `PERMISSION_DENIED: Request had insufficient authentication scopes` (`ACCESS_TOKEN_SCOPE_INSUFFICIENT`). Sign in; do not widen the VM's scopes |
+| Azure | `az account show` | — |
+
 ### Set the values (first time and when changing a password)
 
-Do this on each cloud's VM, signed in to that cloud only. The password is
-written to a file readable only by you (so that it does not appear in the
-shell history or the process list) and deleted at the end.
+Do this on each cloud's VM, signed in to that cloud only. The passwords
+are written to files readable only by you (so that they do not appear in
+the shell history or the process list) and deleted at the end.
+
+- `db-api-password` (the API role, `app_api`) has **the same value on every
+  cloud**: every API connects to every node (application repository,
+  getting-started). Generate it once, keep it (e.g. in your password
+  manager) and write the same value on the other VMs.
+- `db-repl-password` (the replication role) is one per node. Clouds that run
+  alone (`apiContainerConfig.topology` `independent`) do not use it yet.
 
 ```bash
 umask 077
-# Generate one password per secret (letters and digits, 32 characters)
-gen() { openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32; }
-gen > ~/db-api-password
+gen() { openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32; }   # letters and digits, 32 characters
+
+# API password, on the first VM only: generate it and keep the value
+gen > ~/db-api-password && cat ~/db-api-password; echo
+# API password, on the other VMs: paste the same value (not echoed)
+read -rs API_PW && printf %s "$API_PW" > ~/db-api-password && unset API_PW
+
+# Replication password, on every VM: its own value
 gen > ~/db-repl-password
 ```
 

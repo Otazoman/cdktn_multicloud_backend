@@ -263,14 +263,18 @@ The service account used by cdktn needs the **Network Administrator** role for
 Cloud SQL (the Editor role is not sufficient).
 
 For CI/CD, cdktn grants roles to the build service account
-(`cloudbuild-deployer`), which needs permission to change IAM policies (the
+(`cloudbuild-deployer`), and for the API it lets the Cloud Run runtime
+service account read the database password secret
+(`config/apicontainer.ts`). Both need permission to change IAM policies (the
 Editor role cannot). Grant the service account used by cdktn these roles, as
 the project owner (without them the deploy fails with
-`setIamPolicy ... denied` / `Policy update access denied`):
+`setIamPolicy ... denied` / `Policy update access denied` /
+`Permission 'secretmanager.secrets.setIamPolicy' denied`):
 
 ```bash
 CDKTN_SA=<email of the service account used by cdktn>   # client_email of its key
-for role in roles/resourcemanager.projectIamAdmin roles/artifactregistry.admin roles/iam.serviceAccountAdmin; do
+for role in roles/resourcemanager.projectIamAdmin roles/artifactregistry.admin roles/iam.serviceAccountAdmin \
+            roles/secretmanager.admin; do
   gcloud projects add-iam-policy-binding "$PROJECT" \
     --member="serviceAccount:$CDKTN_SA" --role="$role" --condition=None
 done
@@ -280,7 +284,7 @@ done
 project; grant it only to the cdktn service account. Make sure `CDKTN_SA` is
 the `client_email` of the key file that `GOOGLE_CLOUD_KEYFILE_JSON` points to
 (not, for example, the App Engine default service account
-`<project>@appspot.gserviceaccount.com`), and check the result — the three
+`<project>@appspot.gserviceaccount.com`), and check the result — the four
 roles must be listed:
 
 ```bash

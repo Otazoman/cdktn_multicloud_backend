@@ -160,15 +160,31 @@ cdktn に渡した値（`CHANGE_ME` と、`.env.<環境名>` の DB の管理者
 | Google Cloud | `gcloud auth login --no-launch-browser` の後、`gcloud config set project <プロジェクト ID>` | `gcloud auth revoke --all` |
 | Azure | `az login --use-device-code` の後、`az account set --subscription <サブスクリプション ID>` | `az logout` |
 
+CLI を使う前に、サインインできているかを確認してください。次の点に注意します：
+
+| クラウド | 確認 | 注意点 |
+|---|---|---|
+| AWS | `aws sts get-caller-identity` | 必ず `--remote` を付けます。付けないと、サインインの後に自分の端末のブラウザが `127.0.0.1` に戻ろうとして接続を拒否され、VM 側のコマンドは待ったままになります（Ctrl+C で止め、`--remote` を付けて再実行）。サインインしないと `NoCredentials` で失敗します |
+| Google Cloud | `gcloud config list account`（`…-compute@developer.gserviceaccount.com` ではなく自分のアカウント） | サインインするまで、gcloud は VM の既定のサービスアカウントを使います。そのアクセス スコープではこれらのコマンドを実行できず、`PERMISSION_DENIED: Request had insufficient authentication scopes`（`ACCESS_TOKEN_SCOPE_INSUFFICIENT`）になります。サインインしてください（VM のスコープは広げないでください） |
+| Azure | `az account show` | — |
+
 ### 値を入れる（初回と、パスワードを変えるとき）
 
 各クラウドの VM で、そのクラウドだけにサインインして行います。パスワードは、自分だけが読めるファイルに書き出し（シェルの履歴やプロセスの一覧に出ないようにするため）、最後に削除します。
 
+- `db-api-password`（API のロール `app_api`）は、**すべてのクラウドで同じ値**です。すべての API がすべてのノードに接続するためです（アプリのリポジトリの getting-started）。1回だけ作って控え（パスワードマネージャーなど）、他の VM には同じ値を入れます。
+- `db-repl-password`（レプリケーションのロール）はノードごとです。単体で動かすクラウド（`apiContainerConfig.topology` が `independent`）では、まだ使いません。
+
 ```bash
 umask 077
-# シークレットごとにパスワードを作る（英数字 32 文字）
-gen() { openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32; }
-gen > ~/db-api-password
+gen() { openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32; }   # 英数字 32 文字
+
+# API のパスワード（最初の VM だけ）：作って値を控える
+gen > ~/db-api-password && cat ~/db-api-password; echo
+# API のパスワード（他の VM）：同じ値を貼り付ける（画面には表示されない）
+read -rs API_PW && printf %s "$API_PW" > ~/db-api-password && unset API_PW
+
+# レプリケーションのパスワード（すべての VM）：それぞれ別の値
 gen > ~/db-repl-password
 ```
 

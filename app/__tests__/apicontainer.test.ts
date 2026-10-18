@@ -1,4 +1,6 @@
 import { apiContainerConfig } from "../config/apicontainer";
+import { awsEcsConfigs } from "../config/aws/ecs";
+import { gcpRunConfigs } from "../config/google/cloudrun";
 import { FEATURE_SETS, synthCase } from "../scripts/dev/synthMatrix";
 
 const resourcesOf = (synth: any, type: string): Record<string, any> =>
@@ -14,10 +16,15 @@ const synthWith = (
   const original = { ...apiContainerConfig };
   // The tests describe a cluster unless they set the topology
   Object.assign(apiContainerConfig, { topology: "cluster" }, flags);
+  // Build the sample services too, to check that only the API changes
+  const services = [...awsEcsConfigs, ...gcpRunConfigs];
+  const built = services.map((c) => c.build);
+  services.forEach((c) => (c.build = true));
   try {
     return synthCase({ name: "apicontainer", overrides });
   } finally {
     Object.assign(apiContainerConfig, original);
+    services.forEach((c, i) => (c.build = built[i]));
   }
 };
 
@@ -82,6 +89,12 @@ describe("API container (config/apicontainer.ts)", () => {
       );
       expect(groups.length).toBeGreaterThan(0);
       groups.forEach((g) => expect(g.health_check.path).toBe("/"));
+      // ECS Blue/Green owns the forwarding of the rules it switches
+      const rules = Object.values(resourcesOf(synth, "aws_lb_listener_rule")).filter(
+        (r) => r.priority === 1,
+      );
+      expect(rules.length).toBeGreaterThan(0);
+      rules.forEach((r) => expect(r.lifecycle).toEqual({ ignore_changes: ["action"] }));
     });
 
     test("Cloud Run: env, the secret and access for the runtime service account; no probes", () => {

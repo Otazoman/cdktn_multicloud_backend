@@ -223,6 +223,11 @@ export function createAwsAlbResources(
           condition: [{ pathPattern: { values: ["/*"] } }],
         },
       );
+      // ECS Blue/Green moves the traffic by rewriting this rule's action
+      // (target groups and weights): Terraform keeps the action it created,
+      // otherwise each deploy would send the traffic back to the first
+      // target group, which may have no tasks.
+      rule.addOverride("lifecycle", { ignore_changes: ["action"] });
       namedListenerRules[name] = rule;
     }
   });

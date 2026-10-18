@@ -76,7 +76,8 @@ export const awsEcsConfigs = [
   },
   {
     name: "worker-service",
-    build: true,
+    // Sample service, not used by the API
+    build: false,
     clusterName: "main-cluster",
     cpu: "256",
     memory: "512",

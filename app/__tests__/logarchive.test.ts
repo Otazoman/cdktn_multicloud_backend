@@ -6,6 +6,7 @@
 import { awsLogArchiveConfig } from "../config/aws/monitoring";
 import { azureLogArchiveConfig } from "../config/azure/azuremonitor";
 import { azureAcaEnvironmentSettings } from "../config/azure/containerapps";
+import { gcpRunConfigs } from "../config/google/cloudrun";
 import { googleLogArchiveConfig } from "../config/google/monitoring";
 import {
   FEATURE_SETS,
@@ -140,10 +141,14 @@ describe("enabled (defaults: firehose, deleteOnDestroy)", () => {
       s.destination.startsWith("storage.googleapis.com/"),
     );
     expect(sink.unique_writer_identity).toBe(true);
+    // Every Cloud Run service that is built (config/google/cloudrun.ts)
     expect(sink.filter).toBe(
       'resource.type="cloud_run_revision" AND (' +
-        'resource.labels.service_name="web-service-with-lb" OR ' +
-        'resource.labels.service_name="web-service-standalone")',
+        gcpRunConfigs
+          .filter((c) => c.build)
+          .map((c) => `resource.labels.service_name="${c.name}"`)
+          .join(" OR ") +
+        ")",
     );
     const [writer] = resourcesOf(synth, "google_storage_bucket_iam_member");
     expect(writer.role).toBe("roles/storage.objectCreator");

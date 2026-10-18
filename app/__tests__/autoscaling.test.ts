@@ -78,7 +78,11 @@ test.each([
   ],
   [
     "target group without an ALB",
-    () => Object.assign(workerService.autoScaling, { requestCountPerTarget: 500 }),
+    () => {
+      // The sample worker service (build: false in the config) has no ALB
+      Object.assign(workerService, { build: true });
+      Object.assign(workerService.autoScaling, { requestCountPerTarget: 500 });
+    },
     /needs the target group "managed-worker-tg"/,
   ],
 ])("ECS request scaling fails on %s", (_name, breakConfig, message) => {

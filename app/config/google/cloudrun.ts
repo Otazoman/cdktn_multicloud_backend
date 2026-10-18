@@ -30,7 +30,8 @@ export const gcpRunConfigs = [
   },
   {
     name: "web-service-standalone",
-    build: true,
+    // Sample service, not used by the API
+    build: false,
     project: PROJECT_NAME,
     location: LOCATION,
     image: "gcr.io/cloudrun/hello",

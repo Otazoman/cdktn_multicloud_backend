@@ -228,17 +228,18 @@ gcloud projects add-iam-policy-binding "$PROJECT" \
 
 Cloud SQL を使う場合、cdktn が使うサービスアカウントには **Network Administrator**（ネットワーク管理者）のロールが必要です（編集者のロールでは足りません）。
 
-CI/CD では、cdktn がビルド用のサービスアカウント（`cloudbuild-deployer`）にロールを付けます。そのため、cdktn が使うサービスアカウントには、IAM ポリシーを変更する権限が必要です（編集者のロールにはありません）。プロジェクトの所有者として、次のロールを付けてください（ないと、deploy が `setIamPolicy ... denied` / `Policy update access denied` で失敗します）。
+CI/CD では、cdktn がビルド用のサービスアカウント（`cloudbuild-deployer`）にロールを付けます。また API のために、Cloud Run の実行用のサービスアカウントが DB のパスワードのシークレットを読めるようにします（`config/apicontainer.ts`）。どちらも IAM ポリシーを変更する権限が必要です（編集者のロールにはありません）。プロジェクトの所有者として、cdktn が使うサービスアカウントに次のロールを付けてください（ないと、deploy が `setIamPolicy ... denied` / `Policy update access denied` / `Permission 'secretmanager.secrets.setIamPolicy' denied` で失敗します）。
 
 ```bash
 CDKTN_SA=<cdktn が使うサービスアカウントのメールアドレス>   # キーの client_email
-for role in roles/resourcemanager.projectIamAdmin roles/artifactregistry.admin roles/iam.serviceAccountAdmin; do
+for role in roles/resourcemanager.projectIamAdmin roles/artifactregistry.admin roles/iam.serviceAccountAdmin \
+            roles/secretmanager.admin; do
   gcloud projects add-iam-policy-binding "$PROJECT" \
     --member="serviceAccount:$CDKTN_SA" --role="$role" --condition=None
 done
 ```
 
-`roles/resourcemanager.projectIamAdmin` は、プロジェクトのどの IAM の設定も変更できる強い権限です。cdktn のサービスアカウントにだけ付けてください。`CDKTN_SA` は、`GOOGLE_CLOUD_KEYFILE_JSON` が指すキーのファイルの `client_email` です（App Engine の既定のサービスアカウント `<プロジェクト>@appspot.gserviceaccount.com` などと取り違えないでください）。付けた後、3 つのロールが表示されることを確認します。
+`roles/resourcemanager.projectIamAdmin` は、プロジェクトのどの IAM の設定も変更できる強い権限です。cdktn のサービスアカウントにだけ付けてください。`CDKTN_SA` は、`GOOGLE_CLOUD_KEYFILE_JSON` が指すキーのファイルの `client_email` です（App Engine の既定のサービスアカウント `<プロジェクト>@appspot.gserviceaccount.com` などと取り違えないでください）。付けた後、4 つのロールが表示されることを確認します。
 
 ```bash
 gcloud projects get-iam-policy "$PROJECT" --flatten="bindings[].members" \

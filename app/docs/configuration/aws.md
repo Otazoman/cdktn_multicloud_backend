@@ -157,7 +157,7 @@ Only PostgreSQL (5432) is opened in `myaws-db-sg`.
 | `clusterName` | Cluster (created by the first service that uses it) | string | **Required** | |
 | `cpu`, `memory` | Task size | Fargate-valid strings (`"256"`, `"512"`) | **Required** | |
 | `desiredCount` | Tasks | number | **Required** | |
-| `deploymentStrategy` | Deployment | `"ROLLING"`, `"BLUE_GREEN"` | `ROLLING` | |
+| `deploymentStrategy` | Deployment | `"ROLLING"`, `"BLUE_GREEN"` | `ROLLING` | `BLUE_GREEN`: ECS switches the traffic by rewriting the priority-1 rules of the ALB listeners, so cdktn does not change their forwarding after creating them (a changed `defaultAction` target group in `alb.ts` is not applied to an existing rule) |
 | `bakeTime` | Minutes before a blue/green deployment is stable | number | — | |
 | `enableExec` | ECS Exec | `boolean` | `false` | |
 | `autoScaling` | Target tracking | `{ enabled, minCapacity, maxCapacity, cpuThreshold?, memoryThreshold?, requestCountPerTarget?, scaleInCooldown?, scaleOutCooldown?, cpuPolicyName?, memoryPolicyName?, requestPolicyName? }` | — | `requestCountPerTarget` only with `ROLLING` and an ALB target group. Policy names default to `<PROJECT_NAME>-aws-ecs-<cpu\|mem\|req>-scaling-<service>` |
