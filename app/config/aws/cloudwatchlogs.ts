@@ -12,20 +12,6 @@
  * resource construct will fail to find its Log Group.
  */
 export const cloudwatchLogGroupsConfig = [
-  // --- RDS: rds-postgres-instance (aurorards.ts -> rdsConfigs) ---
-  // Not built (build: false). Restore these when it is built: without them,
-  // RDS creates the log groups itself with no retention limit.
-  // {
-  //   name: "/aws/rds/instance/rds-postgres-instance/postgresql",
-  //   retentionInDays: 30,
-  //   tags: { Component: "Database", ManagedBy: "CDKTN" },
-  // },
-  // {
-  //   name: "/aws/rds/instance/rds-postgres-instance/upgrade",
-  //   retentionInDays: 30,
-  //   tags: { Component: "Database", ManagedBy: "CDKTN" },
-  // },
-
   // --- Aurora: aurora-postgres-cluster (aurorards.ts -> auroraConfigs) ---
   {
     name: "/aws/rds/cluster/aurora-postgres-cluster/postgresql",
@@ -40,12 +26,6 @@ export const cloudwatchLogGroupsConfig = [
     tags: { Component: "Application", ManagedBy: "CDKTN" },
   },
 
-  // --- ECS: worker-service (ecs.ts -> awsEcsConfigs) ---
-  {
-    name: "/aws/ecs/worker-service",
-    retentionInDays: 14,
-    tags: { Component: "Application", ManagedBy: "CDKTN" },
-  },
 
   // --- CodeBuild: api-service-cicd (cicdsettings.ts -> awsCicdConfigs) ---
   {

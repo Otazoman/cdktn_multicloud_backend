@@ -90,7 +90,7 @@ const exampleConfigs = () => ({
         timeAggregationMethod: "Count" as const,
         operator: "GreaterThan" as const,
         threshold: 0,
-        notify: ["devops"],
+        notify: ["ops"],
       },
     ],
     metricAlerts: [
@@ -104,7 +104,7 @@ const exampleConfigs = () => ({
         threshold: 200000000,
         frequency: "PT5M",
         windowSize: "PT15M",
-        notify: ["devops"],
+        notify: ["ops"],
       },
     ],
   },
@@ -303,4 +303,62 @@ describe("alerting", () => {
     breakConfig();
     expect(() => synthWith(true)).toThrow(message);
   }, 120000);
+});
+
+describe("configured alerts (config/<cloud>/monitoring.ts)", () => {
+  let synth: any;
+  beforeAll(() => {
+    synth = synthWith(true);
+  }, 120000);
+
+  test("AWS: API errors, journal job failures and 5xx of the built ALB only", () => {
+    const filters = resourcesOf(synth, "aws_cloudwatch_log_metric_filter");
+    expect(filters.map((f) => f.pattern).sort()).toEqual(['"Journal pruning failed"', '"failed"']);
+    const alarms = resourcesOf(synth, "aws_cloudwatch_metric_alarm");
+    expect(alarms.map((a) => a.alarm_name).sort()).toEqual([
+      "api-errors",
+      "journal-prune-failed",
+      "plain-http-alb-elb-5xx",
+      "plain-http-alb-target-5xx",
+    ]);
+    const elb = alarms.find((a) => a.alarm_name === "plain-http-alb-elb-5xx");
+    expect(elb.dimensions.LoadBalancer).toBe("${aws_lb.alb-plain-http-alb.arn_suffix}");
+    alarms.forEach((a) => expect(a.alarm_actions[0]).toContain("${aws_sns_topic."));
+  });
+
+  test("Google Cloud: log metrics and policies, 5xx of the built load balancer only", () => {
+    const policies = resourcesOf(synth, "google_monitoring_alert_policy");
+    expect(policies.map((p) => p.display_name).sort()).toEqual([
+      "api-errors",
+      "journal-prune-failed",
+      "run-regional-http-lb-5xx",
+    ]);
+    const lb = policies.find((p) => p.display_name === "run-regional-http-lb-5xx");
+    expect(lb.conditions[0].condition_threshold.filter).toContain(
+      'forwarding_rule_name="run-regional-http-lb-http-fw"',
+    );
+    expect(resourcesOf(synth, "google_logging_metric").map((m) => m.name).sort()).toEqual([
+      "api-errors",
+      "journal-prune-failed",
+    ]);
+  });
+
+  test("Azure: log alerts, and 5xx of the built Application Gateway with its dimension", () => {
+    const logAlerts = resourcesOf(synth, "azurerm_monitor_scheduled_query_rules_alert_v2");
+    expect(logAlerts.map((a) => a.name).sort()).toEqual(["api-errors", "journal-prune-failed"]);
+    const metricAlerts = resourcesOf(synth, "azurerm_monitor_metric_alert");
+    expect(metricAlerts.map((a) => a.name)).toEqual(["plain-http-appgw-5xx"]);
+    expect(metricAlerts[0].scopes).toEqual(["${azurerm_application_gateway.appgw-plain-http-appgw.id}"]);
+    // The operators the provider accepts (checked by Terraform, not by the types)
+    metricAlerts.forEach((a) =>
+      expect(["Equals", "GreaterThan", "GreaterThanOrEqual", "LessThan", "LessThanOrEqual"]).toContain(
+        a.criteria[0].operator,
+      ),
+    );
+    expect(metricAlerts[0].criteria[0].dimension).toEqual([
+      { name: "HttpStatusGroup", operator: "Include", values: ["5xx"] },
+    ]);
+    const [group] = resourcesOf(synth, "azurerm_monitor_action_group");
+    expect(group.short_name).toBe("ops");
+  });
 });

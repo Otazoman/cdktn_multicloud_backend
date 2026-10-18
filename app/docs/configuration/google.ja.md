@@ -183,9 +183,9 @@
 
 | 項目名 | 設定する内容 | 設定できる値 | 指定がない場合のデフォルト値 | 備考 |
 |---|---|---|---|---|
-| `notificationTargets[]` | メールの通知チャネル | `{ key, name?, emails[] }` | `[]` | `name` の既定は `<PROJECT_NAME>-google-alerts-<key>` |
+| `notificationTargets[]` | メールの通知チャネル | `{ key, name?, emails[] }` | `ALERT_EMAILS` を使う `ops` | `name` の既定は `<PROJECT_NAME>-google-alerts-<key>` |
 | `logMetrics[]` | ログベースのメトリクス | `GcpLogMetricDefinition`（`constructs/observability/googlecloudmonitoring.ts` を参照） | `[]` | メトリクスの種類は `logging.googleapis.com/user/<name>` |
-| `alertPolicies[]` | アラートポリシー | `notificationChannels` を除いた `GcpAlertPolicyDefinition` に、`notify?: string[]` を加えたもの | `[]` | `notify`: `notificationTargets` のキー。ファイルの先頭に例がある |
+| `alertPolicies[]` | アラートポリシー | `notificationChannels` を除いた `GcpAlertPolicyDefinition` に、`notify?: string[]`、`loadBalancer?: string` を加えたもの | API のエラー、削除ジョブの失敗、各リージョンのロードバランサーの 5xx | `notify`：`notificationTargets` のキー。`loadBalancer`：`cloudloadbalancing.ts` の名前。そのロードバランサーが作られているときだけ作る |
 
 ### ログのアーカイブ（機能 `logArchive`、`googleLogArchiveConfig`）
 

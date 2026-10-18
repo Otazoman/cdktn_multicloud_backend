@@ -90,8 +90,8 @@ Set these values in the same `.env.<env>` file as the credentials (section 2;
 | `AZUREDB_ROOT_USER`, `AZUREDB_ROOT_PASSWORD` | Azure Database administrator |
 | `AZURE_APPGW_SSL_CERT_PASSWORD` | Password of the Application Gateway PFX certificate (section 4) |
 | `GOOGLE_AZURE_VPN_PRESHARED_KEY` | Pre-shared key of the Google Cloud ↔ Azure VPN tunnels |
-| `ECS_WORKER_POSTGRES_PASSWORD` | `POSTGRES_PASSWORD` environment variable of the ECS `worker-service` |
 | `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID` | Object ID of the "DevOpsInfrastructure" service principal (Azure CI/CD, section 5 "Azure", step 10). Not secret, but tenant-specific and kept out of Git |
+| `ALERT_EMAILS` | Addresses that receive the alerts of every cloud (`features.alerting`), comma-separated. Kept out of Git. AWS sends each address a confirmation email first |
 | `AZURE_KEYVAULT_SECRETS_OFFICER_IDS` | Object IDs (comma-separated) of the users who set the database secrets in the Azure Key Vault from the Azure VM: `az ad signed-in-user show --query id -o tsv`. Without it, `az keyvault secret set` fails with `ForbiddenByRbac`. Not secret, but tenant-specific and kept out of Git |
 
 Docker Compose reads `.env.<env>`: wrap values that contain `$` in **single**
@@ -160,6 +160,10 @@ for the resources you enable:
   ```
 
 - **EFS**: `AmazonElasticFileSystemFullAccess`
+- **Journal pruning job** (`apiContainerConfig.journalPrune.enabled`, an
+  EventBridge Scheduler schedule): `AmazonEventBridgeSchedulerFullAccess`.
+  Without it the deploy fails with `not authorized to perform:
+  scheduler:CreateSchedule`
 - **CodeBuild / ECR**: `IAMFullAccess` and the following policy:
 
   ```json
@@ -242,6 +246,7 @@ Enable the APIs for the features you use:
 | Cloud Run | Cloud Run Admin API, IAM API, Artifact Registry API, Cloud Build API, Serverless VPC Access API, Cloud Filestore API |
 | Filestore | Cloud Filestore API |
 | Secret Manager (with Cloud SQL) | Secret Manager API |
+| Journal pruning job (`apiContainerConfig.journalPrune.enabled`) | Cloud Scheduler API (without it the deploy fails with `Cloud Scheduler API has not been used in project ... or it is disabled`), Cloud Run Admin API |
 | CI/CD | Cloud Build API, Secret Manager API (GitHub connection), Artifact Registry API, Cloud Run Admin API, IAM API, Service Networking API (the private pool uses Private Service Access) |
 
 ```bash

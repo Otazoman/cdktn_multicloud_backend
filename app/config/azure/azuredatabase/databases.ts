@@ -20,7 +20,6 @@ export const azureDatabaseConfig = {
       subnetKey: "db-postgres-subnet", // Each database needs its own subnet (matches subnets.ts)
       serverAdminLogin: process.env.AZUREDB_ROOT_USER!,
       serverAdminPassword: process.env.AZUREDB_ROOT_PASSWORD!,
-      // skuName: "GP_Standard_D2ds_v4", // General Purpose D2ds_v4, 2 vCore, 8GB RAM (minimum for VNet)  Cpacity Error
       skuName: "B_Standard_B1ms",
       storageMb: 32768, // 32 GB
       storageIops: 360, // Storage IOPS
@@ -34,12 +33,6 @@ export const azureDatabaseConfig = {
       standbyAvailabilityZone: undefined,
       // Networking
       publicNetworkAccessEnabled: false, // VNet integration only
-      // Maintenance window
-      // maintenanceWindow: {
-      //   dayOfWeek: 1, // Monday
-      //   startHour: 2,
-      //   startMinute: 0,
-      // },
       // Labels
       tags: {
         Environment: "Dev",

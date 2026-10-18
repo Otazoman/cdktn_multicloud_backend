@@ -4,7 +4,7 @@ import { SecretsmanagerSecret } from "@cdktn/provider-aws/lib/secretsmanager-sec
 import { Construct } from "constructs";
 import { AwsIamResources } from "../../constructs/iam/awsiam";
 import { AwsCloudWatchResources } from "../../constructs/observability/awscloudwatch";
-import { AwsResourcesOutput, AwsVpcResources } from "./types";
+import { AwsAlbResourcesWithDns, AwsResourcesOutput, AwsVpcResources } from "./types";
 
 /** Values shared between the AWS feature modules. */
 export interface AwsBuildContext {
@@ -23,4 +23,6 @@ export interface AwsBuildContext {
   ) => AwsCloudWatchResources["createdLogGroups"][string];
   /** Secrets Manager secrets by key (config/aws/secrets.ts), set by the dbs feature */
   dbSecrets?: Map<string, SecretsmanagerSecret>;
+  /** ALBs by name (config/aws/alb.ts), set by the containers feature */
+  albsByName?: Record<string, AwsAlbResourcesWithDns>;
 }

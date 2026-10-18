@@ -3,6 +3,7 @@ import type {
   AzureMetricAlertDefinition,
 } from "../../constructs/observability/azuremonitor";
 import { LOCATION, RESOURCE_GROUP } from "./common";
+import { alertEmails } from "../notifications";
 
 /**
  * Azure Monitor configuration for Log Analytics Workspace and Diagnostic Settings.
@@ -31,16 +32,14 @@ export const azureMonitorConfig = {
   // is enabled; alerts reference them by `key` (azureAlertingConfig.*.notify).
   actionGroups: [
     {
-      key: "devops",
-      name: "ag-devops-alerts",
-      shortName: "devops",
-      emailReceivers: [
-        {
-          name: "admin",
-          emailAddress: "admin@example.com",
-          useCommonAlertSchema: true,
-        },
-      ],
+      key: "ops",
+      name: "ag-ops-alerts",
+      shortName: "ops",
+      emailReceivers: alertEmails.map((emailAddress, i) => ({
+        name: `ops-${i + 1}`,
+        emailAddress,
+        useCommonAlertSchema: true,
+      })),
     },
   ],
   tags: {
@@ -65,7 +64,11 @@ export type AzureMetricAlertConfig = Omit<
   AzureMetricAlertDefinition,
   "scopes" | "actionGroups"
 > & {
-  target?: { type: "containerApp"; name: string };
+  /**
+   * Resolved to its ID. An Application Gateway alert is created only when
+   * that gateway is built (HTTP and HTTPS gateways are alternatives).
+   */
+  target?: { type: "containerApp" | "applicationGateway"; name: string };
   scopes?: string[];
   /** azureMonitorConfig.actionGroups keys */
   notify?: string[];
@@ -74,38 +77,51 @@ export type AzureMetricAlertConfig = Omit<
 /**
  * Alerts (created only when `clouds.azure.features.alerting` is enabled in
  * commonsettings.ts). Notification targets are azureMonitorConfig.actionGroups.
- *
- * Example:
- *   logAlerts: [{
- *     name: "aca-console-errors",
- *     query: 'ContainerAppConsoleLogs | where Log has "ERROR"',
- *     severity: 2,
- *     evaluationFrequency: "PT5M",
- *     windowDuration: "PT5M",
- *     timeAggregationMethod: "Count",
- *     operator: "GreaterThan",
- *     threshold: 0,
- *     notify: ["devops"],
- *   }],
- *   metricAlerts: [{
- *     name: "aca-backend-cpu-high",
- *     target: { type: "containerApp", name: "backend-api-service" },
- *     metricNamespace: "Microsoft.App/containerApps",
- *     metricName: "UsageNanoCores",
- *     aggregation: "Average",
- *     operator: "GreaterThan",
- *     threshold: 200000000,
- *     frequency: "PT5M",
- *     windowSize: "PT15M",
- *     notify: ["devops"],
- *   }],
  */
 export const azureAlertingConfig: {
   logAlerts: AzureLogAlertConfig[];
   metricAlerts: AzureMetricAlertConfig[];
 } = {
-  logAlerts: [],
-  metricAlerts: [],
+  logAlerts: [
+    // Errors the API writes to its log (e.g. "Readiness check failed") and
+    // failures of the journal pruning job (Container Apps job)
+    ...[
+      {
+        name: "api-errors",
+        query: 'ContainerAppConsoleLogs | where ContainerAppName == "backend-api-service" and Log has "failed"',
+      },
+      {
+        name: "journal-prune-failed",
+        query: 'ContainerAppConsoleLogs | where Log has "Journal pruning failed"',
+      },
+    ].map((a) => ({
+      ...a,
+      severity: 2,
+      evaluationFrequency: "PT5M",
+      windowDuration: "PT5M",
+      timeAggregationMethod: "Count" as const,
+      operator: "GreaterThan" as const,
+      threshold: 0,
+      notify: ["ops"],
+    })),
+  ],
+  metricAlerts: [
+    // 5xx of the API's Application Gateway. One per gateway; only the built
+    // one gets it.
+    ...["plain-http-appgw", "plain-https-appgw"].map((name) => ({
+      name: `${name}-5xx`,
+      target: { type: "applicationGateway" as const, name },
+      metricNamespace: "Microsoft.Network/applicationGateways",
+      metricName: "ResponseStatus",
+      aggregation: "Total" as const,
+      dimensions: [{ name: "HttpStatusGroup", operator: "Include" as const, values: ["5xx"] }],
+      operator: "GreaterThanOrEqual" as const,
+      threshold: 10,
+      frequency: "PT5M",
+      windowSize: "PT5M",
+      notify: ["ops"],
+    })),
+  ],
 };
 
 /**

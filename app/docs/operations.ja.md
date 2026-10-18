@@ -37,6 +37,22 @@ cdktn diff   # その環境のコンテナで: 変更がないことを確認す
 初回のデプロイ（または destroy の後のデプロイ）のうち、インフラの部分です。データベースと API は、アプリの
 リポジトリの作業です（そのリポジトリの getting-started の「全体の流れ」）。
 
+`cdktn deploy` は 3 回実行します。2 つの設定は、cdktn の外の作業が終わってからでないと有効にできないためです：
+
+| deploy | タイミング | API コンテナの設定（`config/apicontainer.ts`） | 先に有効にできない理由 |
+|---|---|---|---|
+| 1 回目（手順 3） | 最初 | `azureSecretReady`・`readinessProbe`・`journalPrune.enabled` を `false` | — |
+| 2 回目（手順 5） | シークレットを入れた後 | `azureSecretReady` を `true` | Azure の Container App は Key Vault のシークレットがないと起動できず、シークレットは 1 回目で Key Vault ができた後にしか入れられない |
+| 3 回目（手順 6） | CI/CD がすべてのクラウドに API をデプロイした後 | `readinessProbe`・`journalPrune.enabled` を `true` | 仮のイメージは `/` にしか応答しない（`/readyz` のヘルスチェックが失敗する）。`journalPrune.enabled` も、ジョブが最初から API のイメージで動くよう、ここで `true` にする（下記） |
+
+3 回目が本当に必要なのは `readinessProbe` だけです。削除ジョブは、もっと前に作ることもできます（AWS と Google Cloud は
+1 回目から、Azure はジョブが Key Vault のシークレットを使うので 2 回目から）。その場合ジョブは仮のイメージで作られ、
+CI/CD が API のイメージに切り替えます（AWS は API のタスク定義の最新リビジョンを実行し、Google Cloud と Azure は
+ジョブを更新します）。ただ、API のデプロイより前にスケジュールの時刻が来ると失敗するため、`readinessProbe` と一緒に
+作ります。
+
+構築の後の API のリリースでは `cdktn deploy` は不要です（環境のブランチへのマージだけ）。
+
 | # | 作業 | 場所 |
 |---|---|---|
 | 1 | 事前準備（一度だけ）：`.env.<環境名>`（Key Vault 用の自分のオブジェクト ID `AZURE_KEYVAULT_SECRETS_OFFICER_IDS` を含む）、cdktn の Google Cloud のサービスアカウントのロール、有効にする API | [getting-started.ja.md](getting-started.ja.md) |
@@ -51,7 +67,11 @@ Azure だけ2回 deploy する理由：Container App は、参照する Key Vaul
 付けます。
 
 これでインフラの準備は完了です。続けて、アプリのリポジトリで、データベースをセットアップし（クラウド単体なら各
-クラウドの VM で `scripts/node-setup.sh <cloud>`）、API をデプロイします（環境のブランチへのマージ）。API が動いたら：
+クラウドの VM で `scripts/node-setup.sh <cloud>`）、API をデプロイします。インフラを構築した直後は、マージする新しい
+コミットがなく、新しいレジストリも空なので、各クラウドのパイプラインを 1 回実行します（アプリのリポジトリの
+getting-started の「デプロイ」）。パイプラインの名前は `config/aws/cicd/cicdsettings.ts`（`api-service-cicd`）、
+`config/google/cicdsettings.ts`（`github-push-trigger`）、`config/azure/cicd.ts`（`multicloud-api-deploy`）で決まります。
+API が動いたら：
 
 | # | 作業 | 場所 |
 |---|---|---|
@@ -83,7 +103,8 @@ cdktn destroy
 | 3 | Azure：Key Vault の名前（既にあるというエラーで deploy が失敗したときだけ） | provider は destroy のときに論理削除された Key Vault を完全に削除（purge）します。されなかった場合（purge の権限がないなど）は、`az keyvault purge --name <Key Vault の名前>` を実行します |
 | 4 | その環境の API コンテナの設定（`config/apicontainer.ts`）を初回の値に戻す：`azureSecretReady`・`readinessProbe`・`journalPrune.enabled` を `false` | 新しい Key Vault にはまだシークレットがなく（参照する Container App は起動できません）、CI/CD が API をデプロイするまでコンテナは仮のイメージで動くためです |
 
-deploy の後は、初回と同じく、シークレットを入れ直し（下の「シークレット」。値はストアと一緒に削除されています）、データベースをセットアップし直し（アプリのリポジトリの getting-started の「データベースのセットアップ」）、API をデプロイします（環境のブランチへのマージ、またはパイプラインの再実行）。
+deploy の後は、初回と同じく、シークレットを入れ直し（下の「シークレット」。値はストアと一緒に削除されています）、データベースをセットアップし直し（アプリのリポジトリの getting-started の「データベースのセットアップ」）、API をデプロイし（上と同じくパイプラインを 1 回実行）、`readinessProbe` と `journalPrune.enabled` を `true` にして
+deploy します（手順 6）。
 
 ## ログ
 
@@ -135,7 +156,26 @@ deploy の後は、初回と同じく、シークレットを入れ直し（下�
 
 ## アラート
 
-`config/commonsettings.ts` で `clouds.<cloud>.features.alerting` を有効にすると、クラウドごとにアラートを作ります。一覧はすべて既定で空です。各設定ファイルに、コメントで例があります。
+`config/commonsettings.ts` で `clouds.<cloud>.features.alerting` を有効にすると、クラウドごとにアラートを作ります。
+通知先は `.env.<環境名>` の `ALERT_EMAILS`（カンマ区切り。公開リポジトリに入れないため。`config/notifications.ts`）の
+アドレスで、各クラウドの通知先 `ops` がこれを使います。
+
+### 監視している内容
+
+| アラート | AWS | Google Cloud | Azure | 通知される条件 |
+|---|---|---|---|---|
+| `api-errors` | `/aws/ecs/api-service` のメトリクスフィルター（`"failed"`）とアラーム | Cloud Run のサービスのログベースの指標とアラートポリシー | `backend-api-service` の `ContainerAppConsoleLogs` のログアラート | API が 5 分以内にエラーをログに出した（例：DB に接続できない、マイグレーションが足りないときの `Readiness check failed: ...`、`Idle connection to ... failed`） |
+| `journal-prune-failed` | 同じロググループ（ジョブは API のタスク定義で動く） | Cloud Run のジョブのログベースの指標 | Container Apps のジョブのログのアラート | 毎日の変更履歴の削除ジョブが失敗した（`Journal pruning failed: ...`） |
+| `<ロードバランサー>-5xx` | ALB の `HTTPCode_ELB_5XX_Count` と `HTTPCode_Target_5XX_Count` | リージョンのロードバランサーの `request_count`（レスポンスコードのクラス 500） | Application Gateway の `ResponseStatus`（`HttpStatusGroup` が 5xx） | 5 分以内に 5xx が 10 回以上（ロードバランサーが返したもの〔正常な API がないなど〕、または API が返したもの） |
+
+ロードバランサーのアラートは、各クラウドの HTTP と HTTPS の両方のロードバランサーについて書いてあり、作られているほうにだけ
+作られます。HTTP と HTTPS を切り替えても、アラートの設定を変える必要はありません。
+
+通知が来たら、API のログを確認します：AWS は CloudWatch Logs の `/aws/ecs/api-service`、Google Cloud は Cloud Logging
+（Cloud Run のサービス `web-service-with-lb`、またはジョブ `<PROJECT_NAME>-google-journal-prune`）、Azure は Log Analytics の
+`ContainerAppConsoleLogs`。エラーの意味と対処は、アプリのリポジトリの運用手順に書いています。
+
+### 設定
 
 | クラウド | 設定 | 通知先 | アラーム |
 |---|---|---|---|
@@ -144,8 +184,9 @@ deploy の後は、初回と同じく、シークレットを入れ直し（下�
 | Azure | `config/azure/azuremonitor.ts` | `azureMonitorConfig.actionGroups` | `azureAlertingConfig.logAlerts`（スケジュールされたクエリルール、v2 API）、`azureAlertingConfig.metricAlerts` |
 
 - アラームは、`notify` に通知先の `key` を書いて参照します。AWS のアラームは、`notifyOnOk: true` で回復時にも通知します。
-- アラームの対象は、設定の名前で書きます（AWS: `ClusterName` / `ServiceName` などのメトリクスのディメンション、Google Cloud: `resource.labels.service_name` などのラベルのフィルター、Azure: `target: { type: "containerApp", name }`）。存在しないキーや名前があると、合成がエラーで止まります。
+- アラームの対象は、設定の名前で書きます（AWS: `ClusterName` / `ServiceName` などのメトリクスのディメンション、ALB の `LoadBalancer` のディメンションは `loadBalancer: <ALB の名前>`。Google Cloud: `resource.labels.service_name` などのラベルのフィルター、そのロードバランサーがあるときだけ作るには `loadBalancer: <名前>`。Azure: `target: { type: "containerApp" | "applicationGateway", name }` と、絞り込みの `dimensions`）。存在しないキーや名前があると、合成がエラーで止まります。
 - Azure のログアラートは、`scopes` を指定しなければ、`azureMonitorConfig` の Log Analytics ワークスペースに対して実行されます。
+- Google Cloud：アラートポリシーはログベースの指標の直後に作られます。指標がまだ見つからないというエラーで deploy が失敗したら、もう一度実行してください。
 
 ### AWS — メールのサブスクリプションを確認する
 

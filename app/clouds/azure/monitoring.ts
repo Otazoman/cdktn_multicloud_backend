@@ -14,7 +14,7 @@ import { AzureBuildContext } from "./context";
  * index.ts (step 1.5).
  */
 export function createAzureMonitoring(ctx: AzureBuildContext): void {
-  const { scope, azureProvider, containerApps, azureMonitor } = ctx;
+  const { scope, azureProvider, containerApps, azureMonitor, appGwsByName } = ctx;
 
   if (!isFeatureEnabled("azure", "alerting")) {
     return;
@@ -43,9 +43,12 @@ export function createAzureMonitoring(ctx: AzureBuildContext): void {
     });
 
   const getTargetId = (
-    target: { type: "containerApp"; name: string },
+    target: { type: "containerApp" | "applicationGateway"; name: string },
     alertName: string,
   ): string => {
+    if (target.type === "applicationGateway") {
+      return appGwsByName![target.name].appGw.id;
+    }
     const app = containerApps.get(target.name);
     if (!app) {
       throw new Error(
@@ -77,7 +80,12 @@ export function createAzureMonitoring(ctx: AzureBuildContext): void {
         actionGroups: getActionGroupIds(notify, alert.name),
       };
     }),
-    metricAlerts: metricAlerts.map(({ notify, scopes, target, ...alert }) => {
+    metricAlerts: metricAlerts
+      // Alerts of an Application Gateway only while it is built
+      .filter(
+        ({ target }) => target?.type !== "applicationGateway" || appGwsByName?.[target.name],
+      )
+      .map(({ notify, scopes, target, ...alert }) => {
       const resolvedScopes =
         scopes ?? (target ? [getTargetId(target, alert.name)] : undefined);
       if (!resolvedScopes) {

@@ -68,8 +68,8 @@ cdktn get    # .gen/ を生成する（Azure DevOps の provider、cdktf.json）
 | `AZUREDB_ROOT_USER`、`AZUREDB_ROOT_PASSWORD` | Azure Database の管理者 |
 | `AZURE_APPGW_SSL_CERT_PASSWORD` | Application Gateway の PFX 証明書のパスワード（4 章） |
 | `GOOGLE_AZURE_VPN_PRESHARED_KEY` | Google Cloud ↔ Azure の VPN トンネルの事前共有鍵 |
-| `ECS_WORKER_POSTGRES_PASSWORD` | ECS の `worker-service` の環境変数 `POSTGRES_PASSWORD` |
 | `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID` | サービスプリンシパル「DevOpsInfrastructure」のオブジェクト ID（Azure の CI/CD、5 章「Azure」の手順 10）。秘密の値ではないが、テナントごとの値なので Git に入れない |
+| `ALERT_EMAILS` | すべてのクラウドのアラート（`features.alerting`）を受け取るアドレス（カンマ区切り）。Git に入れない。AWS は最初に各アドレスへ確認のメールを送る |
 | `AZURE_KEYVAULT_SECRETS_OFFICER_IDS` | Azure の VM から Key Vault に DB のシークレットを入れるユーザーのオブジェクト ID（カンマ区切り）。`az ad signed-in-user show --query id -o tsv` で確認できる。ないと `az keyvault secret set` が `ForbiddenByRbac` で失敗する。秘密の値ではないが、テナントごとの値なので Git に入れない |
 
 `.env.<環境名>` は Docker Compose が読みます。次の値は引用符で囲んでください。
@@ -134,6 +134,7 @@ cdktn が使う IAM ユーザーに、有効にするリソースの権限に加
   ```
 
 - **EFS**: `AmazonElasticFileSystemFullAccess`
+- **変更履歴の削除ジョブ**（`apiContainerConfig.journalPrune.enabled`。EventBridge Scheduler のスケジュール）: `AmazonEventBridgeSchedulerFullAccess`。ないと、deploy が `not authorized to perform: scheduler:CreateSchedule` で失敗します
 - **CodeBuild / ECR**: `IAMFullAccess` と、次のポリシー
 
   ```json
@@ -209,6 +210,7 @@ cdktn が使う IAM ユーザーに、有効にするリソースの権限に加
 | Cloud Run | Cloud Run Admin API、IAM API、Artifact Registry API、Cloud Build API、Serverless VPC Access API、Cloud Filestore API |
 | Filestore | Cloud Filestore API |
 | Secret Manager（Cloud SQL と一緒に使う） | Secret Manager API |
+| 変更履歴の削除ジョブ（`apiContainerConfig.journalPrune.enabled`） | Cloud Scheduler API（ないと、deploy が `Cloud Scheduler API has not been used in project ... or it is disabled` で失敗します）、Cloud Run Admin API |
 | CI/CD | Cloud Build API、Secret Manager API（GitHub との接続）、Artifact Registry API、Cloud Run Admin API、IAM API、Service Networking API（プライベートプールがプライベート サービス アクセスを使うため） |
 
 ```bash

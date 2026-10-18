@@ -210,9 +210,9 @@
 
 | 項目名 | 設定する内容 | 設定できる値 | 指定がない場合のデフォルト値 | 備考 |
 |---|---|---|---|---|
-| `notificationTargets[]` | SNS のトピック | `{ key, name?, emails[], tags? }` | `[]` | `name` の既定は `<PROJECT_NAME>-aws-alerts-<key>`。受信者はそれぞれ、サブスクリプションの確認メールで承認する必要がある |
+| `notificationTargets[]` | SNS のトピック | `{ key, name?, emails[], tags? }` | `ALERT_EMAILS` を使う `ops` | `name` の既定は `<PROJECT_NAME>-aws-alerts-<key>`。受信者はそれぞれ、サブスクリプションの確認メールで承認する必要がある |
 | `metricFilters[]` | ログのメトリクスフィルター | `{ name, key?, logGroupName, pattern, metricName, metricNamespace, value?, defaultValue? }` | `[]` | `logGroupName` は `cloudwatchlogs.ts` にあること。`value` の既定は `"1"` |
-| `alarms[]` | メトリクスのアラーム | `{ alarmName, key?, namespace, metricName, dimensions, statistic, comparisonOperator, threshold, period, evaluationPeriods, notify?, notifyOnOk? }` | `[]` | `notify`: `notificationTargets` のキー。`notifyOnOk` の既定は `false` |
+| `alarms[]` | メトリクスのアラーム | `{ alarmName, key?, namespace, metricName, dimensions, statistic, comparisonOperator, threshold, period, evaluationPeriods, notify?, notifyOnOk?, loadBalancer? }` | API のエラー、削除ジョブの失敗、各 ALB の 5xx（[operations.ja.md](../operations.ja.md) の「アラート」） | `loadBalancer`：`alb.ts` の ALB の名前。その ALB が作られているときだけ、`LoadBalancer` のディメンションを付けて作る |
 
 ### ログのアーカイブ（機能 `logArchive`、`awsLogArchiveConfig`）
 
@@ -222,7 +222,7 @@
 | `mode` | 送り方 | `"firehose"`（継続的、GB 単位の料金）、`"export"`（Lambda で 1 日 1 回） | `firehose` | 1 つのロググループに付けられるサブスクリプションフィルターは 2 つまで |
 | `bucket.name` | S3 バケット | 全世界で一意な文字列 | `logArchive` が有効なときは**必須** | 環境ごとの名前は `byEnv` で書く |
 | `bucket.lifecycle` | Glacier への移動 / 削除 | `{ transitionToGlacierDays?, expireDays? }` | `30`、`365` | |
-| `logGroups` | アーカイブするロググループ | `cloudwatchlogs.ts` の名前 | api-service、worker-service | |
+| `logGroups` | アーカイブするロググループ | `cloudwatchlogs.ts` の名前 | api-service | |
 | `firehose` | バッファリング | `{ bufferingSizeMb, bufferingIntervalSeconds }` | `5`、`300` | `firehose` のみ |
 | `export` | スケジュール | `{ scheduleExpression, scheduleExpressionTimezone?, lambdaLogRetentionDays }` | `cron(0 2 * * ? *)`、`Asia/Tokyo`、`14` | `export` のみ。終わってから 12 時間以上たった直近の UTC の 1 日分をエクスポートする |
 | `names` | ロール、Lambda、スケジュール、ストリーム、フィルターの名前 | `monitoring.ts` を参照 | `<PROJECT_NAME>-aws-log-archive-<役割>` | |

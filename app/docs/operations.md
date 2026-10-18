@@ -48,6 +48,26 @@ The infrastructure part of a first deployment (or of a deployment after a
 destroy). The database and the API are the application repository's work
 (its getting-started, "Overview").
 
+`cdktn deploy` runs three times, because two settings can be turned on only
+after work outside cdktn:
+
+| Deploy | When | API container flags (`config/apicontainer.ts`) | Why not earlier |
+|---|---|---|---|
+| 1st (step 3) | First | `azureSecretReady`, `readinessProbe` and `journalPrune.enabled` `false` | — |
+| 2nd (step 5) | After the secrets are set | `azureSecretReady` `true` | The Azure Container App cannot start without the Key Vault secret, which can be set only after the 1st deploy created the vault |
+| 3rd (step 6) | After CI/CD has deployed the API on every cloud | `readinessProbe` and `journalPrune.enabled` `true` | The placeholder images answer only `/` (health checks on `/readyz` would fail). `journalPrune.enabled` is turned on here as well, so that the jobs start with the API's image (see below) |
+
+Only `readinessProbe` strictly needs the 3rd deploy. The pruning jobs could
+be created earlier (AWS and Google Cloud from the 1st deploy, Azure from the
+2nd, since its job needs the Key Vault secret): they would start with the
+placeholder image, and CI/CD switches them to the API's image (AWS runs the
+latest revision of the API's task definition; Google Cloud and Azure update
+the job). But a scheduled run before the API is deployed would fail, so the
+jobs are created together with `readinessProbe`.
+
+Later releases of the API need no `cdktn deploy`: merging into the
+environment's branch is enough.
+
 | # | Step | Where |
 |---|---|---|
 | 1 | One-time preparation: `.env.<env>` (including `AZURE_KEYVAULT_SECRETS_OFFICER_IDS`, your object ID for the Key Vault), the Google Cloud roles of the cdktn service account and the APIs | [getting-started.md](getting-started.md) |
@@ -65,8 +85,12 @@ Azure VM, and the second deploy adds the reference.
 
 The infrastructure is then ready. Next, in the application repository: set
 up the databases (`scripts/node-setup.sh <cloud>` on each cloud's VM for a
-cloud alone) and deploy the API (merge into the environment's branch). After
-the API runs:
+cloud alone) and deploy the API. Right after the infrastructure is built
+there is no new commit to merge, and the new registries are empty: run each
+cloud's pipeline once instead (application repository: getting-started,
+"Deploy"). The pipelines are named in `config/aws/cicd/cicdsettings.ts`
+(`api-service-cicd`), `config/google/cicdsettings.ts` (`github-push-trigger`)
+and `config/azure/cicd.ts` (`multicloud-api-deploy`). After the API runs:
 
 | # | Step | Where |
 |---|---|---|
@@ -104,8 +128,8 @@ the values stored in deleted resources are gone. Before `cdktn deploy`:
 After the deploy, as on the first deployment: set the secrets again
 ("Secrets" below; the values were deleted with the stores), set the
 database up again (application repository: getting-started, "Set up the
-databases"), and deploy the API (merge to the environment's branch, or run
-the pipelines again).
+databases"), deploy the API (run the pipelines once, as above), and deploy
+with `readinessProbe` and `journalPrune.enabled` `true` (step 6).
 
 ## Logging
 
@@ -185,8 +209,30 @@ storage and delete them.
 ## Alerting
 
 Alerting is created per cloud when `clouds.<cloud>.features.alerting` is
-enabled in `config/commonsettings.ts`. All lists are empty by default; each
-config file contains a commented example.
+enabled in `config/commonsettings.ts`. The alerts go to the addresses in
+`ALERT_EMAILS` of `.env.<env>` (comma-separated; kept out of this public
+repository, `config/notifications.ts`); every cloud's notification target
+`ops` uses them.
+
+### What is monitored
+
+| Alert | AWS | Google Cloud | Azure | Fires when |
+|---|---|---|---|---|
+| `api-errors` | Log metric filter on `/aws/ecs/api-service` (`"failed"`) and alarm | Log-based metric on the Cloud Run service and alert policy | Log alert on `ContainerAppConsoleLogs` of `backend-api-service` | The API logs an error within 5 minutes (e.g. `Readiness check failed: ...` when its database is unreachable or a migration is missing, `Idle connection to ... failed`) |
+| `journal-prune-failed` | Same log group (the job runs the API task definition) | Log-based metric on the Cloud Run job | Log alert on the Container Apps job's logs | The daily journal pruning job failed (`Journal pruning failed: ...`) |
+| `<load balancer>-5xx` | `HTTPCode_ELB_5XX_Count` and `HTTPCode_Target_5XX_Count` of the ALB | `request_count` of the regional load balancer with response code class 500 | `ResponseStatus` of the Application Gateway, `HttpStatusGroup` 5xx | 10 or more 5xx responses within 5 minutes (from the load balancer, e.g. no healthy API, or from the API) |
+
+The load balancer alerts are written for both the HTTP and the HTTPS load
+balancer of each cloud; only the one that is built gets them, so switching
+between them needs no change in the alerts.
+
+When an alert fires, look at the API's logs: AWS CloudWatch Logs
+`/aws/ecs/api-service`, Google Cloud Logging (Cloud Run service
+`web-service-with-lb`, or the job `<PROJECT_NAME>-google-journal-prune`),
+Azure Log Analytics `ContainerAppConsoleLogs`. The application repository's
+operations guide describes the errors and what to do.
+
+### Configuration
 
 | Cloud | Config | Notification targets | Alarms |
 |---|---|---|---|
@@ -197,11 +243,16 @@ config file contains a commented example.
 - Alarms reference notification targets by `key` in `notify`. AWS alarms also
   notify on recovery with `notifyOnOk: true`.
 - Alarm targets are written with config names (AWS: metric dimensions such as
-  `ClusterName` / `ServiceName`, Google Cloud: label filters such as
-  `resource.labels.service_name`, Azure: `target: { type: "containerApp", name }`).
-  Unknown keys or names stop the synthesis with an error.
+  `ClusterName` / `ServiceName`, or `loadBalancer: <ALB name>` for the ALB's
+  `LoadBalancer` dimension; Google Cloud: label filters such as
+  `resource.labels.service_name`, and `loadBalancer: <name>` to create the
+  policy only with that load balancer; Azure: `target: { type: "containerApp"
+  | "applicationGateway", name }`, with `dimensions` filters). Unknown keys or
+  names stop the synthesis with an error.
 - Azure log alerts run against the Log Analytics Workspace of
   `azureMonitorConfig` unless `scopes` is set.
+- Google Cloud: an alert policy is created right after its log-based metric;
+  if the deploy fails because the metric is not found yet, run it again.
 
 ### AWS — confirm email subscriptions
 

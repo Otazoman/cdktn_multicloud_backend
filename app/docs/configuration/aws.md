@@ -210,9 +210,9 @@ Only PostgreSQL (5432) is opened in `myaws-db-sg`.
 
 | Item | Description | Allowed values | Default | Notes |
 |---|---|---|---|---|
-| `notificationTargets[]` | SNS topics | `{ key, name?, emails[], tags? }` | `[]` | `name` default `<PROJECT_NAME>-aws-alerts-<key>`. Each recipient must confirm the subscription e-mail |
+| `notificationTargets[]` | SNS topics | `{ key, name?, emails[], tags? }` | `ops` with `ALERT_EMAILS` | `name` default `<PROJECT_NAME>-aws-alerts-<key>`. Each recipient must confirm the subscription e-mail |
 | `metricFilters[]` | Log metric filters | `{ name, key?, logGroupName, pattern, metricName, metricNamespace, value?, defaultValue? }` | `[]` | `logGroupName` must exist in `cloudwatchlogs.ts`. `value` default `"1"` |
-| `alarms[]` | Metric alarms | `{ alarmName, key?, namespace, metricName, dimensions, statistic, comparisonOperator, threshold, period, evaluationPeriods, notify?, notifyOnOk? }` | `[]` | `notify`: keys of `notificationTargets`. `notifyOnOk` default `false` |
+| `alarms[]` | Metric alarms | `{ alarmName, key?, namespace, metricName, dimensions, statistic, comparisonOperator, threshold, period, evaluationPeriods, notify?, notifyOnOk?, loadBalancer? }` | API errors, journal job failures, 5xx of each ALB ([operations.md](../operations.md), "Alerting") | `loadBalancer`: ALB name in `alb.ts`; the alarm is created only when that ALB is built, with its `LoadBalancer` dimension. | `notify`: keys of `notificationTargets`. `notifyOnOk` default `false` |
 
 ### Log archive (feature `logArchive`, `awsLogArchiveConfig`)
 
@@ -222,7 +222,7 @@ Only PostgreSQL (5432) is opened in `myaws-db-sg`.
 | `mode` | Delivery method | `"firehose"` (continuous, per-GB charge), `"export"` (daily via Lambda) | `firehose` | A log group can have at most 2 subscription filters |
 | `bucket.name` | S3 bucket | globally unique string | **Required** when `logArchive` is on | Use `byEnv` for per-environment names |
 | `bucket.lifecycle` | Glacier / expiry | `{ transitionToGlacierDays?, expireDays? }` | `30`, `365` | |
-| `logGroups` | Log groups to archive | names in `cloudwatchlogs.ts` | api-service, worker-service | |
+| `logGroups` | Log groups to archive | names in `cloudwatchlogs.ts` | api-service | |
 | `firehose` | Buffering | `{ bufferingSizeMb, bufferingIntervalSeconds }` | `5`, `300` | `firehose` only |
 | `export` | Schedule | `{ scheduleExpression, scheduleExpressionTimezone?, lambdaLogRetentionDays }` | `cron(0 2 * * ? *)`, `Asia/Tokyo`, `14` | `export` only. Exports the last full UTC day that ended 12+ hours ago |
 | `names` | Names of roles, Lambda, schedule, streams, filters | see `monitoring.ts` | `<PROJECT_NAME>-aws-log-archive-<role>` | |

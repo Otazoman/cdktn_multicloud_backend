@@ -24,7 +24,6 @@ export interface EnvAccounts {
 
 export const accounts: EnvAccounts = byEnv<EnvAccounts>({
   default: {},
-  // stg: { awsAccountId: "123456789012", azureSubscriptionId: "..." },
 });
 
 // ---- Cross-cloud VPN -------------------------------------------------------
@@ -44,7 +43,7 @@ export const vpnMode: VpnMode = byEnv<VpnMode>({
 // ---- Cross-cloud VPN -------------------------------------------------------
 
 /** Create VPN resources at all */
-export const useVpn: boolean = false;
+export const useVpn: boolean = true;
 
 // Direct VPN connection per cloud pair. When two pairs share a cloud
 // (e.g. awsToAzure + googleToAzure), that cloud acts as a hub and routes
@@ -56,7 +55,7 @@ export const googleToAzure: boolean = true;
 // ---- Cross-cloud private DNS -----------------------------------------------
 
 /** Private DNS zones and cross-cloud DNS forwarding */
-export const hostZones: boolean = false;
+export const hostZones: boolean = true;
 
 // ---- Per-cloud switches ----------------------------------------------------
 // Each feature is created when the cloud and the feature are enabled. VPN
@@ -96,8 +95,8 @@ export const clouds: Record<CloudId, CloudSettings> = {
       storage: false,
       containers: true,
       cicd: true,
-      dns: false,
-      alerting: false,
+      dns: true,
+      alerting: true,
       logArchive: false,
     },
   },
@@ -109,8 +108,8 @@ export const clouds: Record<CloudId, CloudSettings> = {
       storage: false,
       containers: true,
       cicd: true,
-      dns: false,
-      alerting: false,
+      dns: true,
+      alerting: true,
       logArchive: false,
     },
   },
@@ -122,7 +121,7 @@ export const clouds: Record<CloudId, CloudSettings> = {
       storage: false,
       containers: true,
       cicd: true,
-      dns: false,
+      dns: true,
       alerting: true,
       logArchive: false,
     },

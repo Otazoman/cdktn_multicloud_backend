@@ -183,9 +183,9 @@ One peering connection with several non-overlapping reserved ranges.
 
 | Item | Description | Allowed values | Default | Notes |
 |---|---|---|---|---|
-| `notificationTargets[]` | E-mail channels | `{ key, name?, emails[] }` | `[]` | `name` default `<PROJECT_NAME>-google-alerts-<key>` |
+| `notificationTargets[]` | E-mail channels | `{ key, name?, emails[] }` | `ops` with `ALERT_EMAILS` | `name` default `<PROJECT_NAME>-google-alerts-<key>` |
 | `logMetrics[]` | Log-based metrics | `GcpLogMetricDefinition` (see `constructs/observability/googlecloudmonitoring.ts`) | `[]` | Metric type `logging.googleapis.com/user/<name>` |
-| `alertPolicies[]` | Alert policies | `GcpAlertPolicyDefinition` without `notificationChannels`, plus `notify?: string[]` | `[]` | `notify`: keys of `notificationTargets`. Example in the file header |
+| `alertPolicies[]` | Alert policies | `GcpAlertPolicyDefinition` without `notificationChannels`, plus `notify?: string[]`, `loadBalancer?: string` | API errors, journal job failures, 5xx of each regional load balancer | `notify`: keys of `notificationTargets`. `loadBalancer`: name in `cloudloadbalancing.ts`; the policy is created only when that load balancer is built |
 
 ### Log archive (feature `logArchive`, `googleLogArchiveConfig`)
 

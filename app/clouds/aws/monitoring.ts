@@ -54,18 +54,23 @@ export function createAwsMonitoring(ctx: AwsBuildContext): void {
     awsProvider,
     {
       metricFilters,
-      metricAlarms: awsAlertingConfig.alarms.map(
-        ({ notify, notifyOnOk, ...alarm }) => {
+      metricAlarms: awsAlertingConfig.alarms
+        // Alarms of an ALB only while it is built (HTTP and HTTPS ALBs are
+        // alternatives)
+        .filter((alarm) => !alarm.loadBalancer || ctx.albsByName?.[alarm.loadBalancer])
+        .map(({ notify, notifyOnOk, loadBalancer, ...alarm }) => {
           const topicArns = notify?.map((key) =>
             getTopicArn(key, alarm.alarmName),
           );
           return {
             ...alarm,
+            dimensions: loadBalancer
+              ? { ...alarm.dimensions, LoadBalancer: ctx.albsByName![loadBalancer].alb.arnSuffix }
+              : alarm.dimensions,
             alarmActions: topicArns,
             okActions: notifyOnOk ? topicArns : undefined,
           };
-        },
-      ),
+        }),
     },
   );
 }

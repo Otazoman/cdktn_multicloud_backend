@@ -5,7 +5,7 @@
  */
 import { awsEcsClusterSettings, awsEcsConfigs } from "../config/aws/ecs";
 import { awsVpnparams } from "../config/aws/vpn";
-import { azureMonitorConfig } from "../config/azure/azuremonitor";
+import { azureAlertingConfig, azureMonitorConfig } from "../config/azure/azuremonitor";
 import { azureAcaEnvironmentDefaults } from "../config/azure/containerapps";
 import { azureVpnparams } from "../config/azure/vpn";
 import * as cloudlogging from "../config/google/cloudlogging";
@@ -47,6 +47,7 @@ const mutable: object[] = [
   azureVpnparams,
   azureAcaEnvironmentDefaults,
   azureMonitorConfig,
+  azureAlertingConfig,
 ];
 const snapshots = mutable.map((o) => ({ ...o }));
 
@@ -250,6 +251,10 @@ describe("logging: switches", () => {
       () => {
         azureMonitorConfig.isEnabled = false;
         azureAcaEnvironmentDefaults.logs = false;
+        // The alerts need the workspace and its action groups too; check the
+        // VPN logs alone
+        azureAlertingConfig.logAlerts = [];
+        azureAlertingConfig.metricAlerts = [];
       },
       /Azure VPN gateway logs/,
     ],

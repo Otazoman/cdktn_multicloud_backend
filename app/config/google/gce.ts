@@ -32,23 +32,5 @@ export const gceInstancesParams = {
       serviceAccountScopes: serviceAccountScopes,
       startupScriptPath: "./scripts/vm_init.sh",
     },
-    {
-      build: false,
-      name: "gce-instance-2",
-      machineType: "e2-micro",
-      zone: LOCATION + "-b",
-      tags: ["multicloud"],
-      labels: {
-        name: "example-instance2",
-        owner: "team-a",
-      },
-      bootDiskImage:
-        "projects/ubuntu-os-cloud/global/images/ubuntu-2404-noble-amd64-v20240701a",
-      bootDiskSize: 20,
-      bootDiskType: "pd-standard",
-      bootDiskDeviceName: "test-instance2-boot-disk",
-      subnetworkName: "app-subnet",
-      serviceAccountScopes: serviceAccountScopes,
-    },
   ],
 };

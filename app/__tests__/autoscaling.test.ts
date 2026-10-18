@@ -2,7 +2,7 @@
  * Autoscaling (FEAT-03 step 6): ECS target tracking (CPU / memory / ALB
  * requests per target), Cloud Run concurrency and Container Apps scale rules.
  */
-import { awsEcsConfigs } from "../config/aws/ecs";
+import { AwsEcsSettings, awsEcsConfigs } from "../config/aws/ecs";
 import { azureAcaConfigs } from "../config/azure/containerapps";
 import { gcpRunConfigs } from "../config/google/cloudrun";
 import { FEATURE_SETS, synthCase } from "../scripts/dev/synthMatrix";
@@ -22,11 +22,34 @@ const synthAllOn = () =>
     },
   });
 
-const [apiService, workerService] = awsEcsConfigs;
+const [apiService] = awsEcsConfigs;
+// Read on use: afterEach replaces the objects of the configuration
+const apiScaling = () => apiService.autoScaling!;
+
+// A rolling service whose target group is not on an ALB (the configuration
+// has only the API service): added by the tests that need it
+const workerService: AwsEcsSettings = {
+  ...structuredClone(apiService),
+  name: "worker-service",
+  deploymentStrategy: "ROLLING",
+  infraRoleName: undefined,
+  targetGroupName: "managed-worker-tg",
+  targetGroupNameGreen: undefined,
+  listenerName: undefined,
+  testListenerName: undefined,
+  autoScaling: {
+    ...structuredClone(apiScaling()),
+    cpuPolicyName: "worker-service-cpu-scaling",
+    memoryPolicyName: "worker-service-mem-scaling",
+  },
+};
+const ecsServiceCount = awsEcsConfigs.length;
+
 const mutable: object[] = [...awsEcsConfigs, ...gcpRunConfigs, ...azureAcaConfigs];
 const snapshots = mutable.map((o) => structuredClone(o));
 
 afterEach(() => {
+  awsEcsConfigs.splice(ecsServiceCount);
   mutable.forEach((o, i) => {
     Object.keys(o).forEach((k) => delete (o as any)[k]);
     Object.assign(o, structuredClone(snapshots[i]));
@@ -55,7 +78,7 @@ test("defaults keep the current scaling", () => {
 
 test("ECS: ALB requests per target for a rolling service", () => {
   Object.assign(apiService, { deploymentStrategy: "ROLLING" });
-  Object.assign(apiService.autoScaling, { requestCountPerTarget: 500 });
+  Object.assign(apiScaling(), { requestCountPerTarget: 500 });
   const synth = synthAllOn();
   const policy = resourcesOf(synth, "aws_appautoscaling_policy").find(
     (p) =>
@@ -73,15 +96,14 @@ test("ECS: ALB requests per target for a rolling service", () => {
 test.each([
   [
     "blue/green deployment",
-    () => Object.assign(apiService.autoScaling, { requestCountPerTarget: 500 }),
+    () => Object.assign(apiScaling(), { requestCountPerTarget: 500 }),
     /only supported with the ROLLING deployment strategy/,
   ],
   [
     "target group without an ALB",
     () => {
-      // The sample worker service (build: false in the config) has no ALB
-      Object.assign(workerService, { build: true });
-      Object.assign(workerService.autoScaling, { requestCountPerTarget: 500 });
+      awsEcsConfigs.push(structuredClone(workerService));
+      Object.assign(awsEcsConfigs[ecsServiceCount].autoScaling!, { requestCountPerTarget: 500 });
     },
     /needs the target group "managed-worker-tg"/,
   ],

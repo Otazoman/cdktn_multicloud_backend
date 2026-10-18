@@ -219,7 +219,7 @@ cdktn が設定するパイプラインの変数: `AZURE_CLIENT_ID`、`ACR_NAME`
 | `logAnalyticsWorkspace` | `{ name, sku, retentionInDays }` | `sku`: `PerGB2018` | **必須** | |
 | `tableRetention` | テーブルごとの保存期間 | テーブル → 日数のマップ | ワークスペースの保存期間 | `AzureDiagnostics`（VPN ゲートウェイ）、`ContainerAppConsoleLogs`、`ContainerAppSystemLogs` |
 | `applicationInsightsName` | Application Insights | 文字列 | **必須** | |
-| `actionGroups[]` | 通知先 | `{ key, name, shortName, emailReceivers: [{ name, emailAddress, useCommonAlertSchema }] }` | — | `features.alerting` のときだけ作る。`key` で参照する |
+| `actionGroups[]` | 通知先 | `{ key, name, shortName, emailReceivers: [{ name, emailAddress, useCommonAlertSchema }] }` | `ALERT_EMAILS` を使う `ops` | `features.alerting` のときだけ作る。`key` で参照する |
 | `tags` | タグ | マップ | — | |
 
 ### アラート（`azureAlertingConfig`、機能 `alerting`）
@@ -227,7 +227,7 @@ cdktn が設定するパイプラインの変数: `AZURE_CLIENT_ID`、`ACR_NAME`
 | 項目名 | 設定する内容 | 設定できる値 | 指定がない場合のデフォルト値 | 備考 |
 |---|---|---|---|---|
 | `logAlerts[]` | ログ検索のアラート | `scopes` / `actionGroups` を除いた `AzureLogAlertDefinition` に、`scopes?`、`notify?: string[]` を加えたもの | `[]` | `notify`: `actionGroups` のキー。`key?` でアドレスを固定する |
-| `metricAlerts[]` | メトリクスのアラート | `scopes` / `actionGroups` を除いた `AzureMetricAlertDefinition` に、`target?: { type: "containerApp", name }`、`scopes?`、`notify?` を加えたもの | `[]` | 項目は `constructs/observability/azuremonitor.ts` を参照 |
+| `metricAlerts[]` | メトリクスのアラート | `scopes` / `actionGroups` を除いた `AzureMetricAlertDefinition` に、`target?: { type: "containerApp" \| "applicationGateway", name }`、`scopes?`、`notify?` を加えたもの。`dimensions?: [{ name, operator, values }]` | 各 Application Gateway の 5xx | `applicationGateway` のアラートは、その Application Gateway が作られているときだけ作る |
 
 ### ログのアーカイブ（`azureLogArchiveConfig`、機能 `logArchive`）
 

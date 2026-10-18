@@ -91,7 +91,7 @@ Settings of the API container (FEAT-01 §9 #5), applied to the CI/CD deploy targ
 | `azureSecretReady` | Reference the Key Vault secret from the Container App | `boolean`, `byEnv` | `false` | Set `true` after the secret is set from the Azure VM ([operations.md](../operations.md), "Secrets") |
 | `readinessProbe` | `/readyz` as readiness (ALB target groups, Cloud Run startup probe, Container Apps readiness probe) and `/healthz` as liveness | `boolean`, `byEnv` | `false` | The placeholder images answer only `/`: set `true` after CI/CD has deployed the API |
 
-| `journalPrune.enabled` | Scheduled job that deletes old write-journal rows (application `node dist/prune.js`), on every cloud with a database | `boolean`, `byEnv` | `false` | Set `true` after CI/CD has deployed the API: Google Cloud and Azure create the job with the API service's current image. Azure also needs `azureSecretReady`. Google Cloud needs the Cloud Scheduler API |
+| `journalPrune.enabled` | Scheduled job that deletes old write-journal rows (application `node dist/prune.js`), on every cloud with a database | `boolean`, `byEnv` | `false` | Set `true` after CI/CD has deployed the API, so that the jobs start with the API's image (created earlier, they would run the placeholder image until CI/CD updates them; operations, "Build an environment"). Azure also needs `azureSecretReady`. Google Cloud needs the Cloud Scheduler API |
 | `journalPrune.retentionDays` | `JOURNAL_RETENTION_DAYS` of the job | days | `30` | Also how long idempotency keys work |
 | `journalPrune.schedules.<cloud>` | Daily schedule per cloud, in each cloud's syntax | cron | AWS `cron(0 3 * * ? *)`, Google `20 3 * * *` (in `timeZone`), Azure `40 18 * * *` (UTC) | Different times per cloud; only the primary deletes |
 | `journalPrune.timeZone` | Time zone of the AWS and Google Cloud schedules | IANA name | `Asia/Tokyo` | Container Apps jobs use UTC |
@@ -125,8 +125,8 @@ The ECS service ignores task definition changes (CI/CD deploys new revisions). A
 | `AZUREDB_ROOT_USER`, `AZUREDB_ROOT_PASSWORD` | Admin user of Azure Database for PostgreSQL | `config/azure/azuredatabase/databases.ts` | |
 | `AZURE_APPGW_SSL_CERT_PASSWORD` | Password of the PFX certificate | `config/azure/applicationgateway.ts` | Only for the HTTPS pattern that imports a PFX |
 | `GOOGLE_AZURE_VPN_PRESHARED_KEY` | Pre-shared key | `config/vpn/addressPlan.ts` | |
-| `ECS_WORKER_POSTGRES_PASSWORD` | Sample worker container password | `config/aws/ecs.ts` | |
 | `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID` | Object ID of the DevOpsInfrastructure service principal | `config/azure/cicd.ts` | Azure CI/CD only. Not secret, but tenant-specific: kept out of Git |
+| `ALERT_EMAILS` | Addresses of the alerts (comma-separated) | `config/notifications.ts` (`ops` target of every cloud) | Kept out of Git |
 | `AZURE_KEYVAULT_SECRETS_OFFICER_IDS` | Object IDs (comma-separated) allowed to set the Key Vault secrets | `config/azure/secrets.ts` (`secretsOfficerPrincipalIds`) | Not secret, but tenant-specific: kept out of Git |
 
 Quoting: Docker Compose reads `.env.<env>`. Wrap values that contain `$` in **single quotes** (otherwise `$...` is expanded, even inside double quotes), and values that contain ` #` in quotes.

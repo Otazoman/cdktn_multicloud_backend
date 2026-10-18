@@ -59,11 +59,6 @@ export const awsPrivateZoneParams = {
   // These identifiers match the ones defined in aurorards.ts
   rdsCnameRecords: [
     {
-      shortName: "rds-postgres",
-      dbIdentifier: "rds-postgres-instance", // RDS PostgreSQL identifier from aurorards.ts
-      type: "rds", // rds or aurora
-    },
-    {
       shortName: "aurora-postgres",
       dbIdentifier: "aurora-postgres-cluster", // Aurora PostgreSQL cluster identifier from aurorards.ts
       type: "aurora",

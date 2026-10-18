@@ -1,8 +1,8 @@
 /* EFS configurations */
 export const efsConfigs = [
-  // 1. Existing High-Performance EFS
+  // Not used by the API: build it when the application needs shared files
   {
-    build: true,
+    build: false,
     name: "aws-app-shared-storage",
     encrypted: true,
     performanceMode: "generalPurpose" as "generalPurpose" | "maxIO",
@@ -28,23 +28,4 @@ export const efsConfigs = [
     ],
   },
 
-  // 2. Cost-Optimized EFS (Newly Added)
-  {
-    build: false,
-    name: "aws-backup-storage",
-    encrypted: true,
-    performanceMode: "generalPurpose" as "generalPurpose" | "maxIO", // Best for most use cases
-    throughputMode: "elastic" as "bursting" | "provisioned" | "elastic", // Pay-as-you-go throughput
-    subnetKeys: ["my-aws-vpc-private-subnet1a"], // Single subnet for lower mount target costs (optional)
-    securityGroupIds: ["myaws-efs-sg"],
-    tags: {
-      Name: "CostOptimizedStorage",
-      Owner: "Team-B",
-    },
-    transitionToIa: "AFTER_7_DAYS", // Rapidly transition to Infrequent Access (IA) to save up to 90%
-    backupPolicy: "DISABLED", // Disable backup if data is non-critical to save cost
-    // DNS CNAME record name registered in aws.inner private zone
-    cnameRecordName: "efs-backup.aws.inner",
-    accessPoints: [], // Empty if not needed
-  },
 ];

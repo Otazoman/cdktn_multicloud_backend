@@ -8,7 +8,7 @@ import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
 import { StorageAccount } from "@cdktn/provider-azurerm/lib/storage-account";
 import { Construct } from "constructs";
 import { AzureMonitorResources } from "../../constructs/observability/azuremonitor";
-import { AzureResourcesOutput, AzureVnetResources } from "./types";
+import { AzureResourcesOutput, AzureVnetResources, AzureAppGwResourcesWithDns } from "./types";
 
 /** Values shared between the Azure feature modules. */
 export interface AzureBuildContext {
@@ -29,4 +29,6 @@ export interface AzureBuildContext {
   keyVault?: KeyVault;
   /** Journal pruning jobs by the Container App whose image they run, set by the containers feature */
   journalPruneJobs: Map<string, ContainerAppJob>;
+  /** Application Gateways by name (config/azure/applicationgateway.ts), set by the containers feature */
+  appGwsByName?: Record<string, AzureAppGwResourcesWithDns>;
 }

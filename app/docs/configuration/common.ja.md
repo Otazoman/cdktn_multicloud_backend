@@ -91,7 +91,7 @@ API コンテナの設定（FEAT-01 §9 #5）。各クラウドの CI/CD のデ�
 | `azureSecretReady` | Container App から Key Vault のシークレットを参照する | `boolean`、`byEnv` | `false` | Azure の VM からシークレットを設定した後に `true`（[operations.ja.md](../operations.ja.md) の「シークレット」） |
 | `readinessProbe` | `/readyz` を readiness（ALB のターゲットグループ、Cloud Run の startup probe、Container Apps の readiness probe）、`/healthz` を liveness に使う | `boolean`、`byEnv` | `false` | 仮のイメージは `/` にしか応答しない。CI/CD が API をデプロイした後に `true` |
 
-| `journalPrune.enabled` | 古い変更履歴（ジャーナル）を削除するスケジュール実行のジョブ（アプリの `node dist/prune.js`）。データベースのあるすべてのクラウドに作る | `boolean`、`byEnv` | `false` | CI/CD が API をデプロイした後に `true`（Google Cloud と Azure は、API のサービスの現在のイメージでジョブを作る）。Azure は `azureSecretReady` も必要。Google Cloud は Cloud Scheduler API が必要 |
+| `journalPrune.enabled` | 古い変更履歴（ジャーナル）を削除するスケジュール実行のジョブ（アプリの `node dist/prune.js`）。データベースのあるすべてのクラウドに作る | `boolean`、`byEnv` | `false` | CI/CD が API をデプロイした後に `true`（ジョブが最初から API のイメージで動くように。先に作ると、CI/CD が更新するまで仮のイメージで動く。operations の「環境を構築する」）。Azure は `azureSecretReady` も必要。Google Cloud は Cloud Scheduler API が必要 |
 | `journalPrune.retentionDays` | ジョブの `JOURNAL_RETENTION_DAYS` | 日数 | `30` | 冪等キーの有効期間でもある |
 | `journalPrune.schedules.<cloud>` | クラウドごとの毎日の実行時刻（各クラウドの書式） | cron | AWS `cron(0 3 * * ? *)`、Google `20 3 * * *`（`timeZone`）、Azure `40 18 * * *`（UTC） | クラウドごとに時刻をずらす。削除するのはプライマリだけ |
 | `journalPrune.timeZone` | AWS と Google Cloud のスケジュールのタイムゾーン | IANA の名前 | `Asia/Tokyo` | Container Apps のジョブは UTC |
@@ -125,8 +125,8 @@ ECS サービスはタスク定義の変更を無視します（CI/CD が新し�
 | `AZUREDB_ROOT_USER`、`AZUREDB_ROOT_PASSWORD` | Azure Database for PostgreSQL の管理者ユーザー | `config/azure/azuredatabase/databases.ts` | |
 | `AZURE_APPGW_SSL_CERT_PASSWORD` | PFX 証明書のパスワード | `config/azure/applicationgateway.ts` | PFX を取り込む HTTPS のパターンのときだけ |
 | `GOOGLE_AZURE_VPN_PRESHARED_KEY` | 事前共有鍵 | `config/vpn/addressPlan.ts` | |
-| `ECS_WORKER_POSTGRES_PASSWORD` | サンプルの worker コンテナのパスワード | `config/aws/ecs.ts` | |
 | `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID` | サービスプリンシパル DevOpsInfrastructure のオブジェクト ID | `config/azure/cicd.ts` | Azure の CI/CD のみ。秘密の値ではないが、テナントごとの値なので Git に入れない |
+| `ALERT_EMAILS` | アラートの通知先のアドレス（カンマ区切り） | `config/notifications.ts`（各クラウドの通知先 `ops`） | Git に入れない |
 | `AZURE_KEYVAULT_SECRETS_OFFICER_IDS` | Key Vault のシークレットを設定できるオブジェクト ID（カンマ区切り） | `config/azure/secrets.ts`（`secretsOfficerPrincipalIds`） | 秘密の値ではないが、テナントごとの値なので Git に入れない |
 
 引用符: `.env.<環境名>` は Docker Compose が読みます。`$` を含む値は**シングルクォート**で囲みます（囲まないと、ダブルクォートの中でも `$...` が展開されます）。` #` を含む値も引用符で囲みます。

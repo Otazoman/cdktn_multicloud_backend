@@ -1,63 +1,18 @@
-// RDS Instance Configurations (PostgreSQL only)
-export const rdsConfigs = [
-  // PostgreSQL (parameter file path)
-  {
-    // Not used: the API and the replication use the Aurora cluster below
-    // (config/apicontainer.ts)
-    build: false,
-    identifier: "rds-postgres-instance",
-    // Names of resources created for this database (omitted: default name)
-    names: {
-      subnetGroup: "rds-postgres-instance-sng",
-      parameterGroup: "rds-postgres-instance-pg",
-      optionGroup: "rds-postgres-instance-og",
-    },
-    instanceClass: "db.t3.medium",
-    engine: "postgres",
-    engineVersion: "18.4",
-    allocatedStorage: 20,
-    storageType: "gp3",
-    username: process.env.AWSDB_ROOT_USER!,
-    password: process.env.AWSDB_ROOT_PASSWORD!,
-    manageMasterUserPassword: false,
-    // manageMasterUserPassword: true,
-    subnetKeys: [
-      "my-aws-vpc-db-private-subnet1a",
-      "my-aws-vpc-db-private-subnet1c",
-    ],
-    vpcSecurityGroupNames: ["myaws-db-sg"],
-    parameterGroupFamily: "postgres18",
-    parameterGroupParametersFile: "config/aws/aurorards/postgres-parameters.ts", // Path to parameter file
-    skipFinalSnapshot: true,
-    // Backup
-    backupRetentionPeriod: 30,
-    preferredBackupWindow: "01:00-02:00",
-    // Performance Insights
-    enablePerformanceInsights: true,
-    performanceInsightsRetentionPeriod: 7,
-    // Enhanced Monitoring using an externally created IAM role. Name must
-    // match a role name defined in config/aws/iam.ts (iamRolesConfig).
-    enableEnhancedMonitoring: true,
-    monitoringInterval: 30,
-    monitoringRoleName: "rds-enhanced-monitoring-role",
-    // Logs. Each entry here must have a matching CloudWatch Log Group
-    // defined in config/aws/cloudwatchlogs.ts
-    // (name: /aws/rds/instance/rds-postgres-instance/<export-type>; commented
-    // out while this instance is not built).
-    enabledCloudwatchLogsExports: ["postgresql", "upgrade"],
-    // Auto upgrade
-    autoMinorVersionUpgrade: true,
-    // Maintenance
-    preferredMaintenanceWindow: "sat:03:00-sat:04:00",
-    // Multi-AZ
-    multiAz: false,
-    storageEncrypted: true, // encrypted
-    tags: {
-      Name: "MyRdsPostgresInstance",
-      Owner: "team-A",
-    },
-  },
-];
+import type { AwsRelationalDatabaseConfig } from "../../../constructs/relationaldatabase/awsrelationaldatabase";
+
+/**
+ * RDS instances (PostgreSQL only). None is built: the API and the
+ * replication use the Aurora cluster below (config/apicontainer.ts). The
+ * fields are those of an Aurora entry, with `identifier` and `username`
+ * (docs/configuration/aws.md).
+ */
+export type AwsRdsSettings = Omit<AwsRelationalDatabaseConfig, "type" | "masterUsername"> & {
+  build: boolean;
+  username?: string;
+  monitoringRoleName?: string;
+};
+
+export const rdsConfigs: AwsRdsSettings[] = [];
 
 // Aurora Cluster Configurations (PostgreSQL only)
 export const auroraConfigs = [

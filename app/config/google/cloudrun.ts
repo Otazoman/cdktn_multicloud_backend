@@ -28,24 +28,4 @@ export const gcpRunConfigs = [
     logs: true,
     logBucket: "cloudrun",
   },
-  {
-    name: "web-service-standalone",
-    // Sample service, not used by the API
-    build: false,
-    project: PROJECT_NAME,
-    location: LOCATION,
-    image: "gcr.io/cloudrun/hello",
-    port: 8080,
-    cpu: "0.5", // Example for smaller service
-    memory: "256Mi",
-    minInstances: 0,
-    maxInstances: 2,
-    cpuAlwaysAllocated: false,
-    allowUnauthenticated: true,
-    useLb: false,
-    subnetworkName: "multicloud-gcp-vpc-app-subnet",
-    // Logs: routed to logBucket (cloudlogging.ts); false only excludes them from _Default
-    logs: true,
-    logBucket: "cloudrun",
-  },
 ];

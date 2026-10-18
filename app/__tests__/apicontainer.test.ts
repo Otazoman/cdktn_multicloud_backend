@@ -26,15 +26,27 @@ const synthWith = (
     },
     flags,
   );
-  // Build the sample services too, to check that only the API changes
-  const services = [...awsEcsConfigs, ...gcpRunConfigs];
-  const built = services.map((c) => c.build);
-  services.forEach((c) => (c.build = true));
+  // Services that are not CI/CD deploy targets, to check that only the API
+  // changes (the configuration has only the API services)
+  const ecsCount = awsEcsConfigs.length;
+  const runCount = gcpRunConfigs.length;
+  awsEcsConfigs.push({
+    ...structuredClone(awsEcsConfigs[0]),
+    name: "worker-service",
+    deploymentStrategy: "ROLLING",
+    targetGroupName: undefined,
+    targetGroupNameGreen: undefined,
+    listenerName: undefined,
+    testListenerName: undefined,
+    autoScaling: undefined,
+  });
+  gcpRunConfigs.push({ ...structuredClone(gcpRunConfigs[0]), name: "web-service-standalone", useLb: false });
   try {
     return synthCase({ name: "apicontainer", overrides });
   } finally {
     Object.assign(apiContainerConfig, original);
-    services.forEach((c, i) => (c.build = built[i]));
+    awsEcsConfigs.splice(ecsCount);
+    gcpRunConfigs.splice(runCount);
   }
 };
 

@@ -385,6 +385,9 @@ export function createAzureContainers(ctx: AzureBuildContext): void {
           });
 
         output.lbs = azureAppGws;
+        ctx.appGwsByName = Object.fromEntries(
+          azureAppGwConfigs.filter((c) => c.build).map((c, i) => [c.name, azureAppGws[i]]),
+        );
 
         // ──────────────────────────────────────────────
         // 7. DNS A-records

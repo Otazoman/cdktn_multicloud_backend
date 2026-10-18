@@ -3,7 +3,8 @@ import { LOCATION, RESOURCE_GROUP } from "./common";
 
 export const azureFilesConfigs = [
   {
-    build: true,
+    // Not used by the API: build it when the application needs shared files
+    build: false,
     // Globally unique; other environments than dev get the environment name appended
     accountName: envScopedName("stcatappdata001", { hyphen: false }),
     // Private endpoint names (omitted: default name). privateDnsZoneVnetLink is
@@ -38,42 +39,5 @@ export const azureFilesConfigs = [
     allowedIpRanges: ["150.9.100.236"] as string[],
     // DNS CNAME record name registered in azure.inner private zone
     cnameRecordName: "files-shared1",
-  },
-  {
-    build: false,
-    // Globally unique; other environments than dev get the environment name appended
-    accountName: envScopedName("stcatappdata002", { hyphen: false }),
-    // Private endpoint names (omitted: default name). privateDnsZoneVnetLink is
-    // used by the account that creates the shared privatelink DNS zone.
-    names: {
-      privateEndpoint: "pe-stcatappdata002",
-      privateServiceConnection: "psc-stcatappdata002",
-      privateDnsZoneGroup: "pe-dns-group-stcatappdata002",
-      privateDnsZoneVnetLink: "files-privatelink-vnet-link",
-    },
-    resourceGroupName: RESOURCE_GROUP,
-    location: LOCATION,
-    shareName: "app-shared2-files-20260223",
-    // File share protocol: "SMB" (default, Windows/Linux) or "NFS" (Linux only)
-    // NFS requirements: tier must be "Premium", replicationType "LRS" or "ZRS",
-    //                   privateEndpointEnabled must be true (NFS requires VNet integration),
-    //                   quotaInGb must be >= 100
-    enabledProtocol: "SMB" as "SMB" | "NFS",
-    quotaInGb: 10,
-    tier: "Hot" as "TransactionOptimized" | "Hot" | "Cool" | "Premium",
-    replicationType: "LRS" as "LRS" | "GRS" | "RAGRS" | "ZRS",
-    tags: {
-      Department: "DEV",
-    },
-    // Private Endpoint configuration (subnet within VNet for private access)
-    privateEndpointEnabled: true,
-    subnetKey: "private-endpoint-subnet", // Key matching subnets.ts
-    // Allowed IP ranges for Azure Portal / Storage Explorer access (in addition to Private Endpoint).
-    // These IPs bypass the network firewall (defaultAction: Deny).
-    // Leave empty [] to restrict access to Private Endpoint only.
-    // Example: ["150.9.100.236"] to allow a specific developer IP
-    allowedIpRanges: [] as string[],
-    // DNS CNAME record name registered in azure.inner private zone
-    cnameRecordName: "files-shared2",
   },
 ];

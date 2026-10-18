@@ -219,7 +219,7 @@ Pipeline variables set by cdktn: `AZURE_CLIENT_ID`, `ACR_NAME`, `ACR_LOGIN_SERVE
 | `logAnalyticsWorkspace` | `{ name, sku, retentionInDays }` | `sku`: `PerGB2018` | **Required** | |
 | `tableRetention` | Retention per table | map of table → days | workspace retention | `AzureDiagnostics` (VPN gateway), `ContainerAppConsoleLogs`, `ContainerAppSystemLogs` |
 | `applicationInsightsName` | Application Insights | string | **Required** | |
-| `actionGroups[]` | Notification targets | `{ key, name, shortName, emailReceivers: [{ name, emailAddress, useCommonAlertSchema }] }` | — | Created only with `features.alerting`. Referenced by `key` |
+| `actionGroups[]` | Notification targets | `{ key, name, shortName, emailReceivers: [{ name, emailAddress, useCommonAlertSchema }] }` | `ops` with `ALERT_EMAILS` | Created only with `features.alerting`. Referenced by `key` |
 | `tags` | Tags | map | — | |
 
 ### Alerting (`azureAlertingConfig`, feature `alerting`)
@@ -227,7 +227,7 @@ Pipeline variables set by cdktn: `AZURE_CLIENT_ID`, `ACR_NAME`, `ACR_LOGIN_SERVE
 | Item | Description | Allowed values | Default | Notes |
 |---|---|---|---|---|
 | `logAlerts[]` | Log search alerts | `AzureLogAlertDefinition` without `scopes` / `actionGroups`, plus `scopes?`, `notify?: string[]` | `[]` | `notify`: `actionGroups` keys. `key?` fixes the address |
-| `metricAlerts[]` | Metric alerts | `AzureMetricAlertDefinition` without `scopes` / `actionGroups`, plus `target?: { type: "containerApp", name }`, `scopes?`, `notify?` | `[]` | See `constructs/observability/azuremonitor.ts` for the fields |
+| `metricAlerts[]` | Metric alerts | `AzureMetricAlertDefinition` without `scopes` / `actionGroups`, plus `target?: { type: "containerApp" \| "applicationGateway", name }`, `scopes?`, `notify?`; `dimensions?: [{ name, operator, values }]` | 5xx of each Application Gateway | An `applicationGateway` alert is created only when that gateway is built. | See `constructs/observability/azuremonitor.ts` for the fields |
 
 ### Log archive (`azureLogArchiveConfig`, feature `logArchive`)
 

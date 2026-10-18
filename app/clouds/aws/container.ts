@@ -447,6 +447,9 @@ export function createAwsContainers(ctx: AwsBuildContext): void {
     }
 
     output.lbs = awsAlbs;
+    ctx.albsByName = Object.fromEntries(
+      albConfigs.filter((c) => c.build).map((c, i) => [c.name, awsAlbs[i]]),
+    );
 
     // ──────────────────────────────────────────────
     // 7. DNS A-records (ALB alias records)

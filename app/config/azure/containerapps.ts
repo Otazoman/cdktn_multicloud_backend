@@ -1,3 +1,4 @@
+import type { AzureContainerAppConfig } from "../../constructs/container/azureaca";
 import { LOCATION, RESOURCE_GROUP } from "./common";
 
 /** Container Apps environment settings. */
@@ -21,9 +22,7 @@ export const azureAcaEnvironmentDefaults: AzureAcaEnvironmentSettings = {
 export const azureAcaEnvironmentSettings: Record<
   string,
   AzureAcaEnvironmentSettings
-> = {
-  // "some-env": { logs: false },
-};
+> = {};
 
 /**
  * Container Apps.
@@ -39,26 +38,20 @@ export const azureAcaEnvironmentSettings: Record<
  * Without scaleRules Container Apps scales on HTTP traffic (10 concurrent
  * requests per replica). CPU / memory rules cannot scale to zero replicas.
  */
-export const azureAcaConfigs = [
-  {
-    name: "frontend-service",
-    build: false,
-    resourceGroupName: RESOURCE_GROUP,
-    location: LOCATION,
-    environmentName: "public-main-env",
-    // Private DNS zone VNet link name (internal environments)
-    privateDnsVnetLinkName: "aca-vnet-link",
-    image: "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest",
-    cpu: 0.25,
-    memory: "0.5Gi",
-    targetPort: 80,
-    internal: false,
-    externalEnabled: true,
-    subnetName: "",
-    env: [{ name: "APP_MODE", value: "prod" }],
-    minReplicas: 0,
-    maxReplicas: 10,
-  },
+export type AzureAcaSettings = Omit<
+  AzureContainerAppConfig,
+  "ignoreImageChanges" | "registry" | "environmentLogs" | "keyVaultSecrets" | "secretEnv"
+> & {
+  build: boolean;
+  /** Private DNS zone VNet link name (internal environments) */
+  privateDnsVnetLinkName?: string;
+  /** CNAME of the app in the azure.inner private zone */
+  cnameRecordName?: string;
+  /** Application Gateway backend pool that routes to this app */
+  appGwBackendName?: string;
+};
+
+export const azureAcaConfigs: AzureAcaSettings[] = [
   {
     name: "backend-api-service",
     build: true,

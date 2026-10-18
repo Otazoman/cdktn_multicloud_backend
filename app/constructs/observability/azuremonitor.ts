@@ -93,14 +93,18 @@ export interface AzureMetricAlertDefinition {
   metricNamespace: string;
   metricName: string;
   aggregation: "Average" | "Minimum" | "Maximum" | "Total" | "Count";
+  /** The values of azurerm_monitor_metric_alert criteria.operator */
   operator:
+    | "Equals"
     | "GreaterThan"
-    | "GreaterThanOrEqualTo"
+    | "GreaterThanOrEqual"
     | "LessThan"
-    | "LessThanOrEqualTo";
+    | "LessThanOrEqual";
   threshold: number;
   frequency: string;
   windowSize: string;
+  /** Dimension filters of the metric (e.g. HttpStatusGroup "5xx") */
+  dimensions?: { name: string; operator: "Include" | "Exclude"; values: string[] }[];
   actionGroups?: string[];
   description?: string;
 }
@@ -330,6 +334,7 @@ export class AzureMonitorResources extends Construct {
                 aggregation: metricDef.aggregation,
                 operator: metricDef.operator,
                 threshold: metricDef.threshold,
+                dimension: metricDef.dimensions,
               },
             ],
           },

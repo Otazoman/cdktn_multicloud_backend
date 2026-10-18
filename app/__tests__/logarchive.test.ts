@@ -48,6 +48,8 @@ const originals = configs.map((c) => structuredClone(c));
 
 beforeEach(() => {
   awsLogArchiveConfig.bucket.name = "example-aws-log-archive";
+  // Two log groups, to check one stream / export entry per log group
+  awsLogArchiveConfig.logGroups = ["/aws/ecs/api-service", "/aws/codebuild/api-service-cicd"];
   googleLogArchiveConfig.bucket.name = "example-google-log-archive";
   azureLogArchiveConfig.storageAccount.name = "examplelogarchive";
 });
@@ -112,8 +114,8 @@ describe("enabled (defaults: firehose, deleteOnDestroy)", () => {
 
     const streams = resourcesOf(synth, "aws_kinesis_firehose_delivery_stream");
     expect(streams.map((s) => s.extended_s3_configuration.prefix).sort()).toEqual([
+      "aws-codebuild-api-service-cicd/",
       "aws-ecs-api-service/",
-      "aws-ecs-worker-service/",
     ]);
     const filters = resourcesOf(synth, "aws_cloudwatch_log_subscription_filter");
     expect(filters).toHaveLength(2);
@@ -193,7 +195,7 @@ test("AWS export mode: scheduled Lambda instead of Firehose", () => {
   expect(lambda.filename).toMatch(/archive\.zip$/);
   expect(JSON.parse(lambda.environment.variables.LOG_GROUPS)).toEqual([
     { name: expect.stringContaining("${aws_cloudwatch_log_group."), prefix: "aws-ecs-api-service" },
-    { name: expect.stringContaining("${aws_cloudwatch_log_group."), prefix: "aws-ecs-worker-service" },
+    { name: expect.stringContaining("${aws_cloudwatch_log_group."), prefix: "aws-codebuild-api-service-cicd" },
   ]);
   expect(lambda.logging_config.log_group).toContain("${aws_cloudwatch_log_group.aws-log-archive-lambda-log-group");
 

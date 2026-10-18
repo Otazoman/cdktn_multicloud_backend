@@ -200,6 +200,10 @@ export function createGoogleCloudSqlInstance(
       name: config.username,
       instance: sqlInstance.name,
       password: config.password,
+      // Destroy leaves the user to the instance's deletion: PostgreSQL
+      // cannot drop a user that owns objects (e.g. the application's
+      // database created by its scripts)
+      deletionPolicy: "ABANDON",
     });
   }
 

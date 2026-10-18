@@ -1,3 +1,5 @@
+import type { AutoScalingConfig } from "../../constructs/container/awsecs";
+
 /**
  * Per-cluster settings, keyed by clusterName (optional).
  * containerInsights: "enhanced" (recommended by AWS, adds metric charges) /
@@ -6,9 +8,7 @@
 export const awsEcsClusterSettings: Record<
   string,
   { containerInsights?: "enhanced" | "enabled" | "disabled" }
-> = {
-  // "main-cluster": { containerInsights: "enhanced" },
-};
+> = {};
 
 /**
  * AWS ECS Multiple Service Configurations
@@ -23,7 +23,43 @@ export const awsEcsClusterSettings: Record<
  * logMaxBufferSize (non-blocking buffer, e.g. "25m"; default 10m). Log
  * retention is set on the log group in cloudwatchlogs.ts.
  */
-export const awsEcsConfigs = [
+export interface AwsEcsSettings {
+  /** Construct ID key (Terraform address). Defaults to `name` */
+  key?: string;
+  name: string;
+  build: boolean;
+  clusterName: string;
+  cpu: string;
+  memory: string;
+  desiredCount: number;
+  deploymentStrategy: "ROLLING" | "BLUE_GREEN";
+  /** Blue/Green: minutes before the deployment is considered stable */
+  bakeTime?: number;
+  enableExec?: boolean;
+  autoScaling?: AutoScalingConfig;
+  /** Role names in config/aws/iam.ts; infraRoleName only for BLUE_GREEN */
+  executionRoleName: string;
+  taskRoleName: string;
+  infraRoleName?: string;
+  /** Must be a log group of config/aws/cloudwatchlogs.ts */
+  cloudwatchLogGroupName: string;
+  containerName: string;
+  image: string;
+  port: number;
+  securityGroupNames: string[];
+  subnetNames: string[];
+  /** Target groups / listeners of config/aws/alb.ts */
+  targetGroupName?: string;
+  targetGroupNameGreen?: string;
+  listenerName?: string;
+  testListenerName?: string;
+  environment?: { name: string; value: string }[];
+  logMode?: "blocking" | "non-blocking";
+  logMaxBufferSize?: string;
+  tags?: { [key: string]: string };
+}
+
+export const awsEcsConfigs: AwsEcsSettings[] = [
   {
     name: "api-service",
     build: true,
@@ -71,56 +107,6 @@ export const awsEcsConfigs = [
     testListenerName: "test-listener", // Must match the name set in alb.ts additionalListeners[].name
     tags: {
       ServiceType: "API",
-      ManagedBy: "CDKTN",
-    },
-  },
-  {
-    name: "worker-service",
-    // Sample service, not used by the API
-    build: false,
-    clusterName: "main-cluster",
-    cpu: "256",
-    memory: "512",
-    desiredCount: 1,
-    deploymentStrategy: "ROLLING",
-    enableExec: false,
-    autoScaling: {
-      enabled: true,
-      minCapacity: 1,
-      maxCapacity: 5,
-      cpuThreshold: 80, // Different threshold for worker
-      memoryThreshold: 90,
-      scaleInCooldown: 300,
-      scaleOutCooldown: 60,
-      cpuPolicyName: "worker-service-cpu-scaling",
-      memoryPolicyName: "worker-service-mem-scaling",
-    },
-    // IAM roles used by this service. Names must match the role names
-    // defined in config/aws/iam.ts (iamRolesConfig).
-    executionRoleName: "ecs-task-execution-role",
-    taskRoleName: "ecs-task-role",
-    // CloudWatch Log Group used by this service's container logs. Name
-    // must match an entry in config/aws/cloudwatchlogs.ts.
-    cloudwatchLogGroupName: "/aws/ecs/worker-service",
-    containerName: "worker-container",
-    image: "postgres:latest",
-    port: 5432,
-    securityGroupNames: ["myaws-db-sg"],
-    subnetNames: [
-      "my-aws-vpc-private-subnet1a",
-      "my-aws-vpc-private-subnet1c",
-      "my-aws-vpc-private-subnet1d",
-    ],
-    environment: [
-      {
-        name: "POSTGRES_PASSWORD",
-        value: process.env.ECS_WORKER_POSTGRES_PASSWORD!,
-      },
-    ],
-    // If worker doesn't need an ALB, these can be optional or point to dummy TGs
-    targetGroupName: "managed-worker-tg",
-    tags: {
-      ServiceType: "Worker",
       ManagedBy: "CDKTN",
     },
   },
