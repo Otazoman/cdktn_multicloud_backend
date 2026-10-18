@@ -15,7 +15,7 @@ export const azureVnetResourcesparams = {
   natenabled: true,
   natPublicIpName: "my-azure-vnet-nat-pip",
   natGatewayName: "my-azure-vnet-natgw",
-  bastionenabled: false,
+  bastionenabled: true,
   bastionPublicIpName: "my-azure-vnet-bastion-pip",
   bastionHostName: "my-azure-vnet-bastion",
   bastionIpConfigurationName: "bastionIpConfig",
