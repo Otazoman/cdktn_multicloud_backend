@@ -38,3 +38,13 @@ test("Google Cloud: the API service accepts the load balancer only", () => {
   const service = resourcesOf(synth, "google_cloud_run_v2_service").find((s) => s.name === "web-service-with-lb");
   expect(service.ingress).toBe("INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER");
 });
+
+test("the health check URL of each load balancer is printed after the deploy", () => {
+  const urls = synth.output["api-health-urls"].value;
+  expect(Object.keys(urls).sort()).toEqual([
+    "aws:plain-http-alb",
+    "azure:plain-http-appgw",
+    "google:run-regional-http-lb",
+  ]);
+  Object.values<string>(urls).forEach((url) => expect(url).toMatch(/^http:\/\/.+\/healthz$/));
+});

@@ -31,6 +31,7 @@ import { LoadBalancerDnsInfo } from "../common";
 import { GoogleLbResourcesWithDns } from "./types";
 import { googleCicdDeployTargets } from "./cicd";
 import { addTerraformDependency } from "../../utils/terraformDependency";
+import { addApiHealthUrl } from "../healthurls";
 import { GoogleBuildContext } from "./context";
 import { ComputeSubnetwork } from "@cdktn/provider-google/lib/compute-subnetwork";
 import { GoogleGlobalLbResources, GoogleRegionalLbResources } from "./types";
@@ -386,6 +387,14 @@ export function createGoogleContainers(ctx: GoogleBuildContext): void {
           };
           Object.assign(lb, { dnsInfo });
         }
+        addApiHealthUrl(
+          scope,
+          "google",
+          config.name,
+          config.protocol === "HTTPS",
+          lb.forwardingRule.ipAddress,
+          config.dnsConfig?.fqdn,
+        );
 
         if (config.loadBalancerType === "REGIONAL") {
           regionalLbs.push(lb as GoogleRegionalLbResources);

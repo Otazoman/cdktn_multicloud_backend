@@ -29,6 +29,7 @@ import { AzureAppGwResourcesWithDns } from "./types";
 import { LoadBalancerDnsInfo } from "../common";
 import { resourceName, idPart } from "../../utils/naming";
 import { addTerraformDependency } from "../../utils/terraformDependency";
+import { addApiHealthUrl } from "../healthurls";
 import { AzureBuildContext } from "./context";
 import { azureCicdDeployTarget } from "./cicd";
 import { createAzureIdentityWithRoles } from "../../constructs/iam/azureidentity";
@@ -390,6 +391,14 @@ export function createAzureContainers(ctx: AzureBuildContext): void {
               subdomain: config.dnsConfig?.subdomain || "",
               fqdn: config.dnsConfig?.fqdn,
             };
+            addApiHealthUrl(
+              scope,
+              "azure",
+              config.name,
+              config.listeners.some((l) => l.protocol === "Https"),
+              resources.publicIp.ipAddress,
+              config.dnsConfig?.fqdn,
+            );
 
             return { ...resources, dnsInfo };
           });

@@ -62,7 +62,7 @@ CI/CD が API のイメージに切り替えます。ただ、API のデプロ�
 | 5 | `npm run build-stage -- 2` の後、`cdktn deploy`。プライベート DNS の無いクラスタ（`hostZones` が無効）は `npm run build-stage -- 2 --azure-db-ip <IP>`（下記） | cdktn のコンテナ |
 | 6 | データベースのセットアップ（アプリのリポジトリの getting-started）：クラスタはどれか1台の VM で `scripts/cluster-setup.sh <cloud>`、クラウド単体は各クラウドの VM で `scripts/node-setup.sh <cloud>`。プライベート DNS が無いときは、deploy が表示した 1 行（出力 `cluster-setup-hosts`）をコマンドの前に付ける | VM |
 | 7 | API のデプロイ：インフラを構築した直後はマージする新しいコミットがなく、レジストリも空なので、各クラウドのパイプラインを 1 回実行する（アプリのリポジトリの getting-started の「デプロイ」）。パイプライン：`api-service-cicd`（`config/aws/cicd/cicdsettings.ts`）、`github-push-trigger`（`config/google/cicdsettings.ts`）、`multicloud-api-deploy`（`config/azure/cicd.ts`）。ビルドの結果はメールで届く（Azure DevOps は実行した人に、AWS と Google Cloud は `ALERT_EMAILS` に。下の「アラート」） | Cloud Shell、Azure DevOps |
-| 8 | `npm run build-stage -- 3` の後、`cdktn deploy`：ロードバランサーとコンテナ基盤が `/readyz`・`/healthz` を使い、変更履歴の削除ジョブが作られる | cdktn のコンテナ |
+| 8 | `npm run build-stage -- 3` の後、`cdktn deploy`：ロードバランサーとコンテナ基盤が `/readyz`・`/healthz` を使い、変更履歴の削除ジョブが作られる。deploy のたびに、各ロードバランサーの API のヘルスチェック用の URL が表示される（出力 `api-health-urls`。`cdktn output` でも表示できる） | cdktn のコンテナ |
 
 構築の後の API のリリースでは `cdktn deploy` は不要です（環境のブランチへのマージだけ）。段階は 3 のままです。
 

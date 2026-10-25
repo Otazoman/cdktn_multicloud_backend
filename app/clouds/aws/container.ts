@@ -28,6 +28,7 @@ import { AwsAlbResourcesWithDns } from "./types";
 import { LoadBalancerDnsInfo } from "../common";
 
 import { addTerraformDependency } from "../../utils/terraformDependency";
+import { addApiHealthUrl } from "../healthurls";
 import { AwsBuildContext } from "./context";
 import { idPart, resourceName } from "../../utils/naming";
 
@@ -450,6 +451,18 @@ export function createAwsContainers(ctx: AwsBuildContext): void {
     ctx.albsByName = Object.fromEntries(
       albConfigs.filter((c) => c.build).map((c, i) => [c.name, awsAlbs[i]]),
     );
+    albConfigs
+      .filter((c) => c.build)
+      .forEach((c, i) =>
+        addApiHealthUrl(
+          scope,
+          "aws",
+          c.name,
+          c.listenerConfig.protocol === "HTTPS",
+          awsAlbs[i].alb.dnsName,
+          c.dnsConfig?.fqdn,
+        ),
+      );
 
     // ──────────────────────────────────────────────
     // 7. DNS A-records (ALB alias records)

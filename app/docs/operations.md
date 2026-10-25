@@ -77,7 +77,7 @@ scheduled run before the API is deployed would fail, so they come with
 | 5 | `npm run build-stage -- 2`, then `cdktn deploy`. A cluster without the private DNS (`hostZones` off): `npm run build-stage -- 2 --azure-db-ip <ip>` (below) | cdktn container |
 | 6 | Set up the databases (application repository, getting-started): a cluster with `scripts/cluster-setup.sh <cloud>` on one VM, clouds alone with `scripts/node-setup.sh <cloud>` on each cloud's VM. Without the private DNS, put the line the deploy printed (output `cluster-setup-hosts`) before the command | VM |
 | 7 | Deploy the API: right after the infrastructure is built there is no new commit to merge and the registries are empty, so run each cloud's pipeline once (application repository: getting-started, "Deploy"). Pipelines: `api-service-cicd` (`config/aws/cicd/cicdsettings.ts`), `github-push-trigger` (`config/google/cicdsettings.ts`), `multicloud-api-deploy` (`config/azure/cicd.ts`). The build results are emailed (Azure DevOps to the person who ran it; AWS and Google Cloud to `ALERT_EMAILS`, "Alerting" below) | Cloud Shell, Azure DevOps |
-| 8 | `npm run build-stage -- 3`, then `cdktn deploy`: the load balancers and platforms use `/readyz` and `/healthz`, and the journal pruning jobs are created | cdktn container |
+| 8 | `npm run build-stage -- 3`, then `cdktn deploy`: the load balancers and platforms use `/readyz` and `/healthz`, and the journal pruning jobs are created. Every deploy prints the API's health check URL behind each load balancer (output `api-health-urls`; `cdktn output` prints it again) | cdktn container |
 
 Later releases of the API need no `cdktn deploy`: merging into the
 environment's branch is enough. The stage stays 3.

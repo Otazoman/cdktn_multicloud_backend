@@ -76,4 +76,11 @@ else
   printf '{ "stage": %s }\n' "$stage" > "$FILE"
 fi
 show
+# A cluster without the private DNS needs the Azure database's IP from stage 2
+if [[ "$stage" != 1 && -z "$ip" ]] &&
+  grep -qE '^export const hostZones: boolean = false;' "$APP_DIR/config/commonsettings.ts"; then
+  echo "Note: hostZones is off. A cluster without the private DNS needs the Azure database's" >&2
+  echo "      private IP: npm run build-stage -- $stage --azure-db-ip <ip>" >&2
+  echo "      (docs/operations.md, \"A cluster without the private DNS\")" >&2
+fi
 echo "Next: cdktn diff, then cdktn deploy"
