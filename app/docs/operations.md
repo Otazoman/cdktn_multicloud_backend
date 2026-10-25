@@ -74,13 +74,43 @@ scheduled run before the API is deployed would fail, so they come with
 | 2 | `npm run build-stage` shows stage 1 (`npm run before-destroy` sets it back; otherwise `npm run build-stage -- 1`). After a destroy, also change the names that cannot be reused yet ("Deploy again after a destroy" below) | cdktn container, config files |
 | 3 | `cdktn diff`, then `cdktn deploy` ("Deploy" below) | cdktn container |
 | 4 | Set the passwords on every cloud: `scripts/secrets-set.sh <cloud>` (application repository; "Secrets" below) | AWS and Google Cloud: Cloud Shell or their VM; Azure: its VM |
-| 5 | `npm run build-stage -- 2`, then `cdktn deploy` | cdktn container |
-| 6 | Set up the databases (application repository, getting-started): a cluster with `scripts/cluster-setup.sh <cloud>` on one VM, clouds alone with `scripts/node-setup.sh <cloud>` on each cloud's VM | VM |
+| 5 | `npm run build-stage -- 2`, then `cdktn deploy`. A cluster without the private DNS (`hostZones` off): `npm run build-stage -- 2 --azure-db-ip <ip>` (below) | cdktn container |
+| 6 | Set up the databases (application repository, getting-started): a cluster with `scripts/cluster-setup.sh <cloud>` on one VM, clouds alone with `scripts/node-setup.sh <cloud>` on each cloud's VM. Without the private DNS, put the line the deploy printed (output `cluster-setup-hosts`) before the command | VM |
 | 7 | Deploy the API: right after the infrastructure is built there is no new commit to merge and the registries are empty, so run each cloud's pipeline once (application repository: getting-started, "Deploy"). Pipelines: `api-service-cicd` (`config/aws/cicd/cicdsettings.ts`), `github-push-trigger` (`config/google/cicdsettings.ts`), `multicloud-api-deploy` (`config/azure/cicd.ts`). The build results are emailed (Azure DevOps to the person who ran it; AWS and Google Cloud to `ALERT_EMAILS`, "Alerting" below) | Cloud Shell, Azure DevOps |
 | 8 | `npm run build-stage -- 3`, then `cdktn deploy`: the load balancers and platforms use `/readyz` and `/healthz`, and the journal pruning jobs are created | cdktn container |
 
 Later releases of the API need no `cdktn deploy`: merging into the
 environment's branch is enough. The stage stays 3.
+
+### A cluster without the private DNS
+
+The private DNS (`hostZones`) is the normal setup. To save its cost (e.g. in
+dev), a cluster also works without it: the APIs and the databases reach
+AWS by the Aurora cluster endpoint (public DNS answers its private IP) and
+Google Cloud by the Cloud SQL private IP, both set by cdktn, and Azure by
+its database's private IP, which cdktn cannot look up: record it at step 5.
+
+```bash
+# After the 1st deploy (Cloud Shell or any machine signed in to Azure)
+az network private-dns record-set a list -g rg_multicloud \
+  --zone-name privatelink.postgres.database.azure.com \
+  --query '[].aRecords[0].ipv4Address' -o tsv
+# Step 5, in the cdktn container (kept at stage 3)
+npm run build-stage -- 2 --azure-db-ip <ip>
+cdktn deploy
+```
+
+The deploy prints the database addresses for the database scripts (output
+`cluster-setup-hosts`, e.g. `NODE_AWS_HOST=... NODE_GOOGLE_HOST=...
+NODE_AZURE_HOST=...`; `cdktn output` prints it again). At step 6, put that
+line before the command: `NODE_AWS_HOST=... NODE_GOOGLE_HOST=...
+NODE_AZURE_HOST=... scripts/cluster-setup.sh aws`.
+
+If the Azure database's address changes (e.g. after a high availability
+failover; nothing detects it: the replication from Azure stops and the APIs
+log connection errors), record the new one (`npm run build-stage -- <current
+stage> --azure-db-ip <ip>`), `cdktn deploy` (the APIs), and run
+`scripts/cluster-setup.sh` again with the new line (the subscriptions).
 
 ## Deploy
 

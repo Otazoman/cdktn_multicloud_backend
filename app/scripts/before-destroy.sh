@@ -9,7 +9,8 @@
 #     InternalServerError while the database has logical replication slots
 #     (a cluster), and the destroy stops with the Azure resources left.
 # It also sets the build stage back to 1 (config/buildstage.ts) for the next
-# build. Nothing is changed in the clouds. Safe to run again.
+# build, which clears the recorded Azure database IP (a new database).
+# Nothing is changed in the clouds. Safe to run again.
 
 set -euo pipefail
 

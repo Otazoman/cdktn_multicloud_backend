@@ -55,7 +55,7 @@
 | `awsToAzure` | AWS と Azure の直接の VPN | `boolean` | `true` | |
 | `googleToAzure` | Google Cloud と Azure の直接の VPN | `boolean` | `true` | 直接の接続を 2 つ持つクラウドは、残りの 2 つのハブになる（BGP、`haBgp` のみ） |
 | `vpnMode` | VPN の方式 | `"singleTunnel"`: 接続ごとにトンネル 1 本、静的ルート（Google Cloud は Classic VPN）。`"haBgp"`: 接続ごとにトンネル 2 本、BGP（HA VPN） | `byEnv`: `dev` `singleTunnel`、`stg` `singleTunnel`、`prod` `haBgp` | [VPN](../networking/vpn.ja.md) を参照 |
-| `hostZones` | プライベート DNS ゾーンと、クラウド間の DNS 転送 | `boolean` | `false` | |
+| `hostZones` | プライベート DNS ゾーンと、クラウド間の DNS 転送 | `boolean` | `false` | 無くてもクラスタは動く（費用を抑えるときなど）。その場合データベースには接続先のエンドポイントと、記録した Azure のデータベースのプライベート IP で接続する（下の `topology`） |
 
 ### VPN のアドレスの割り当て（`config/vpn/addressPlan.ts`、`haBgp` のみ）
 
@@ -85,8 +85,9 @@ API コンテナの設定（FEAT-01 §9 #5）。各クラウドの CI/CD のデ�
 | `database.name` | 各ノードの API のデータベース | 文字列 | `appdb` | アプリのスクリプトは全ノードで1つの名前を使う |
 | `database.user` | API が接続するロール | 文字列 | `app_api` | アプリの `scripts/api-role-setup.sh` が作る |
 | `database.sslMode` | `DB_SSLMODE` | `disable`、`require`、`verify-full` | `require` | |
-| `topology` | `cluster`：データベースのあるクラウドで1つのクラスタになる（2つ以上なら `useVpn`・`hostZones`・それらの間の VPN 接続が必要。無ければ合成が失敗する）。`independent`：各クラウドが自分のデータで単体で動く | `cluster`、`independent`、`byEnv` | `cluster`。dev は `independent` | 単体のクラウドを後からクラスタにすると、データが残るのは1つのクラウドだけ |
+| `topology` | `cluster`：データベースのあるクラウドで1つのクラスタになる（2つ以上なら `useVpn` とそれらの間の VPN 接続が必要。無ければ合成が失敗する）。`hostZones` があれば API とデータベースはプライベート DNS の名前で接続し、無ければ（費用を抑えるとき）Aurora のクラスタのエンドポイント、Cloud SQL のプライベート IP、構築の段階と一緒に記録した Azure のデータベースのプライベート IP（`npm run build-stage -- 2 --azure-db-ip <IP>`。段階 2 から必須。変わったら記録し直す）で接続し、deploy の最後にアプリの `scripts/cluster-setup.sh` 用の接続先を表示する（出力 `cluster-setup-hosts`）。`independent`：各クラウドが自分のデータで単体で動く | `cluster`、`independent`、`byEnv` | `cluster`。dev は `independent` | 単体のクラウドを後からクラスタにすると、データが残るのは1つのクラウドだけ |
 | `database.privateDnsNames.<cloud>` | 各ノードのデータベースのプライベート DNS 名。他のクラウドの API が使う（`DB_<NODE>_HOST`） | プライベート DNS 名 | `aurora-postgres.aws.inner`、`cloudsql-postgres.google.inner`、`postgres-prod.azure.inner` | クラスタのみ。プライベート DNS のレコードと合わせる |
+| `database.azurePrivateIp` | プライベート DNS の無いクラスタでの Azure のデータベースのプライベート IP | 構築の段階と一緒に記録：`npm run build-stage -- 2 --azure-db-ip <IP>`（`state/<環境名>/build-stage.json`。合成のたびに読む。コンテナの環境変数 `AZURE_DB_PRIVATE_IP` があればそちらが優先） | — | 最初の deploy の後に調べる：`az network private-dns record-set a list -g <リソースグループ> --zone-name privatelink.postgres.database.azure.com --query '[].aRecords[0].ipv4Address' -o tsv` |
 | `passwordSecretKey` | `app_api` のパスワードのシークレット | `config/<cloud>/secrets.ts` のキー | `db-api-password` | すべてのクラウドで同じ値 |
 | `azureSecretReady` | Container App から Key Vault のシークレットを参照する | 構築の段階 | 段階 2 から有効 | 構築の段階で決まる（`config/buildstage.ts`。Azure の VM からシークレットを設定した後に `npm run build-stage -- 2`。[operations.ja.md](../operations.ja.md) の「環境を構築する」） |
 | `readinessProbe` | `/readyz` を readiness（ALB のターゲットグループ、Cloud Run の startup probe、Container Apps の readiness probe）、`/healthz` を liveness に使う | 構築の段階 | 段階 3 で有効 | 仮のイメージは `/` にしか応答しない。CI/CD が API をデプロイした後に `npm run build-stage -- 3` |

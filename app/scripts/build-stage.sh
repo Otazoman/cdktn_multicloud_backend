@@ -1,14 +1,25 @@
 #!/usr/bin/env bash
 # Shows or sets the build stage of the environment (DEPLOY_ENV), in the cdktn
-# container: npm run build-stage [-- 1|2|3]. See config/buildstage.ts and
-# docs/operations.md ("Build an environment"). Takes effect at the next
-# cdktn diff / deploy. The stage is kept in state/<env>/build-stage.json.
+# container:
+#   npm run build-stage                               show it
+#   npm run build-stage -- 1|2|3                      set it
+#   npm run build-stage -- 2 --azure-db-ip <ip>       ...and record the Azure
+#       database's private IP (a cluster without the private DNS, hostZones
+#       off; kept at stage 3, cleared at stage 1)
+# See config/buildstage.ts and docs/operations.md ("Build an environment").
+# Takes effect at the next cdktn diff / deploy. Kept in
+# state/<env>/build-stage.json.
 
 set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 : "${DEPLOY_ENV:?Set DEPLOY_ENV (dev, stg or prod)}"
 FILE="$APP_DIR/state/$DEPLOY_ENV/build-stage.json"
+
+usage() {
+  echo "Usage: npm run build-stage [-- 1|2|3 [--azure-db-ip <ip>]]" >&2
+  exit 1
+}
 
 describe() {
   case "$1" in
@@ -18,28 +29,51 @@ describe() {
   esac
 }
 
-current() {
-  if [[ -f "$FILE" ]]; then
-    sed -nE 's/.*"stage"[[:space:]]*:[[:space:]]*([0-9]+).*/\1/p' "$FILE"
-  else
-    echo 1
-  fi
+field() {
+  [[ -f "$FILE" ]] && sed -nE "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"?([^\",} ]+)\"?.*/\1/p" "$FILE" || true
+}
+
+show() {
+  local stage ip
+  stage="$(field stage)"
+  ip="$(field azureDbPrivateIp)"
+  echo "$DEPLOY_ENV build stage $(describe "${stage:-1}")"
+  [[ -z "$ip" ]] || echo "Azure database private IP: $ip"
 }
 
 stage="${1:-}"
 if [[ -z "$stage" ]]; then
-  echo "$DEPLOY_ENV build stage $(describe "$(current)")"
+  show
   exit 0
 fi
 case "$stage" in
   1 | 2 | 3) ;;
-  *)
-    echo "Usage: npm run build-stage [-- 1|2|3]" >&2
-    exit 1
-    ;;
+  *) usage ;;
 esac
+shift
+
+ip="$(field azureDbPrivateIp)"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --azure-db-ip)
+      ip="${2:-}"
+      [[ "$ip" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || {
+        echo "--azure-db-ip needs an IPv4 address" >&2
+        exit 1
+      }
+      shift 2
+      ;;
+    *) usage ;;
+  esac
+done
+# A new build creates a new database (a new address)
+[[ "$stage" != 1 ]] || ip=""
 
 mkdir -p "$(dirname "$FILE")"
-printf '{ "stage": %s }\n' "$stage" > "$FILE"
-echo "$DEPLOY_ENV build stage $(describe "$stage")"
+if [[ -n "$ip" ]]; then
+  printf '{ "stage": %s, "azureDbPrivateIp": "%s" }\n' "$stage" "$ip" > "$FILE"
+else
+  printf '{ "stage": %s }\n' "$stage" > "$FILE"
+fi
+show
 echo "Next: cdktn diff, then cdktn deploy"

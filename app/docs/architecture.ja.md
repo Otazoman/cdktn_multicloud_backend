@@ -55,7 +55,7 @@ app.ts
 | state | `state/<環境名>/terraform.tfstate`（`stacks/MultiCloudBackendStack.ts` の `LocalBackend`） |
 | VPN の方式 | 環境ごとの `vpnMode` |
 
-[configuration/common.ja.md](configuration/common.ja.md) と [ai/feat04_environments_design.md](ai/feat04_environments_design.md) を参照してください。
+[configuration/common.ja.md](configuration/common.ja.md) を参照してください。
 
 ## 設計のルール
 

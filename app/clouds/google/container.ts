@@ -123,7 +123,7 @@ export function createGoogleContainers(ctx: GoogleBuildContext): void {
           // service account (CI/CD acts as it: constructs/cicd/googlecicd.ts),
           // which may read only the password secret.
           const api = cicdTargets.has(config.name)
-            ? apiContainerSettings("google", () =>
+            ? apiContainerSettings(scope, "google", () =>
                 apiLocalDbHost(
                   "google",
                   (output.cloudSqlInstances ?? [])

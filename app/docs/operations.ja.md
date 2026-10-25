@@ -59,12 +59,37 @@ CI/CD が API のイメージに切り替えます。ただ、API のデプロ�
 | 2 | `npm run build-stage` で段階 1 であることを確認（`npm run before-destroy` が 1 に戻す。そうでなければ `npm run build-stage -- 1`）。destroy の後は、まだ再利用できない名前も変える（下の「destroy の後にもう一度 deploy する」） | cdktn のコンテナ、設定ファイル |
 | 3 | `cdktn diff` の後、`cdktn deploy`（下の「deploy」） | cdktn のコンテナ |
 | 4 | すべてのクラウドにパスワードを入れる：`scripts/secrets-set.sh <cloud>`（アプリのリポジトリ。下の「シークレット」） | AWS と Google Cloud は Cloud Shell か VM、Azure は VM |
-| 5 | `npm run build-stage -- 2` の後、`cdktn deploy` | cdktn のコンテナ |
-| 6 | データベースのセットアップ（アプリのリポジトリの getting-started）：クラスタはどれか1台の VM で `scripts/cluster-setup.sh <cloud>`、クラウド単体は各クラウドの VM で `scripts/node-setup.sh <cloud>` | VM |
+| 5 | `npm run build-stage -- 2` の後、`cdktn deploy`。プライベート DNS の無いクラスタ（`hostZones` が無効）は `npm run build-stage -- 2 --azure-db-ip <IP>`（下記） | cdktn のコンテナ |
+| 6 | データベースのセットアップ（アプリのリポジトリの getting-started）：クラスタはどれか1台の VM で `scripts/cluster-setup.sh <cloud>`、クラウド単体は各クラウドの VM で `scripts/node-setup.sh <cloud>`。プライベート DNS が無いときは、deploy が表示した 1 行（出力 `cluster-setup-hosts`）をコマンドの前に付ける | VM |
 | 7 | API のデプロイ：インフラを構築した直後はマージする新しいコミットがなく、レジストリも空なので、各クラウドのパイプラインを 1 回実行する（アプリのリポジトリの getting-started の「デプロイ」）。パイプライン：`api-service-cicd`（`config/aws/cicd/cicdsettings.ts`）、`github-push-trigger`（`config/google/cicdsettings.ts`）、`multicloud-api-deploy`（`config/azure/cicd.ts`）。ビルドの結果はメールで届く（Azure DevOps は実行した人に、AWS と Google Cloud は `ALERT_EMAILS` に。下の「アラート」） | Cloud Shell、Azure DevOps |
 | 8 | `npm run build-stage -- 3` の後、`cdktn deploy`：ロードバランサーとコンテナ基盤が `/readyz`・`/healthz` を使い、変更履歴の削除ジョブが作られる | cdktn のコンテナ |
 
 構築の後の API のリリースでは `cdktn deploy` は不要です（環境のブランチへのマージだけ）。段階は 3 のままです。
+
+### プライベート DNS の無いクラスタ
+
+プライベート DNS（`hostZones`）を使うのが本来の構成です。費用を抑えるとき（dev など）は、プライベート DNS が無くてもクラスタは
+動きます。API とデータベースは、AWS には Aurora のクラスタのエンドポイント（公開 DNS がプライベート IP を返す）、Google Cloud
+には Cloud SQL のプライベート IP（どちらも cdktn が設定）、Azure にはデータベースのプライベート IP で接続します。Azure の IP は
+cdktn が調べられないので、手順 5 で記録します：
+
+```bash
+# 1 回目の deploy の後（Cloud Shell など、Azure にサインインした端末で）
+az network private-dns record-set a list -g rg_multicloud \
+  --zone-name privatelink.postgres.database.azure.com \
+  --query '[].aRecords[0].ipv4Address' -o tsv
+# 手順 5、cdktn のコンテナで（段階 3 でも引き継がれる）
+npm run build-stage -- 2 --azure-db-ip <IP>
+cdktn deploy
+```
+
+deploy の最後に、DB のスクリプト用の接続先が表示されます（出力 `cluster-setup-hosts`。例：`NODE_AWS_HOST=... NODE_GOOGLE_HOST=...
+NODE_AZURE_HOST=...`。`cdktn output` でも表示できます）。手順 6 で、その 1 行をコマンドの前に付けます：
+`NODE_AWS_HOST=... NODE_GOOGLE_HOST=... NODE_AZURE_HOST=... scripts/cluster-setup.sh aws`。
+
+Azure のデータベースの IP が変わったとき（HA のフェイルオーバーなど。自動では検知しません。Azure からのレプリケーションが止まり、
+API のログに接続のエラーが出ます）は、新しい IP を記録し（`npm run build-stage -- <今の段階> --azure-db-ip <IP>`）、`cdktn deploy`
+（API の接続先）と、新しい 1 行を付けた `scripts/cluster-setup.sh` の再実行（サブスクリプションの接続先）を行います。
 
 ## deploy
 

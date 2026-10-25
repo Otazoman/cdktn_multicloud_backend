@@ -8,7 +8,7 @@
 // (application repository: README "Environment variables").
 // ---------------------------------------------------------------------------
 
-import { buildStage } from "./buildstage";
+import { buildStage, recordedAzureDbPrivateIp } from "./buildstage";
 import type { CloudId } from "./commonsettings";
 import { byEnv } from "./environment";
 
@@ -50,6 +50,18 @@ export const apiContainerConfig = {
       google: "cloudsql-postgres.google.inner",
       azure: "postgres-prod.azure.inner",
     } as Record<CloudId, string>,
+    /**
+     * A cluster without the private DNS (hostZones off, e.g. to save its
+     * cost in dev): the other clouds reach AWS by the Aurora cluster endpoint
+     * and Google Cloud by the Cloud SQL private IP (both set by cdktn), and
+     * Azure by this private IP of its database, looked up after the first
+     * deploy and recorded with the build stage (npm run build-stage -- 2
+     * --azure-db-ip <ip>; docs/operations.md, "Build an environment").
+     * Required from build stage 2. Record it again if the address changes
+     * (e.g. after a high availability failover). AZURE_DB_PRIVATE_IP in the
+     * environment overrides it.
+     */
+    azurePrivateIp: process.env.AZURE_DB_PRIVATE_IP?.trim() || recordedAzureDbPrivateIp(),
   },
   /**
    * Secret holding the app_api password (key in config/<cloud>/secrets.ts).

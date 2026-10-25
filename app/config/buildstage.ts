@@ -10,6 +10,10 @@
 //   3  after CI/CD deployed   readiness checks on /readyz, journal pruning jobs
 // `npm run before-destroy` sets it back to 1. Without the file: 1.
 // BUILD_STAGE in the environment overrides the file (the tests use 1).
+//
+// The file also keeps the Azure database's private IP for a cluster without
+// the private DNS (npm run build-stage -- 2 --azure-db-ip <ip>): read at
+// every synthesis, unlike .env.<env>, which the container reads at start.
 // ---------------------------------------------------------------------------
 
 import * as fs from "fs";
@@ -21,6 +25,11 @@ export type BuildStage = 1 | 2 | 3;
 /** state/<env>/build-stage.json (next to the Terraform state) */
 export const buildStageFile = (): string =>
   path.join(process.cwd(), "state", currentEnv(), "build-stage.json");
+
+const readFile = (): { stage?: unknown; azureDbPrivateIp?: unknown } | undefined => {
+  const file = buildStageFile();
+  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : undefined;
+};
 
 const parseStage = (value: unknown, source: string): BuildStage => {
   const stage = Number(value);
@@ -35,9 +44,12 @@ export function buildStage(): BuildStage {
   if (process.env.BUILD_STAGE) {
     return parseStage(process.env.BUILD_STAGE, "BUILD_STAGE");
   }
-  const file = buildStageFile();
-  if (!fs.existsSync(file)) {
-    return 1;
-  }
-  return parseStage(JSON.parse(fs.readFileSync(file, "utf8")).stage, file);
+  const content = readFile();
+  return content ? parseStage(content.stage, buildStageFile()) : 1;
+}
+
+/** The Azure database's private IP recorded with the stage, if any */
+export function recordedAzureDbPrivateIp(): string | undefined {
+  const value = readFile()?.azureDbPrivateIp;
+  return typeof value === "string" && value !== "" ? value : undefined;
 }

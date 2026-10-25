@@ -5,7 +5,7 @@
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { buildStage } from "../config/buildstage";
+import { buildStage, recordedAzureDbPrivateIp } from "../config/buildstage";
 
 const originalStage = process.env.BUILD_STAGE;
 const originalCwd = process.cwd();
@@ -41,6 +41,12 @@ test("BUILD_STAGE overrides the file", () => {
   writeStage('{ "stage": 3 }\n');
   process.env.BUILD_STAGE = "2";
   expect(buildStage()).toBe(2);
+});
+
+test("the Azure database IP recorded with the stage", () => {
+  expect(recordedAzureDbPrivateIp()).toBeUndefined();
+  writeStage('{ "stage": 2, "azureDbPrivateIp": "10.2.32.4" }\n');
+  expect(recordedAzureDbPrivateIp()).toBe("10.2.32.4");
 });
 
 test("an invalid stage fails", () => {

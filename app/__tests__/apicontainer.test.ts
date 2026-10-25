@@ -297,12 +297,64 @@ describe("API container (config/apicontainer.ts)", () => {
   describe("topology", () => {
     const noVpn = { ...FEATURE_SETS.allOn, useVpn: false, hostZones: false };
 
-    test("cluster: several clouds with a database need the VPN and private DNS", () => {
-      expect(() => synthWith({}, noVpn)).toThrow(/useVpn, hostZones/);
+    test("cluster: several clouds with a database need the VPN", () => {
+      expect(() => synthWith({}, noVpn)).toThrow(/Enable useVpn and VPN connections/);
       // ... and every one of them connected
       expect(() =>
         synthWith({}, { ...FEATURE_SETS.allOn, awsToGoogle: false, awsToAzure: false }),
       ).toThrow("not connected: aws");
+    });
+
+    describe("cluster without the private DNS (hostZones off)", () => {
+      const noDns = { ...FEATURE_SETS.allOn, hostZones: false };
+      const database = apiContainerConfig.database;
+      const azureEnv = (synth: any) =>
+        envOf(
+          Object.values(resourcesOf(synth, "azurerm_container_app")).find(
+            (a) => a.name === "backend-api-service",
+          ).template.container[0].env,
+        );
+      const googleEnv = (synth: any) =>
+        envOf(
+          resourcesOf(synth, "google_cloud_run_v2_service")["run-web-service-with-lb"].template.containers[0].env,
+        );
+      afterEach(() => {
+        database.azurePrivateIp = undefined;
+        process.env.BUILD_STAGE = "1";
+      });
+
+      test("the endpoints of AWS and Google Cloud, the recorded IP for Azure", () => {
+        database.azurePrivateIp = "10.2.32.4";
+        const synth = synthWith({}, noDns);
+        const aurora = "${aws_rds_cluster.auroraCluster-aurora-postgres-cluster.endpoint}";
+        const cloudSql = expect.stringMatching(/^\$\{google_sql_database_instance\..*\.private_ip_address\}$/);
+        expect(envOf(ecsContainer(synth, "api-service").environment)).toMatchObject({
+          DB_GOOGLE_HOST: cloudSql,
+          DB_AZURE_HOST: "10.2.32.4",
+        });
+        expect(googleEnv(synth)).toMatchObject({ DB_AWS_HOST: aurora, DB_AZURE_HOST: "10.2.32.4" });
+        expect(azureEnv(synth)).toMatchObject({ DB_AWS_HOST: aurora, DB_GOOGLE_HOST: cloudSql });
+        // The addresses for scripts/cluster-setup.sh
+        const output = synth.output["cluster-setup-hosts"].value;
+        expect(output).toContain(`NODE_AWS_HOST=${aurora}`);
+        expect(output).toMatch(/NODE_GOOGLE_HOST=\$\{google_sql_database_instance\./);
+        expect(output).toContain("NODE_AZURE_HOST=10.2.32.4");
+        // No peered DNS domains without the private DNS
+        expect(resourcesOf(synth, "google_service_networking_peered_dns_domain")).toEqual({});
+      });
+
+      test("Azure's address is required from build stage 2", () => {
+        // Stage 1: the database does not exist yet
+        expect(envOf(ecsContainer(synthWith({}, noDns), "api-service").environment).DB_AZURE_HOST).toBe(
+          "azure-db-ip-not-recorded",
+        );
+        process.env.BUILD_STAGE = "2";
+        expect(() => synthWith({}, noDns)).toThrow(/--azure-db-ip <ip>/);
+      });
+
+      test("with the private DNS: no addresses output", () => {
+        expect(synthWith().output?.["cluster-setup-hosts"]).toBeUndefined();
+      });
     });
 
     test("cluster: one cloud with a database needs neither", () => {

@@ -103,7 +103,7 @@ export function createAzureContainers(ctx: AzureBuildContext): void {
           // secret, which is set from the Azure VM: referenced only once
           // azureSecretReady (a missing secret stops the revision).
           const api = isCicdTarget
-            ? apiContainerSettings("azure", () =>
+            ? apiContainerSettings(scope, "azure", () =>
                 apiLocalDbHost(
                   "azure",
                   (output.dbResources ?? [])

@@ -164,6 +164,10 @@ for the resources you enable:
   EventBridge Scheduler schedule): `AmazonEventBridgeSchedulerFullAccess`.
   Without it the deploy fails with `not authorized to perform:
   scheduler:CreateSchedule`
+- **Build result emails** (`alerting` and `cicd`: an EventBridge rule on the
+  CodeBuild project, `buildNotifications`): `AmazonEventBridgeFullAccess`.
+  Without it the deploy fails with `listing tags for EventBridge Rule ...
+  AccessDeniedException`
 - **CodeBuild / ECR**: `IAMFullAccess` and the following policy:
 
   ```json

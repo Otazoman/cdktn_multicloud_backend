@@ -63,7 +63,7 @@ One repository and one branch deploy `dev`, `stg` and `prod` to separate cloud a
 | State | `state/<env>/terraform.tfstate` (`LocalBackend` in `stacks/MultiCloudBackendStack.ts`) |
 | VPN method | `vpnMode`, per environment |
 
-See [configuration/common.md](configuration/common.md) and [ai/feat04_environments_design.md](ai/feat04_environments_design.md).
+See [configuration/common.md](configuration/common.md).
 
 ## Design rules
 

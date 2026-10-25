@@ -260,7 +260,7 @@ export function createAwsContainers(ctx: AwsBuildContext): void {
           // to, when AWS has a database. The password comes from Secrets
           // Manager, read by the execution role when a task starts.
           const api = apiServiceNames.has(config.name)
-            ? apiContainerSettings("aws", () =>
+            ? apiContainerSettings(scope, "aws", () =>
                 apiLocalDbHost("aws", [
                   ...(output.dbResources?.auroraClusters ?? []).map((c) => ({
                     name: c.clusterIdentifier,
