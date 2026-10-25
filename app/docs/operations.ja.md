@@ -211,7 +211,7 @@ API と論理レプリケーション（FEAT-01）が使う DB のパスワー�
 
 API のロールのパスワードは**全ノードで同じ**です。すべてのクラウドの `db-api-password` に同じ値を設定します。
 各クラウドの API コンテナは、これを `DB_PASSWORD` とすべての `DB_<NODE>_PASSWORD` に使います
-（`config/apicontainer.ts`。アプリのリポジトリの getting-started）。レプリケーションのパスワードはノードごとです。
+（`config/apicontainer.ts`。アプリのリポジトリの getting-started）。レプリケーションのパスワードも全ノードで同じです。
 
 Azure: Container App が Key Vault のシークレットを参照するのは `apiContainerConfig.azureSecretReady` が `true` の
 ときだけです。参照するシークレットがないと Container App は起動できません。`false` で deploy し、Azure の VM から
@@ -249,55 +249,26 @@ CLI を使う前に、サインインできているかを確認してくださ�
 
 ### 値を入れる（初回と、パスワードを変えるとき）
 
-各クラウドの VM で、そのクラウドだけにサインインして行います。パスワードは、自分だけが読めるファイルに書き出し（シェルの履歴やプロセスの一覧に出ないようにするため）、最後に削除します。
+2 つのパスワードは、どちらも**すべてのクラウドで同じ値**です：
 
-- `db-api-password`（API のロール `app_api`）は、**すべてのクラウドで同じ値**です。すべての API がすべてのノードに接続するためです（アプリのリポジトリの getting-started）。1回だけ作って控え（パスワードマネージャーなど）、他の VM には同じ値を入れます。
-- `db-repl-password`（レプリケーションのロール）はノードごとです。単体で動かすクラウド（`apiContainerConfig.topology` が `independent`）では、まだ使いません。
+- `db-api-password`（API のロール `app_api`）：すべての API がすべてのノードに接続するため（アプリのリポジトリの getting-started）。
+- `db-repl-password`（レプリケーションのロール `app_repl`）：使うのは DB のスクリプトだけです。1つの値にすると、どれか1台の VM で、そのクラウドのシークレットストアだけからすべてのパスワードを読めます。単体で動かすクラウド（`apiContainerConfig.topology` が `independent`）では使いません。
 
-```bash
-umask 077
-gen() { openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32; }   # 英数字 32 文字
-
-# API のパスワード（最初の VM だけ）：作って値を控える
-gen > ~/db-api-password && cat ~/db-api-password; echo
-# API のパスワード（他の VM）：同じ値を貼り付ける（画面には表示されない）
-read -rs API_PW && printf %s "$API_PW" > ~/db-api-password && unset API_PW
-
-# レプリケーションのパスワード（すべての VM）：それぞれ別の値
-gen > ~/db-repl-password
-```
-
-AWS の VM:
+2 つの値を一度だけ決めて控えます（パスワードマネージャーなど）：
 
 ```bash
-for s in db-api-password db-repl-password; do
-  aws secretsmanager put-secret-value --region ap-northeast-1 \
-    --secret-id "multicloud-aws-secret-$s" --secret-string "file://$HOME/$s"
-done
+openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32; echo   # 2 回実行：API 用、レプリケーション用
 ```
 
-Google Cloud の VM:
+その後、クラウドごとに、そのクラウドの CLI だけにサインインして（AWS と Google Cloud は Cloud Shell か VM、Azure は VM。Key Vault には Azure の VNet からしか接続できません）、アプリのリポジトリのスクリプトをクラウドの名前を付けて実行し、聞かれたら 2 つの値を貼り付けます：
 
 ```bash
-for s in db-api-password db-repl-password; do
-  gcloud secrets versions add "multicloud-google-secret-$s" --data-file="$HOME/$s"
-done
+git clone https://github.com/Otazoman/multipleclouds-api-app.git   # clone 済みなら git pull
+cd multipleclouds-api-app
+scripts/secrets-set.sh aws        # 他のクラウドでは google / azure
 ```
 
-Azure の VM（Key Vault には Azure の VNet からしか接続できません）:
-
-```bash
-for s in db-api-password db-repl-password; do
-  az keyvault secret set --vault-name multicloud-kv-001 --name "$s" \
-    --file "$HOME/$s" --encoding utf-8 --output none
-done
-```
-
-その後、ファイルを削除し、サインアウトします。
-
-```bash
-shred -u ~/db-api-password ~/db-repl-password
-```
+サインインを確認し、そのクラウドの 2 つのシークレットを設定し（値は自分だけが読めるファイルを通して渡すので、シェルの履歴やプロセスの一覧に出ません）、読み戻して確認して、最後に `Done` と表示します。レプリケーションの質問で Enter を押すと、そのシークレットは変えません。終わったらサインアウトします。
 
 パスワードを変えた後は、DB が新しい値を使うようにロールの設定（次の節）をもう一度実行し、そのクラウドの API を再起動してください。
 
@@ -305,8 +276,8 @@ shred -u ~/db-api-password ~/db-repl-password
 
 DB のスクリプトはアプリのリポジトリのものです。そのリポジトリの getting-started（「データベースのセットアップ」）を
 参照してください。クラウド単体なら、`scripts/node-setup.sh <cloud>` が、VM でクラウドの CLI にサインインしていれば
-API のパスワードをそのクラウドのシークレットストアから読み取ります。クラスタではすべてのノードのパスワードが必要で、
-その集め方はアプリのリポジトリに書いています。
+API のパスワードをそのクラウドのシークレットストアから読み取ります。クラスタでは、どれか1台の VM でスクリプトを
+実行し、そのクラウドのシークレットストアから 2 つのパスワードを読みます。
 
 ### クラウドの CLI の更新
 

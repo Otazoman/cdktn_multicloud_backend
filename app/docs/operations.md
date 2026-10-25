@@ -287,7 +287,7 @@ The API role password is **the same on every node**: set the same value in
 the `db-api-password` secret of every cloud. Each cloud's API container
 reads it for `DB_PASSWORD` and every `DB_<NODE>_PASSWORD`
 (`config/apicontainer.ts`; application repository: getting-started). The
-replication passwords are one per node.
+replication password is also the same on every node.
 
 Azure: the Container App references the Key Vault secret only when
 `apiContainerConfig.azureSecretReady` is `true`; a Container App cannot
@@ -345,61 +345,36 @@ Check that you are signed in before using the CLI, and watch for these:
 
 ### Set the values (first time and when changing a password)
 
-Do this on each cloud's VM, signed in to that cloud only. The passwords
-are written to files readable only by you (so that they do not appear in
-the shell history or the process list) and deleted at the end.
+Both passwords have **the same value on every cloud**:
 
-- `db-api-password` (the API role, `app_api`) has **the same value on every
-  cloud**: every API connects to every node (application repository,
-  getting-started). Generate it once, keep it (e.g. in your password
-  manager) and write the same value on the other VMs.
-- `db-repl-password` (the replication role) is one per node. Clouds that run
-  alone (`apiContainerConfig.topology` `independent`) do not use it yet.
+- `db-api-password` (the API role, `app_api`): every API connects to every
+  node (application repository, getting-started).
+- `db-repl-password` (the replication role, `app_repl`): only the database
+  scripts use it; with one value they can run on any one VM and read every
+  password from that cloud's own secret store. Clouds that run alone
+  (`apiContainerConfig.topology` `independent`) do not use it.
 
-```bash
-umask 077
-gen() { openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32; }   # letters and digits, 32 characters
-
-# API password, on the first VM only: generate it and keep the value
-gen > ~/db-api-password && cat ~/db-api-password; echo
-# API password, on the other VMs: paste the same value (not echoed)
-read -rs API_PW && printf %s "$API_PW" > ~/db-api-password && unset API_PW
-
-# Replication password, on every VM: its own value
-gen > ~/db-repl-password
-```
-
-AWS VM:
+Choose the two values once and keep them (e.g. in your password manager):
 
 ```bash
-for s in db-api-password db-repl-password; do
-  aws secretsmanager put-secret-value --region ap-northeast-1 \
-    --secret-id "multicloud-aws-secret-$s" --secret-string "file://$HOME/$s"
-done
+openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32; echo   # run twice: API, replication
 ```
 
-Google Cloud VM:
+Then, on each cloud, signed in to that cloud's CLI only (AWS and Google
+Cloud: Cloud Shell or their VM; Azure: its VM, the vault is reachable only
+from the Azure VNet), run the application repository's script with the
+cloud's name and paste the two values when asked:
 
 ```bash
-for s in db-api-password db-repl-password; do
-  gcloud secrets versions add "multicloud-google-secret-$s" --data-file="$HOME/$s"
-done
+git clone https://github.com/Otazoman/multipleclouds-api-app.git   # or git pull
+cd multipleclouds-api-app
+scripts/secrets-set.sh aws        # google / azure on the other clouds
 ```
 
-Azure VM (the vault is reachable only from the Azure VNet):
-
-```bash
-for s in db-api-password db-repl-password; do
-  az keyvault secret set --vault-name multicloud-kv-001 --name "$s" \
-    --file "$HOME/$s" --encoding utf-8 --output none
-done
-```
-
-Then delete the files and sign out:
-
-```bash
-shred -u ~/db-api-password ~/db-repl-password
-```
+It checks the sign-in, sets both secrets of that cloud (the values go
+through a file readable only by you, not the shell history or the process
+list), reads them back to check them and ends with `Done`. Enter at the
+replication prompt leaves that secret unchanged. Sign out afterwards.
 
 After changing a password, run the role setup again (next section) so that
 the database uses the new value, then restart the API on that cloud.
@@ -409,8 +384,9 @@ the database uses the new value, then restart the API on that cloud.
 The database scripts belong to the application repository: see its
 getting-started ("Set up the databases"). For a cloud alone,
 `scripts/node-setup.sh <cloud>` reads the API password from the cloud's
-secret store when the cloud's CLI is signed in on the VM. A cluster needs
-the passwords of every node; that repository describes how to gather them.
+secret store when the cloud's CLI is signed in on the VM. For a cluster,
+the scripts run on one VM and read both passwords from that cloud's secret
+store.
 
 ### Update the cloud CLIs
 
