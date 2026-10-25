@@ -6,6 +6,7 @@ import { NetworkSecurityGroup } from "@cdktn/provider-azurerm/lib/network-securi
 import { NetworkSecurityRule } from "@cdktn/provider-azurerm/lib/network-security-rule";
 import { PublicIp } from "@cdktn/provider-azurerm/lib/public-ip";
 import { Subnet as AzureSubnet } from "@cdktn/provider-azurerm/lib/subnet";
+import { SubnetNatGatewayAssociation } from "@cdktn/provider-azurerm/lib/subnet-nat-gateway-association";
 import { SubnetNetworkSecurityGroupAssociation } from "@cdktn/provider-azurerm/lib/subnet-network-security-group-association";
 import { VirtualNetwork } from "@cdktn/provider-azurerm/lib/virtual-network";
 import { LoadBalancerDnsInfo } from "../common";
@@ -21,6 +22,8 @@ export interface AzureVnetResources {
   nsgRules?: { [key: string]: NetworkSecurityRule[] };
   subnets: Record<string, AzureSubnet>;
   subnetAssociations?: SubnetNetworkSecurityGroupAssociation[];
+  /** NAT gateway associations (subnet updates after creation) */
+  natAssociations?: SubnetNatGatewayAssociation[];
   params?: ReturnType<typeof createAzureVnetResources>["params"];
   vnetTags?: { [key: string]: string };
   /**

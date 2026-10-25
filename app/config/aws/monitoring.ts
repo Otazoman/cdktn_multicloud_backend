@@ -46,8 +46,19 @@ export const awsAlertingConfig: {
    * metrics produced by metricFilters.
    */
   alarms: AwsAlarmConfig[];
+  /**
+   * Results of the CI/CD builds (CodeBuild projects that are built, with
+   * the cicd feature): EventBridge sends each result to the targets.
+   * `notify` lists notificationTargets keys. undefined: none
+   */
+  buildNotifications?: {
+    /** CodeBuild build-status values: SUCCEEDED, FAILED, STOPPED */
+    states: string[];
+    notify: string[];
+  };
 } = {
   notificationTargets: [{ key: "ops", emails: alertEmails }],
+  buildNotifications: { states: ["SUCCEEDED", "FAILED", "STOPPED"], notify: ["ops"] },
   metricFilters: [
     // Errors the API writes to its log (e.g. "Readiness check failed",
     // "Journal pruning failed", "Idle connection to ... failed")

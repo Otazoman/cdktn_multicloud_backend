@@ -44,57 +44,43 @@ the tool versions in `.env`.
 
 ## Build an environment
 
-The infrastructure part of a first deployment (or of a deployment after a
-destroy). The database and the API are the application repository's work
-(its getting-started, "Overview").
+A first deployment (or a deployment after a destroy): the infrastructure
+steps here, with the application repository's steps in between (its
+getting-started, "Overview").
 
 `cdktn deploy` runs three times, because two settings can be turned on only
-after work outside cdktn:
+after work outside cdktn. The **build stage** of the environment selects
+them (`config/buildstage.ts`). Set it in the cdktn container with
+`npm run build-stage -- <stage>`; `npm run build-stage` shows it. It is
+kept in `state/<env>/build-stage.json`, next to the Terraform state (not in
+Git); without the file the stage is 1.
 
-| Deploy | When | API container flags (`config/apicontainer.ts`) | Why not earlier |
+| Stage | Deploy | API container settings (`config/apicontainer.ts`) | Why not earlier |
 |---|---|---|---|
-| 1st (step 3) | First | `azureSecretReady`, `readinessProbe` and `journalPrune.enabled` `false` | — |
-| 2nd (step 5) | After the secrets are set | `azureSecretReady` `true` | The Azure Container App cannot start without the Key Vault secret, which can be set only after the 1st deploy created the vault |
-| 3rd (step 6) | After CI/CD has deployed the API on every cloud | `readinessProbe` and `journalPrune.enabled` `true` | The placeholder images answer only `/` (health checks on `/readyz` would fail). `journalPrune.enabled` is turned on here as well, so that the jobs start with the API's image (see below) |
+| 1 | 1st (step 3) | `azureSecretReady`, `readinessProbe` and `journalPrune.enabled` off | — |
+| 2 | 2nd (step 5), after the secrets | `azureSecretReady` on | The Azure Container App cannot start without the Key Vault secret, which can be set only after the 1st deploy created the vault (from inside the VNet; cdktn cannot create it, unlike the dummy values of AWS and Google Cloud) |
+| 3 | 3rd (step 8), after CI/CD has deployed the API on every cloud | All three on | The placeholder images answer only `/` (health checks on `/readyz` would fail). The journal pruning jobs are created here as well, so that they start with the API's image |
 
 Only `readinessProbe` strictly needs the 3rd deploy. The pruning jobs could
 be created earlier (AWS and Google Cloud from the 1st deploy, Azure from the
 2nd, since its job needs the Key Vault secret): they would start with the
-placeholder image, and CI/CD switches them to the API's image (AWS runs the
-latest revision of the API's task definition; Google Cloud and Azure update
-the job). But a scheduled run before the API is deployed would fail, so the
-jobs are created together with `readinessProbe`.
+placeholder image, and CI/CD switches them to the API's image. But a
+scheduled run before the API is deployed would fail, so they come with
+`readinessProbe`.
+
+| # | Step | Where |
+|---|---|---|
+| 1 | One-time preparation: `.env.<env>` (including `AZURE_KEYVAULT_SECRETS_OFFICER_IDS`, your object ID for the Key Vault), the cloud permissions and APIs | [getting-started.md](getting-started.md) |
+| 2 | `npm run build-stage` shows stage 1 (`npm run before-destroy` sets it back; otherwise `npm run build-stage -- 1`). After a destroy, also change the names that cannot be reused yet ("Deploy again after a destroy" below) | cdktn container, config files |
+| 3 | `cdktn diff`, then `cdktn deploy` ("Deploy" below) | cdktn container |
+| 4 | Set the passwords on every cloud: `scripts/secrets-set.sh <cloud>` (application repository; "Secrets" below) | AWS and Google Cloud: Cloud Shell or their VM; Azure: its VM |
+| 5 | `npm run build-stage -- 2`, then `cdktn deploy` | cdktn container |
+| 6 | Set up the databases (application repository, getting-started): a cluster with `scripts/cluster-setup.sh <cloud>` on one VM, clouds alone with `scripts/node-setup.sh <cloud>` on each cloud's VM | VM |
+| 7 | Deploy the API: right after the infrastructure is built there is no new commit to merge and the registries are empty, so run each cloud's pipeline once (application repository: getting-started, "Deploy"). Pipelines: `api-service-cicd` (`config/aws/cicd/cicdsettings.ts`), `github-push-trigger` (`config/google/cicdsettings.ts`), `multicloud-api-deploy` (`config/azure/cicd.ts`). The build results are emailed (Azure DevOps to the person who ran it; AWS and Google Cloud to `ALERT_EMAILS`, "Alerting" below) | Cloud Shell, Azure DevOps |
+| 8 | `npm run build-stage -- 3`, then `cdktn deploy`: the load balancers and platforms use `/readyz` and `/healthz`, and the journal pruning jobs are created | cdktn container |
 
 Later releases of the API need no `cdktn deploy`: merging into the
-environment's branch is enough.
-
-| # | Step | Where |
-|---|---|---|
-| 1 | One-time preparation: `.env.<env>` (including `AZURE_KEYVAULT_SECRETS_OFFICER_IDS`, your object ID for the Key Vault), the Google Cloud roles of the cdktn service account and the APIs | [getting-started.md](getting-started.md) |
-| 2 | API container flags of the environment at their first values: `azureSecretReady`, `readinessProbe` and `journalPrune.enabled` `false` (`config/apicontainer.ts`). After a destroy, also the names that cannot be reused yet ("Deploy again after a destroy" below) | Config files |
-| 3 | `cdktn diff`, then `cdktn deploy` ("Deploy" below) | cdktn container |
-| 4 | Set the database secrets of every cloud (the API password is the same value on every cloud) | "Secrets" below; AWS and Google Cloud also from Cloud Shell, Azure only from its VM |
-| 5 | Azure: `azureSecretReady` `true`, then `cdktn deploy` again | Config file, cdktn container |
-
-Why Azure needs a second deploy: a Container App cannot start while a Key
-Vault secret it references does not exist, and the vault is created by the
-first deploy and written only from inside the VNet (cdktn cannot create the
-secret, unlike the dummy values of AWS and Google Cloud). So the first
-deploy creates the vault without the reference, the value is set from the
-Azure VM, and the second deploy adds the reference.
-
-The infrastructure is then ready. Next, in the application repository: set
-up the databases (`scripts/node-setup.sh <cloud>` on each cloud's VM for a
-cloud alone) and deploy the API. Right after the infrastructure is built
-there is no new commit to merge, and the new registries are empty: run each
-cloud's pipeline once instead (application repository: getting-started,
-"Deploy"). The pipelines are named in `config/aws/cicd/cicdsettings.ts`
-(`api-service-cicd`), `config/google/cicdsettings.ts` (`github-push-trigger`)
-and `config/azure/cicd.ts` (`multicloud-api-deploy`). After the API runs:
-
-| # | Step | Where |
-|---|---|---|
-| 6 | `readinessProbe` and `journalPrune.enabled` `true`, then `cdktn deploy`: the load balancers and platforms use `/readyz` and `/healthz`, and the journal pruning jobs are created | Config file, cdktn container |
+environment's branch is enough. The stage stays 3.
 
 ## Deploy
 
@@ -106,12 +92,33 @@ cdktn deploy
 ## Destroy
 
 ```bash
+npm run before-destroy   # removes from the state what is deleted with its parent
 cdktn destroy
 ```
+
+`before-destroy` (`scripts/before-destroy.sh`) removes the Azure PostgreSQL
+server parameters from the Terraform state: destroying them resets them on
+the server, which fails while the database has logical replication slots
+("Azure — PostgreSQL: server parameter cannot be reset" below). They are
+deleted with the server. Nothing is changed in the clouds.
 
 Some managed services release resources asynchronously, so a destroy may stop
 with errors even though the dependency order is correct. Check the known issues
 below and run `cdktn destroy` again when indicated.
+
+When one cloud has to wait (e.g. the Google Cloud subnet below, 1-2 hours),
+Terraform stops at the first error and the other clouds' resources remain.
+Destroy the other clouds first, then the waiting one later with
+`cdktn destroy`:
+
+```bash
+cd /app/cdktf.out/stacks/app
+# Azure (aws_ for AWS); the plan lists what is destroyed: answer yes
+terraform destroy $(terraform state list | grep -E '^(azurerm_|azuredevops_)' | sed 's/^/-target=/')
+```
+
+Resources that depend on them (e.g. the other clouds' VPN connections to
+Azure) are destroyed too; Terraform warns that the destroy is partial.
 
 ### Deploy again after a destroy
 
@@ -123,13 +130,13 @@ the values stored in deleted resources are gone. Before `cdktn deploy`:
 | 1 | Google Cloud: change the Cloud SQL instance `name` (`config/google/cloudsql/cloudsql.ts`) | A deleted instance name cannot be reused for about a week. Use a new date and time suffix (e.g. `cloudsql-postgres-instance-2026-1018-1500`). Nothing else refers to the name: the API gets the instance's address at deploy time, and the private DNS name (`aRecordName`) stays. Commands that name the instance (e.g. `gcloud sql instances describe`) take the new name |
 | 2 | Google Cloud: log bucket IDs, only when `googleUseLogBuckets` is `true` | A deleted bucket ID cannot be reused for 7 days ("Logging" above). dev keeps it `false` |
 | 3 | Azure: the Key Vault name, only if the deploy fails because it exists | The provider purges the soft-deleted vault on destroy. If that did not happen (e.g. no purge permission), purge it: `az keyvault purge --name <vault name>` |
-| 4 | API container flags of the environment (`config/apicontainer.ts`) back to their first-deploy values: `azureSecretReady`, `readinessProbe` and `journalPrune.enabled` `false` | The new Key Vault has no secret yet (a Container App referencing it cannot start), and the containers run the placeholder images until CI/CD deploys the API |
+| 4 | Build stage 1: `npm run before-destroy` sets it back before the destroy (check with `npm run build-stage`) | The new Key Vault has no secret yet (a Container App referencing it cannot start), and the containers run the placeholder images until CI/CD deploys the API |
 
 After the deploy, as on the first deployment: set the secrets again
 ("Secrets" below; the values were deleted with the stores), set the
 database up again (application repository: getting-started, "Set up the
-databases"), deploy the API (run the pipelines once, as above), and deploy
-with `readinessProbe` and `journalPrune.enabled` `true` (step 6).
+databases"), deploy the API (run the pipelines once, as above), and follow
+the build stages (steps 4-8 of "Build an environment").
 
 ## Logging
 
@@ -221,6 +228,7 @@ repository, `config/notifications.ts`); every cloud's notification target
 | `api-errors` | Log metric filter on `/aws/ecs/api-service` (`"failed"`) and alarm | Log-based metric on the Cloud Run service and alert policy | Log alert on `ContainerAppConsoleLogs` of `backend-api-service` | The API logs an error within 5 minutes (e.g. `Readiness check failed: ...` when its database is unreachable or a migration is missing, `Idle connection to ... failed`) |
 | `journal-prune-failed` | Same log group (the job runs the API task definition) | Log-based metric on the Cloud Run job | Log alert on the Container Apps job's logs | The daily journal pruning job failed (`Journal pruning failed: ...`) |
 | `<load balancer>-5xx` | `HTTPCode_ELB_5XX_Count` and `HTTPCode_Target_5XX_Count` of the ALB | `request_count` of the regional load balancer with response code class 500 | `ResponseStatus` of the Application Gateway, `HttpStatusGroup` 5xx | 10 or more 5xx responses within 5 minutes (from the load balancer, e.g. no healthy API, or from the API) |
+| Build results (with the `cicd` feature) | EventBridge rule on the CodeBuild project's state changes (`SUCCEEDED`, `FAILED`, `STOPPED`) to the SNS topic (`buildNotifications`) | Log-match alert policies on the Cloud Build logs: `cloud-build-succeeded` (`DONE`), `cloud-build-failed` (lines starting with `ERROR`); at most one email per 5 minutes each | — (Azure DevOps emails the person who ran the pipeline) | A CI/CD build ends |
 
 The load balancer alerts are written for both the HTTP and the HTTPS load
 balancer of each cloud; only the one that is built gets them, so switching
@@ -290,9 +298,10 @@ reads it for `DB_PASSWORD` and every `DB_<NODE>_PASSWORD`
 replication password is also the same on every node.
 
 Azure: the Container App references the Key Vault secret only when
-`apiContainerConfig.azureSecretReady` is `true`; a Container App cannot
-start while a referenced secret does not exist. Deploy with `false`, set
-`db-api-password` from the Azure VM, then set `true` and deploy again.
+`apiContainerConfig.azureSecretReady` is on (build stage 2 and later); a
+Container App cannot start while a referenced secret does not exist. Deploy
+at stage 1, set `db-api-password` from the Azure VM, then
+`npm run build-stage -- 2` and deploy again.
 
 The values passed to cdktn (`CHANGE_ME`, and the database admin passwords in
 `.env.<env>`) are kept in the Terraform state; keep the state on the work
@@ -385,8 +394,10 @@ The database scripts belong to the application repository: see its
 getting-started ("Set up the databases"). For a cloud alone,
 `scripts/node-setup.sh <cloud>` reads the API password from the cloud's
 secret store when the cloud's CLI is signed in on the VM. For a cluster,
-the scripts run on one VM and read both passwords from that cloud's secret
-store.
+`scripts/cluster-setup.sh <cloud>` runs on one VM and reads both passwords
+from that cloud's secret store; the databases reach each other by their
+private DNS names (Cloud SQL through the peered DNS domains,
+configuration/google.md).
 
 ### Update the cloud CLIs
 
@@ -446,6 +457,16 @@ If it happens:
 
 Destroying Container Apps can fail on the first attempt. Run `cdktn destroy`
 again.
+
+### Azure — PostgreSQL: server parameter cannot be reset
+
+Destroying a server parameter (e.g. `wal_level`) resets it on the server
+and can fail with `InternalServerError` ("An unexpected error occured while
+processing the request"), likely because resetting `wal_level` needs a
+restart that cannot succeed while the database has logical replication
+slots (a cluster). `npm run before-destroy` removes the parameters from the
+state first (they are deleted with the server). If the error occurs anyway,
+run `npm run before-destroy` and `cdktn destroy` again.
 
 ### AWS — ECR: repository not empty
 

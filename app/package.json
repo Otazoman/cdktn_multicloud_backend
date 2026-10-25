@@ -7,6 +7,8 @@
     "get": "cdktn get",
     "build": "tsc",
     "synth": "cdktn synth",
+    "build-stage": "bash scripts/build-stage.sh",
+    "before-destroy": "bash scripts/before-destroy.sh",
     "compile": "tsc --pretty",
     "watch": "tsc -w",
     "test": "jest",

@@ -45,7 +45,9 @@ export function createGoogleMonitoring(ctx: GoogleBuildContext): void {
           (isFeatureEnabled("google", "containers") &&
             gcpLbConfigs.some((lb) => lb.build && lb.name === loadBalancer)),
       )
-      .map(({ notify, loadBalancer: _loadBalancer, ...policy }) => ({
+      // Build results only with CI/CD
+      .filter(({ cicd }) => !cicd || isFeatureEnabled("google", "cicd"))
+      .map(({ notify, loadBalancer: _loadBalancer, cicd: _cicd, ...policy }) => ({
         ...policy,
         notificationChannels: notify?.flatMap((key) => {
           const names = channelNamesByKey[key];

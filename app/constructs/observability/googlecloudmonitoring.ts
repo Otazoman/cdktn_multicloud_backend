@@ -51,12 +51,18 @@ export interface GcpAlertPolicyDefinition {
   displayName: string;
   /** The MQL (Monitoring Query Language) or PromQL/Filter based condition string. */
   combiner: "AND" | "OR" | "AND_WITH_MATCHING_RESOURCE";
+  /**
+   * Log-match condition instead of a threshold: notifies on each log entry
+   * matching this Logging filter (at most once per 5 minutes; closed after
+   * 30 minutes). The threshold fields are then not used.
+   */
+  logMatchFilter?: string;
   /** A single threshold filter configuration or MQL query block for simplicity. */
-  conditionFilter: string;
+  conditionFilter?: string;
   /** Duration over which the condition must be met before triggering (e.g., "60s", "300s"). */
-  duration: string;
+  duration?: string;
   /** Comparison operation (e.g., "COMPARISON_GT", "COMPARISON_LT"). */
-  comparison:
+  comparison?:
     | "COMPARISON_GT"
     | "COMPARISON_GE"
     | "COMPARISON_LT"
@@ -64,7 +70,7 @@ export interface GcpAlertPolicyDefinition {
     | "COMPARISON_EQ"
     | "COMPARISON_NE";
   /** The value to compare the time series against. */
-  thresholdValue: number;
+  thresholdValue?: number;
   /** How the time series are aligned / reduced. Default: ALIGN_RATE over 60s. */
   aggregation?: {
     /** Alignment period (e.g. "60s"). Default: "60s" */
@@ -195,6 +201,15 @@ export class GcpMonitoringResources extends Construct {
     if (config.alertPolicies) {
       config.alertPolicies.forEach((policyDef) => {
         const sanitizedId = (policyDef.key ?? policyDef.displayName).replace(/[^a-zA-Z0-9]/g, "-");
+        const { conditionFilter, duration, comparison, thresholdValue } = policyDef;
+        if (
+          !policyDef.logMatchFilter &&
+          (!conditionFilter || !duration || !comparison || thresholdValue === undefined)
+        ) {
+          throw new Error(
+            `Alert policy "${policyDef.displayName}": set logMatchFilter, or conditionFilter, duration, comparison and thresholdValue`,
+          );
+        }
 
         // Resolve notification channels
         const targetChannels: string[] = [];
@@ -219,14 +234,21 @@ export class GcpMonitoringResources extends Construct {
             combiner: policyDef.combiner,
             notificationChannels:
               targetChannels.length > 0 ? targetChannels : undefined,
-            conditions: [
+            conditions: policyDef.logMatchFilter
+              ? [
+                  {
+                    displayName: `${policyDef.displayName}-log-match-condition`,
+                    conditionMatchedLog: { filter: policyDef.logMatchFilter },
+                  },
+                ]
+              : [
               {
                 displayName: `${policyDef.displayName}-threshold-condition`,
                 conditionThreshold: {
-                  filter: policyDef.conditionFilter,
-                  duration: policyDef.duration,
-                  comparison: policyDef.comparison,
-                  thresholdValue: policyDef.thresholdValue,
+                  filter: conditionFilter!,
+                  duration: duration!,
+                  comparison: comparison!,
+                  thresholdValue: thresholdValue!,
                   trigger: { count: 1 },
                   aggregations: [
                     {
@@ -242,6 +264,10 @@ export class GcpMonitoringResources extends Construct {
                 },
               },
             ],
+            // Required for log-match conditions
+            alertStrategy: policyDef.logMatchFilter
+              ? { notificationRateLimit: { period: "300s" }, autoClose: "1800s" }
+              : undefined,
             documentation: policyDef.documentationContent
               ? {
                   content: policyDef.documentationContent,
@@ -253,7 +279,7 @@ export class GcpMonitoringResources extends Construct {
 
         // Safe Dependency Graph Injection
         Object.keys(this.createdLogMetrics).forEach((metricName) => {
-          if (policyDef.conditionFilter.includes(`user/${metricName}`)) {
+          if (policyDef.conditionFilter?.includes(`user/${metricName}`)) {
             addTerraformDependency(
               alertPolicy,
               this.createdLogMetrics[metricName],

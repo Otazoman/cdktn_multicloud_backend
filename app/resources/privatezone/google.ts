@@ -1,10 +1,13 @@
 import { GoogleProvider } from "@cdktn/provider-google/lib/provider";
+import { ServiceNetworkingPeeredDnsDomain } from "@cdktn/provider-google/lib/service-networking-peered-dns-domain";
 import { Construct } from "constructs";
 import { awsPrivateZoneParams } from "../../config/aws/privatezone";
 import { azurePrivateZoneParams } from "../../config/azure/privatezone";
 import { isConnected } from "../../config/connections";
 import { LOCATION as GOOGLE_REGION } from "../../config/google/common";
 import { googlePrivateZoneParams } from "../../config/google/privatezone";
+import { googlePsaConfig } from "../../config/google/psa";
+import { GooglePrivateServiceAccess } from "../../constructs/vpcnetwork/googlepsa";
 import {
   addGoogleInnerZoneARecords,
   createGoogleCloudDnsInboundPolicy,
@@ -94,6 +97,24 @@ export const setupGoogleForwardingZones = (
         (d) => d === awsPrivateZoneParams.rdsInternalZone.zoneName,
       ),
     );
+  }
+
+  // Cloud SQL resolves the forwarded domains through this VPC
+  // (config/google/privatezone.ts peeredDnsDomainNames)
+  const psa = scope.node.tryFindChild(googlePsaConfig.psaConstructId);
+  if (enableForwarding && psa instanceof GooglePrivateServiceAccess) {
+    filteredForwardingDomains
+      .filter((domain) => googlePrivateZoneParams.peeredDnsDomainNames[domain])
+      .forEach((domain) => {
+        new ServiceNetworkingPeeredDnsDomain(scope, `peered-dns-domain-${domain.replace(/\./g, "-")}`, {
+          provider: googleProvider,
+          name: googlePrivateZoneParams.peeredDnsDomainNames[domain],
+          network: googleVpcResources.vpc.name,
+          dnsSuffix: `${domain}.`,
+          service: "servicenetworking.googleapis.com",
+          dependsOn: [psa.connection],
+        });
+      });
   }
 
   return createGooglePrivateDnsZones(

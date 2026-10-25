@@ -202,6 +202,9 @@ export function createAzureVnetResources(
   const nsgs: { [key: string]: NetworkSecurityGroup } = {};
   const nsgRules: { [key: string]: NetworkSecurityRule[] } = {};
   const subnetAssociations: SubnetNetworkSecurityGroupAssociation[] = [];
+  // Subnet updates after creation (NAT gateway): resources that join a
+  // subnet must wait for them (Azure rejects a subnet in "Updating" state)
+  const natAssociations: SubnetNatGatewayAssociation[] = [];
 
   for (const nsgConfig of params.nsgConfigs) {
     // Create the NSG
@@ -306,11 +309,13 @@ export function createAzureVnetResources(
       }
       const subnet = subnets[subnetConfig.name];
       if (!subnet) continue;
-      new SubnetNatGatewayAssociation(scope, `AzureNatAssoc-${idPart(subnetConfig.key ?? subnetConfig.name)}`, {
-        provider,
-        subnetId: subnet.id,
-        natGatewayId: natGateway.id,
-      });
+      natAssociations.push(
+        new SubnetNatGatewayAssociation(scope, `AzureNatAssoc-${idPart(subnetConfig.key ?? subnetConfig.name)}`, {
+          provider,
+          subnetId: subnet.id,
+          natGatewayId: natGateway.id,
+        }),
+      );
     }
   }
 
@@ -364,6 +369,7 @@ export function createAzureVnetResources(
     nsgRules,
     subnets,
     subnetAssociations,
+    natAssociations,
     params,
     // lastSubnet is the end of the serial dependency chain.
     // VNet-mutating resources (VPN Gateway, DNS Resolver subnets)

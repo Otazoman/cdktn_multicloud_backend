@@ -88,10 +88,10 @@ API コンテナの設定（FEAT-01 §9 #5）。各クラウドの CI/CD のデ�
 | `topology` | `cluster`：データベースのあるクラウドで1つのクラスタになる（2つ以上なら `useVpn`・`hostZones`・それらの間の VPN 接続が必要。無ければ合成が失敗する）。`independent`：各クラウドが自分のデータで単体で動く | `cluster`、`independent`、`byEnv` | `cluster`。dev は `independent` | 単体のクラウドを後からクラスタにすると、データが残るのは1つのクラウドだけ |
 | `database.privateDnsNames.<cloud>` | 各ノードのデータベースのプライベート DNS 名。他のクラウドの API が使う（`DB_<NODE>_HOST`） | プライベート DNS 名 | `aurora-postgres.aws.inner`、`cloudsql-postgres.google.inner`、`postgres-prod.azure.inner` | クラスタのみ。プライベート DNS のレコードと合わせる |
 | `passwordSecretKey` | `app_api` のパスワードのシークレット | `config/<cloud>/secrets.ts` のキー | `db-api-password` | すべてのクラウドで同じ値 |
-| `azureSecretReady` | Container App から Key Vault のシークレットを参照する | `boolean`、`byEnv` | `false` | Azure の VM からシークレットを設定した後に `true`（[operations.ja.md](../operations.ja.md) の「シークレット」） |
-| `readinessProbe` | `/readyz` を readiness（ALB のターゲットグループ、Cloud Run の startup probe、Container Apps の readiness probe）、`/healthz` を liveness に使う | `boolean`、`byEnv` | `false` | 仮のイメージは `/` にしか応答しない。CI/CD が API をデプロイした後に `true` |
+| `azureSecretReady` | Container App から Key Vault のシークレットを参照する | 構築の段階 | 段階 2 から有効 | 構築の段階で決まる（`config/buildstage.ts`。Azure の VM からシークレットを設定した後に `npm run build-stage -- 2`。[operations.ja.md](../operations.ja.md) の「環境を構築する」） |
+| `readinessProbe` | `/readyz` を readiness（ALB のターゲットグループ、Cloud Run の startup probe、Container Apps の readiness probe）、`/healthz` を liveness に使う | 構築の段階 | 段階 3 で有効 | 仮のイメージは `/` にしか応答しない。CI/CD が API をデプロイした後に `npm run build-stage -- 3` |
 
-| `journalPrune.enabled` | 古い変更履歴（ジャーナル）を削除するスケジュール実行のジョブ（アプリの `node dist/prune.js`）。データベースのあるすべてのクラウドに作る | `boolean`、`byEnv` | `false` | CI/CD が API をデプロイした後に `true`（ジョブが最初から API のイメージで動くように。先に作ると、CI/CD が更新するまで仮のイメージで動く。operations の「環境を構築する」）。Azure は `azureSecretReady` も必要。Google Cloud は Cloud Scheduler API が必要 |
+| `journalPrune.enabled` | 古い変更履歴（ジャーナル）を削除するスケジュール実行のジョブ（アプリの `node dist/prune.js`）。データベースのあるすべてのクラウドに作る | 構築の段階 | 段階 3 で有効 | 段階 3、CI/CD が API をデプロイした後（ジョブが最初から API のイメージで動くように。先に作ると、CI/CD が更新するまで仮のイメージで動く。operations の「環境を構築する」）。Azure は `azureSecretReady` も必要。Google Cloud は Cloud Scheduler API が必要 |
 | `journalPrune.retentionDays` | ジョブの `JOURNAL_RETENTION_DAYS` | 日数 | `30` | 冪等キーの有効期間でもある |
 | `journalPrune.schedules.<cloud>` | クラウドごとの毎日の実行時刻（各クラウドの書式） | cron | AWS `cron(0 3 * * ? *)`、Google `20 3 * * *`（`timeZone`）、Azure `40 18 * * *`（UTC） | クラウドごとに時刻をずらす。削除するのはプライマリだけ |
 | `journalPrune.timeZone` | AWS と Google Cloud のスケジュールのタイムゾーン | IANA の名前 | `Asia/Tokyo` | Container Apps のジョブは UTC |

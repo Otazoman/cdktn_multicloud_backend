@@ -8,8 +8,12 @@
 // (application repository: README "Environment variables").
 // ---------------------------------------------------------------------------
 
+import { buildStage } from "./buildstage";
 import type { CloudId } from "./commonsettings";
 import { byEnv } from "./environment";
+
+// The three settings that follow the first deployment (config/buildstage.ts)
+const stage = buildStage();
 
 export const apiContainerConfig = {
   /**
@@ -24,7 +28,7 @@ export const apiContainerConfig = {
   topology: byEnv<"cluster" | "independent">({
     default: "cluster",
     // dev runs each cloud alone until the VPN and private DNS are tested
-    dev: "independent",
+    // dev: "independent",
   }),
   database: {
     /** Database of the API on every node (the replication scripts use one name) */
@@ -57,16 +61,16 @@ export const apiContainerConfig = {
    * Azure: reference the Key Vault secret from the Container App. A Container
    * App cannot start a revision whose Key Vault secret does not exist, and
    * the secret is created from the Azure VM after the vault (FEAT-01 §7):
-   * deploy with false, set the secret, then deploy with true.
+   * build stage 2 and later (npm run build-stage -- 2 after the secrets).
    */
-  azureSecretReady: byEnv<boolean>({ default: false }),
+  azureSecretReady: stage >= 2,
   /**
    * Use /readyz as the readiness check (ALB target groups, Cloud Run startup
    * probe, Container Apps readiness probe) and /healthz as liveness. The
-   * placeholder images answer only "/": set true after the API image has
-   * been deployed by CI/CD.
+   * placeholder images answer only "/": build stage 3 (npm run build-stage
+   * -- 3 after the API image has been deployed by CI/CD).
    */
-  readinessProbe: byEnv<boolean>({ default: false }),
+  readinessProbe: stage >= 3,
   /**
    * Scheduled job that deletes old write-journal rows (application
    * src/prune.ts: `node dist/prune.js`). Created on every cloud with a
@@ -75,12 +79,12 @@ export const apiContainerConfig = {
    */
   journalPrune: {
     /**
-     * Set true after CI/CD has deployed the API: Google Cloud and Azure
-     * create the job with the API service's current image (CI/CD updates it
-     * afterwards); AWS runs the latest revision of the API's task definition.
-     * Azure also needs azureSecretReady.
+     * Build stage 3 (after CI/CD has deployed the API, with readinessProbe):
+     * Google Cloud and Azure create the job with the API service's current
+     * image (CI/CD updates it afterwards); AWS runs the latest revision of
+     * the API's task definition. Azure also needs azureSecretReady.
      */
-    enabled: byEnv<boolean>({ default: false }),
+    enabled: stage >= 3,
     /** JOURNAL_RETENTION_DAYS: how long writes and idempotency keys are kept */
     retentionDays: 30,
     /** Daily, at different times per cloud (each cloud's own syntax) */

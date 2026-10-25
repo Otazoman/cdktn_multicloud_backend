@@ -213,6 +213,7 @@
 | `notificationTargets[]` | SNS のトピック | `{ key, name?, emails[], tags? }` | `ALERT_EMAILS` を使う `ops` | `name` の既定は `<PROJECT_NAME>-aws-alerts-<key>`。受信者はそれぞれ、サブスクリプションの確認メールで承認する必要がある |
 | `metricFilters[]` | ログのメトリクスフィルター | `{ name, key?, logGroupName, pattern, metricName, metricNamespace, value?, defaultValue? }` | `[]` | `logGroupName` は `cloudwatchlogs.ts` にあること。`value` の既定は `"1"` |
 | `alarms[]` | メトリクスのアラーム | `{ alarmName, key?, namespace, metricName, dimensions, statistic, comparisonOperator, threshold, period, evaluationPeriods, notify?, notifyOnOk?, loadBalancer? }` | API のエラー、削除ジョブの失敗、各 ALB の 5xx（[operations.ja.md](../operations.ja.md) の「アラート」） | `loadBalancer`：`alb.ts` の ALB の名前。その ALB が作られているときだけ、`LoadBalancer` のディメンションを付けて作る |
+| `buildNotifications` | CI/CD のビルドの結果のメール（作られている CodeBuild のプロジェクトの EventBridge のルールから SNS へ） | `{ states[], notify[] }` または `undefined` | `SUCCEEDED`・`FAILED`・`STOPPED` を `ops` へ | `cicd` が有効なときに作る。EventBridge が送信できるトピックのポリシーを付ける（既定の許可も残すので、CloudWatch のアラームの通知も続く） |
 
 ### ログのアーカイブ（機能 `logArchive`、`awsLogArchiveConfig`）
 

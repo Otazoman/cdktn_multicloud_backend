@@ -4,6 +4,7 @@
  * that must always hold. No snapshot is stored because the synthesized output
  * contains secrets from the environment variables (.env.<env>).
  */
+import { apiContainerConfig } from "../config/apicontainer";
 import {
   buildDependencyGraph,
   buildMatrixCases,
@@ -13,6 +14,18 @@ import {
 
 const resourcesOf = (synth: any, type: string): any[] =>
   Object.values(synth.resource?.[type] ?? {});
+
+// The matrix covers VPN wiring, including partial connections that a
+// cluster of APIs rejects (__tests__/apicontainer.test.ts covers that):
+// synthesize every case with the clouds alone, whatever the environment's
+// topology is
+const configuredTopology = apiContainerConfig.topology;
+beforeAll(() => {
+  apiContainerConfig.topology = "independent";
+});
+afterAll(() => {
+  apiContainerConfig.topology = configuredTopology;
+});
 
 describe.each(buildMatrixCases().map((c) => [c.name, c] as const))(
   "%s",

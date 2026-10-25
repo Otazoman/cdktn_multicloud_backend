@@ -104,8 +104,8 @@ export function createAzurePrivateResolver(
           },
         },
       ],
-      // Wait for VPN Gateway (if provided) to avoid VNet updating conflicts
-      dependsOn,
+      // One subnet change at a time in the VNet: after the inbound subnet
+      dependsOn: [...(dependsOn ?? []), dnsResolverInboundSubnet],
     },
   );
 
@@ -136,6 +136,8 @@ export function createAzurePrivateResolver(
         ...params.tags,
         purpose: "receive-dns-queries-from-aws-gcp",
       },
+      // After both resolver subnets (no subnet change in progress)
+      dependsOn: [dnsResolverOutboundSubnet],
     },
   );
 

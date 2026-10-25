@@ -134,6 +134,13 @@ export const securityGroups = [
         ipv6CidrBlocks: ["::/0"],
         description: "Allow https outbound traffic",
       },
+      {
+        fromPort: 5432,
+        toPort: 5432,
+        protocol: "tcp",
+        cidrBlocks: ["10.1.0.0/16", "10.2.0.0/16", "10.100.0.0/16"],
+        description: "PostgreSQL outbound to the other cloud databases (logical replication)",
+      },
     ],
   },
   {

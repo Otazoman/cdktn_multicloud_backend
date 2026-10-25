@@ -1,4 +1,5 @@
 import { DataAwsCodestarconnectionsConnection } from "@cdktn/provider-aws/lib/data-aws-codestarconnections-connection";
+import { Resource as NullResource } from "@cdktn/provider-null/lib/resource";
 import { awsCicdConfigs, awsEcsConfigs } from "../../config/aws/awssettings";
 import { cicdTrigger } from "../../config/cicd";
 import { isFeatureEnabled } from "../../config/features";
@@ -125,6 +126,16 @@ export function createAwsCicd(ctx: AwsBuildContext): void {
         addTerraformDependency(cicdRes.codebuild, logGroup);
         if (cicdRes.rolePolicy) {
           addTerraformDependency(cicdRes.rolePolicy, iamResources);
+          // CreateProject checks the service role's access to the GitHub
+          // connection: wait until the new role and policy have propagated
+          // in IAM (without it the first deploy fails with
+          // OAuthProviderException: User is not authorized to access connection)
+          const policyWait = new NullResource(scope, `codebuild-policy-wait-${idPart(config.name)}`, {
+            triggers: { policy: cicdRes.rolePolicy.policy },
+          });
+          policyWait.addOverride("provisioner", [{ "local-exec": { command: "sleep 30" } }]);
+          addTerraformDependency(policyWait, cicdRes.rolePolicy);
+          addTerraformDependency(cicdRes.codebuild, policyWait);
         }
       });
   }

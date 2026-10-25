@@ -185,7 +185,7 @@
 |---|---|---|---|---|
 | `notificationTargets[]` | メールの通知チャネル | `{ key, name?, emails[] }` | `ALERT_EMAILS` を使う `ops` | `name` の既定は `<PROJECT_NAME>-google-alerts-<key>` |
 | `logMetrics[]` | ログベースのメトリクス | `GcpLogMetricDefinition`（`constructs/observability/googlecloudmonitoring.ts` を参照） | `[]` | メトリクスの種類は `logging.googleapis.com/user/<name>` |
-| `alertPolicies[]` | アラートポリシー | `notificationChannels` を除いた `GcpAlertPolicyDefinition` に、`notify?: string[]`、`loadBalancer?: string` を加えたもの | API のエラー、削除ジョブの失敗、各リージョンのロードバランサーの 5xx | `notify`：`notificationTargets` のキー。`loadBalancer`：`cloudloadbalancing.ts` の名前。そのロードバランサーが作られているときだけ作る |
+| `alertPolicies[]` | アラートポリシー | `notificationChannels` を除いた `GcpAlertPolicyDefinition` に、`notify?: string[]`、`loadBalancer?: string`、`cicd?: boolean` を加えたもの | API のエラー、削除ジョブの失敗、各リージョンのロードバランサーの 5xx、Cloud Build の結果（`cloud-build-succeeded`、`cloud-build-failed`） | `notify`：`notificationTargets` のキー。`loadBalancer`：`cloudloadbalancing.ts` の名前。そのロードバランサーが作られているときだけ作る。`cicd`：`cicd` が有効なときだけ作る。`logMatchFilter`：しきい値の代わりにログ一致の条件（一致するログごとに 1 通、最短 5 分に 1 通） |
 
 ### ログのアーカイブ（機能 `logArchive`、`googleLogArchiveConfig`）
 
@@ -209,6 +209,7 @@
 | `forwardingZoneNames`、`privateZoneNames` | ドメインごとのゾーンの名前 | マップ | `<PROJECT_NAME>-google-forwarding-zone-<ドメイン>` / `-private-zone-<ドメイン>` | 相手の DNS に到達できるときは転送ゾーン、そうでなければプライベートゾーン |
 | `forwardingZoneDescription`、`privateZoneDescription`、`labels` | 説明とラベル | | | |
 | `inboundServerPolicyName` | AWS / Azure からの問い合わせを受け付けるポリシー | 文字列 | `gcp-resolver-inbound` | |
+| `peeredDnsDomainNames` | Service Networking のピアリングされた DNS ドメイン（転送するドメイン → ピアリングの名前）。Google のサービス提供側のネットワークにある Cloud SQL が、これらのドメインを VPC 経由で解決し、レプリケーションのサブスクリプションが他の DB にプライベート DNS の名前で接続できる | ドメイン → 文字列 | `aws.inner` → `aws-inner`、`azure.inner` → `azure-inner` | 接続している転送ドメインについて、Private Service Access の接続があるとき（dbs か storage）に作る。Google のドキュメントでは Cloud SQL は DNS ピアリングの対象外とされているが、PostgreSQL の論理レプリケーションで動作を確認済み（2026-10-25）。Cloud DNS API が必要 |
 | `cloudSqlARecords`、`filestoreARecords` | 短い名前のゾーン `google.inner` | `{ internalZoneName, zoneResourceName, zoneDescription }` | `google.inner` | 2 つで 1 つのゾーンを共有する |
 
 ## VPN（`vpn.ts`、`googleVpnParams`）

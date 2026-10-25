@@ -330,6 +330,8 @@ describe("configured alerts (config/<cloud>/monitoring.ts)", () => {
     const policies = resourcesOf(synth, "google_monitoring_alert_policy");
     expect(policies.map((p) => p.display_name).sort()).toEqual([
       "api-errors",
+      "cloud-build-failed",
+      "cloud-build-succeeded",
       "journal-prune-failed",
       "run-regional-http-lb-5xx",
     ]);
@@ -341,6 +343,30 @@ describe("configured alerts (config/<cloud>/monitoring.ts)", () => {
       "api-errors",
       "journal-prune-failed",
     ]);
+  });
+
+  test("build results: CodeBuild through EventBridge, Cloud Build by log match", () => {
+    const [rule] = resourcesOf(synth, "aws_cloudwatch_event_rule");
+    expect(JSON.parse(rule.event_pattern)).toEqual({
+      source: ["aws.codebuild"],
+      "detail-type": ["CodeBuild Build State Change"],
+      detail: { "project-name": ["api-service-cicd"], "build-status": ["SUCCEEDED", "FAILED", "STOPPED"] },
+    });
+    const [target] = resourcesOf(synth, "aws_cloudwatch_event_target");
+    expect(target.arn).toContain("${aws_sns_topic.");
+    expect(target.input_transformer.input_template).toContain("<status>");
+    // The topic policy keeps the default statement (CloudWatch alarms)
+    const [policy] = resourcesOf(synth, "aws_sns_topic_policy");
+    expect(policy.policy).toContain("__default_statement_ID");
+    expect(policy.policy).toContain("events.amazonaws.com");
+
+    const policies = resourcesOf(synth, "google_monitoring_alert_policy").filter((p) =>
+      p.display_name.startsWith("cloud-build-"),
+    );
+    policies.forEach((p) => {
+      expect(p.conditions[0].condition_matched_log.filter).toContain('resource.type="build"');
+      expect(p.alert_strategy.notification_rate_limit.period).toBe("300s");
+    });
   });
 
   test("Azure: log alerts, and 5xx of the built Application Gateway with its dimension", () => {

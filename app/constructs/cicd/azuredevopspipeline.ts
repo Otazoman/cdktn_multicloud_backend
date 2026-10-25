@@ -77,6 +77,9 @@ export function createAzureDevOpsPipeline(
     projectId: project.id,
     name: config.name,
     agentPoolName: config.agentPoolName,
+    // The pool is referenced by name only: create the pipeline after the
+    // pool is registered in the project
+    dependsOn: [queue],
     ciTrigger: {
       override: {
         batch: false,

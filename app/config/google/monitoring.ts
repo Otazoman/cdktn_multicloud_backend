@@ -25,6 +25,8 @@ export type GoogleAlertPolicyConfig = Omit<
    * when that load balancer is built
    */
   loadBalancer?: string;
+  /** Created only when the cicd feature is enabled (build results) */
+  cicd?: boolean;
 };
 
 /**
@@ -91,6 +93,19 @@ export const googleAlertingConfig: {
       // Threshold conditions support only GT and LT: more than 9 = 10 or more
       comparison: "COMPARISON_GT" as const,
       thresholdValue: 9,
+      notify: ["ops"],
+    })),
+    // Results of the CI/CD builds (Cloud Build): one email per build (log
+    // match). A build log ends with "DONE" when it succeeds and has lines
+    // starting with "ERROR" when it fails
+    ...[
+      { name: "cloud-build-succeeded", filter: 'resource.type="build" AND textPayload="DONE"' },
+      { name: "cloud-build-failed", filter: 'resource.type="build" AND textPayload=~"^ERROR"' },
+    ].map(({ name, filter }) => ({
+      displayName: name,
+      cicd: true,
+      combiner: "OR" as const,
+      logMatchFilter: filter,
       notify: ["ops"],
     })),
   ],

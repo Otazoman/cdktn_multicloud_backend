@@ -185,7 +185,7 @@ One peering connection with several non-overlapping reserved ranges.
 |---|---|---|---|---|
 | `notificationTargets[]` | E-mail channels | `{ key, name?, emails[] }` | `ops` with `ALERT_EMAILS` | `name` default `<PROJECT_NAME>-google-alerts-<key>` |
 | `logMetrics[]` | Log-based metrics | `GcpLogMetricDefinition` (see `constructs/observability/googlecloudmonitoring.ts`) | `[]` | Metric type `logging.googleapis.com/user/<name>` |
-| `alertPolicies[]` | Alert policies | `GcpAlertPolicyDefinition` without `notificationChannels`, plus `notify?: string[]`, `loadBalancer?: string` | API errors, journal job failures, 5xx of each regional load balancer | `notify`: keys of `notificationTargets`. `loadBalancer`: name in `cloudloadbalancing.ts`; the policy is created only when that load balancer is built |
+| `alertPolicies[]` | Alert policies | `GcpAlertPolicyDefinition` without `notificationChannels`, plus `notify?: string[]`, `loadBalancer?: string`, `cicd?: boolean` | API errors, journal job failures, 5xx of each regional load balancer, Cloud Build results (`cloud-build-succeeded`, `cloud-build-failed`) | `notify`: keys of `notificationTargets`. `loadBalancer`: name in `cloudloadbalancing.ts`; the policy is created only when that load balancer is built. `cicd`: only with the `cicd` feature. `logMatchFilter`: a log-match condition (one email per matching entry, at most once per 5 minutes) instead of the threshold fields |
 
 ### Log archive (feature `logArchive`, `googleLogArchiveConfig`)
 
@@ -209,6 +209,7 @@ One peering connection with several non-overlapping reserved ranges.
 | `forwardingZoneNames`, `privateZoneNames` | Zone names per domain | map | `<PROJECT_NAME>-google-forwarding-zone-<domain>` / `-private-zone-<domain>` | Forwarding zone when the peer DNS is reachable, otherwise a private zone |
 | `forwardingZoneDescription`, `privateZoneDescription`, `labels` | Descriptions and labels | | | |
 | `inboundServerPolicyName` | Policy accepting queries from AWS / Azure | string | `gcp-resolver-inbound` | |
+| `peeredDnsDomainNames` | Service Networking peered DNS domains (forwarding domain → peering name): Cloud SQL, in Google's service producer network, resolves these domains through the VPC, so its replication subscriptions reach the other databases by their private DNS names | domain → string | `aws.inner` → `aws-inner`, `azure.inner` → `azure-inner` | Created for the connected forwarding domains when a Private Service Access connection exists (dbs or storage). Google's documentation lists Cloud SQL as not supported for DNS peering; tested working for PostgreSQL logical replication (2026-10-25). Needs the Cloud DNS API |
 | `cloudSqlARecords`, `filestoreARecords` | Short-name zone `google.inner` | `{ internalZoneName, zoneResourceName, zoneDescription }` | `google.inner` | Both share one zone |
 
 ## VPN (`vpn.ts`, `googleVpnParams`)

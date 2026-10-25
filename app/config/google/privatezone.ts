@@ -39,6 +39,19 @@ export const googlePrivateZoneParams = {
   } as Record<string, string>,
   privateZoneDescription: "Private DNS zone for AWS or Azure services",
 
+  // Service Networking peered DNS domains: Cloud SQL (in Google's service
+  // producer network) does not see this VPC's private zones. With these, it
+  // resolves the forwarded domains through this VPC, so its subscriptions
+  // reach the other databases by their private DNS names. Created for the
+  // connected forwarding domains when a Private Service Access connection
+  // exists (dbs or storage). Value: peering name.
+  // Google's documentation lists Cloud SQL as not supported; tested working
+  // for PostgreSQL logical replication (2026-10-25)
+  peeredDnsDomainNames: {
+    "aws.inner": "aws-inner",
+    "azure.inner": "azure-inner",
+  } as Record<string, string>,
+
   // Inbound server policy (DNS queries from AWS / Azure into Google Cloud)
   inboundServerPolicyName: "gcp-resolver-inbound",
 

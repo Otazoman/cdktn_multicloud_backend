@@ -31,9 +31,14 @@ export const setupAzureResolver = (
 
   // Build dependency array: wait for VPN Gateway subnet if available
   const gatewaySubnet = vpnResources?.gateways.azure?.gatewaySubnet;
-  const dependsOn = gatewaySubnet
-    ? [gatewaySubnet]
-    : undefined;
+  // ...and for the VNet's other subnet updates (Azure rejects concurrent
+  // changes: "Subnet provisioning state is not Succeeded")
+  const dependsOn = [
+    ...(gatewaySubnet ? [gatewaySubnet] : []),
+    ...(azureVnetResources.lastSubnet ? [azureVnetResources.lastSubnet] : []),
+    ...(azureVnetResources.subnetAssociations ?? []),
+    ...(azureVnetResources.natAssociations ?? []),
+  ];
 
   const resolver = createAzurePrivateResolver(
     scope,

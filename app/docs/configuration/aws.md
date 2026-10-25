@@ -213,6 +213,7 @@ Only PostgreSQL (5432) is opened in `myaws-db-sg`.
 | `notificationTargets[]` | SNS topics | `{ key, name?, emails[], tags? }` | `ops` with `ALERT_EMAILS` | `name` default `<PROJECT_NAME>-aws-alerts-<key>`. Each recipient must confirm the subscription e-mail |
 | `metricFilters[]` | Log metric filters | `{ name, key?, logGroupName, pattern, metricName, metricNamespace, value?, defaultValue? }` | `[]` | `logGroupName` must exist in `cloudwatchlogs.ts`. `value` default `"1"` |
 | `alarms[]` | Metric alarms | `{ alarmName, key?, namespace, metricName, dimensions, statistic, comparisonOperator, threshold, period, evaluationPeriods, notify?, notifyOnOk?, loadBalancer? }` | API errors, journal job failures, 5xx of each ALB ([operations.md](../operations.md), "Alerting") | `loadBalancer`: ALB name in `alb.ts`; the alarm is created only when that ALB is built, with its `LoadBalancer` dimension. | `notify`: keys of `notificationTargets`. `notifyOnOk` default `false` |
+| `buildNotifications` | CI/CD build results by email (EventBridge rule on the built CodeBuild projects to SNS) | `{ states[], notify[] }` or `undefined` | `SUCCEEDED`, `FAILED`, `STOPPED` to `ops` | Created with the `cicd` feature. Adds a topic policy that lets EventBridge publish (it keeps the default statement, so the CloudWatch alarms keep publishing) |
 
 ### Log archive (feature `logArchive`, `awsLogArchiveConfig`)
 

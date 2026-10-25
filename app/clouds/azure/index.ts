@@ -73,6 +73,7 @@ export const createAzureResources = (
     nsgRules: vnetRaw.nsgRules,
     subnets: vnetRaw.subnets,
     subnetAssociations: vnetRaw.subnetAssociations,
+    natAssociations: vnetRaw.natAssociations,
     params: vnetRaw.params,
     lastSubnet: vnetRaw.lastSubnet,
   };

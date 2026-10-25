@@ -1,4 +1,5 @@
 import { PrivateDnsZone } from "@cdktn/provider-azurerm/lib/private-dns-zone";
+import { Resource as NullResource } from "@cdktn/provider-null/lib/resource";
 import { VirtualNetwork } from "@cdktn/provider-azurerm/lib/virtual-network";
 
 import {
@@ -144,6 +145,19 @@ export function createAzurePipelines(ctx: AzureBuildContext): void {
   });
   addTerraformDependency(pool, subnet);
   vnetRoles.forEach((role) => addTerraformDependency(pool, role));
+  // The subnet must not be "Updating" (NSG / NAT gateway associations)
+  [...(azureVnetResources.subnetAssociations ?? []), ...(azureVnetResources.natAssociations ?? [])].forEach(
+    (association) => addTerraformDependency(pool, association),
+  );
+  // Azure DevOps lists a new pool's agent pool a little after the pool is
+  // created: wait before the pipeline references it (without it the first
+  // deploy fails with "Agent pool ... was not found")
+  const poolWait = new NullResource(scope, `devops-pool-wait-${config.pool.name}`, {
+    provider: providers.null(),
+    triggers: { pool: pool.id },
+  });
+  poolWait.addOverride("provisioner", [{ "local-exec": { command: "sleep 60" } }]);
+  addTerraformDependency(poolWait, pool);
 
   // The agents push the image and update the Container App, and the
   // journal pruning job that runs the same image
@@ -175,7 +189,7 @@ export function createAzurePipelines(ctx: AzureBuildContext): void {
         ...(pruneJob ? { PRUNE_JOB_NAME: pruneJob.name } : {}),
       },
     },
-    [pool, ...roles],
+    [pool, poolWait, ...roles],
   );
 }
 

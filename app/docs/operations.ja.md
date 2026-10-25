@@ -34,48 +34,37 @@ cdktn diff   # その環境のコンテナで: 変更がないことを確認す
 
 ## 環境を構築する
 
-初回のデプロイ（または destroy の後のデプロイ）のうち、インフラの部分です。データベースと API は、アプリの
-リポジトリの作業です（そのリポジトリの getting-started の「全体の流れ」）。
+初回のデプロイ（または destroy の後のデプロイ）です。インフラの手順に、アプリのリポジトリの手順が間に入ります
+（そのリポジトリの getting-started の「全体の流れ」）。
 
-`cdktn deploy` は 3 回実行します。2 つの設定は、cdktn の外の作業が終わってからでないと有効にできないためです：
+`cdktn deploy` は 3 回実行します。2 つの設定は、cdktn の外の作業が終わってからでないと有効にできないためです。
+環境の**構築の段階**がそれらを決めます（`config/buildstage.ts`）。cdktn のコンテナで `npm run build-stage -- <段階>` で
+設定し、`npm run build-stage` で表示します。段階は Terraform の state と同じ `state/<環境名>/build-stage.json` に
+記録されます（Git の管理外）。ファイルがなければ段階 1 です。
 
-| deploy | タイミング | API コンテナの設定（`config/apicontainer.ts`） | 先に有効にできない理由 |
+| 段階 | deploy | API コンテナの設定（`config/apicontainer.ts`） | 先に有効にできない理由 |
 |---|---|---|---|
-| 1 回目（手順 3） | 最初 | `azureSecretReady`・`readinessProbe`・`journalPrune.enabled` を `false` | — |
-| 2 回目（手順 5） | シークレットを入れた後 | `azureSecretReady` を `true` | Azure の Container App は Key Vault のシークレットがないと起動できず、シークレットは 1 回目で Key Vault ができた後にしか入れられない |
-| 3 回目（手順 6） | CI/CD がすべてのクラウドに API をデプロイした後 | `readinessProbe`・`journalPrune.enabled` を `true` | 仮のイメージは `/` にしか応答しない（`/readyz` のヘルスチェックが失敗する）。`journalPrune.enabled` も、ジョブが最初から API のイメージで動くよう、ここで `true` にする（下記） |
+| 1 | 1 回目（手順 3） | `azureSecretReady`・`readinessProbe`・`journalPrune.enabled` を無効 | — |
+| 2 | 2 回目（手順 5）、シークレットを入れた後 | `azureSecretReady` を有効 | Azure の Container App は Key Vault のシークレットがないと起動できず、シークレットは 1 回目で Key Vault ができた後にしか入れられない（VNet の中から。AWS と Google Cloud のダミーの値と違い、cdktn は作れない） |
+| 3 | 3 回目（手順 8）、CI/CD がすべてのクラウドに API をデプロイした後 | 3 つとも有効 | 仮のイメージは `/` にしか応答しない（`/readyz` のヘルスチェックが失敗する）。変更履歴の削除ジョブも、最初から API のイメージで動くよう、ここで作る |
 
 3 回目が本当に必要なのは `readinessProbe` だけです。削除ジョブは、もっと前に作ることもできます（AWS と Google Cloud は
 1 回目から、Azure はジョブが Key Vault のシークレットを使うので 2 回目から）。その場合ジョブは仮のイメージで作られ、
-CI/CD が API のイメージに切り替えます（AWS は API のタスク定義の最新リビジョンを実行し、Google Cloud と Azure は
-ジョブを更新します）。ただ、API のデプロイより前にスケジュールの時刻が来ると失敗するため、`readinessProbe` と一緒に
-作ります。
-
-構築の後の API のリリースでは `cdktn deploy` は不要です（環境のブランチへのマージだけ）。
+CI/CD が API のイメージに切り替えます。ただ、API のデプロイより前にスケジュールの時刻が来ると失敗するため、
+`readinessProbe` と一緒に作ります。
 
 | # | 作業 | 場所 |
 |---|---|---|
-| 1 | 事前準備（一度だけ）：`.env.<環境名>`（Key Vault 用の自分のオブジェクト ID `AZURE_KEYVAULT_SECRETS_OFFICER_IDS` を含む）、cdktn の Google Cloud のサービスアカウントのロール、有効にする API | [getting-started.ja.md](getting-started.ja.md) |
-| 2 | その環境の API コンテナの設定を初回の値にする：`azureSecretReady`・`readinessProbe`・`journalPrune.enabled` を `false`（`config/apicontainer.ts`）。destroy の後は、まだ再利用できない名前も変える（下の「destroy の後にもう一度 deploy する」） | 設定ファイル |
+| 1 | 事前準備（一度だけ）：`.env.<環境名>`（Key Vault 用の自分のオブジェクト ID `AZURE_KEYVAULT_SECRETS_OFFICER_IDS` を含む）、クラウドの権限と API | [getting-started.ja.md](getting-started.ja.md) |
+| 2 | `npm run build-stage` で段階 1 であることを確認（`npm run before-destroy` が 1 に戻す。そうでなければ `npm run build-stage -- 1`）。destroy の後は、まだ再利用できない名前も変える（下の「destroy の後にもう一度 deploy する」） | cdktn のコンテナ、設定ファイル |
 | 3 | `cdktn diff` の後、`cdktn deploy`（下の「deploy」） | cdktn のコンテナ |
-| 4 | すべてのクラウドに DB のシークレットを入れる（API のパスワードはすべてのクラウドで同じ値） | 下の「シークレット」。AWS と Google Cloud は Cloud Shell からも可、Azure は VM からのみ |
-| 5 | Azure：`azureSecretReady` を `true` にして、もう一度 `cdktn deploy` | 設定ファイル、cdktn のコンテナ |
+| 4 | すべてのクラウドにパスワードを入れる：`scripts/secrets-set.sh <cloud>`（アプリのリポジトリ。下の「シークレット」） | AWS と Google Cloud は Cloud Shell か VM、Azure は VM |
+| 5 | `npm run build-stage -- 2` の後、`cdktn deploy` | cdktn のコンテナ |
+| 6 | データベースのセットアップ（アプリのリポジトリの getting-started）：クラスタはどれか1台の VM で `scripts/cluster-setup.sh <cloud>`、クラウド単体は各クラウドの VM で `scripts/node-setup.sh <cloud>` | VM |
+| 7 | API のデプロイ：インフラを構築した直後はマージする新しいコミットがなく、レジストリも空なので、各クラウドのパイプラインを 1 回実行する（アプリのリポジトリの getting-started の「デプロイ」）。パイプライン：`api-service-cicd`（`config/aws/cicd/cicdsettings.ts`）、`github-push-trigger`（`config/google/cicdsettings.ts`）、`multicloud-api-deploy`（`config/azure/cicd.ts`）。ビルドの結果はメールで届く（Azure DevOps は実行した人に、AWS と Google Cloud は `ALERT_EMAILS` に。下の「アラート」） | Cloud Shell、Azure DevOps |
+| 8 | `npm run build-stage -- 3` の後、`cdktn deploy`：ロードバランサーとコンテナ基盤が `/readyz`・`/healthz` を使い、変更履歴の削除ジョブが作られる | cdktn のコンテナ |
 
-Azure だけ2回 deploy する理由：Container App は、参照する Key Vault のシークレットがないと起動できません。Key Vault は
-1回目の deploy で作られ、VNet の中からしか書き込めません（AWS と Google Cloud のダミーの値と違い、cdktn は
-シークレットを作れません）。そのため、1回目で参照なしに Key Vault を作り、Azure の VM から値を入れ、2回目で参照を
-付けます。
-
-これでインフラの準備は完了です。続けて、アプリのリポジトリで、データベースをセットアップし（クラウド単体なら各
-クラウドの VM で `scripts/node-setup.sh <cloud>`）、API をデプロイします。インフラを構築した直後は、マージする新しい
-コミットがなく、新しいレジストリも空なので、各クラウドのパイプラインを 1 回実行します（アプリのリポジトリの
-getting-started の「デプロイ」）。パイプラインの名前は `config/aws/cicd/cicdsettings.ts`（`api-service-cicd`）、
-`config/google/cicdsettings.ts`（`github-push-trigger`）、`config/azure/cicd.ts`（`multicloud-api-deploy`）で決まります。
-API が動いたら：
-
-| # | 作業 | 場所 |
-|---|---|---|
-| 6 | `readinessProbe` と `journalPrune.enabled` を `true` にして `cdktn deploy`：ロードバランサーとコンテナ基盤が `/readyz`・`/healthz` を使い、変更履歴の削除ジョブが作られる | 設定ファイル、cdktn のコンテナ |
+構築の後の API のリリースでは `cdktn deploy` は不要です（環境のブランチへのマージだけ）。段階は 3 のままです。
 
 ## deploy
 
@@ -87,10 +76,23 @@ cdktn deploy
 ## destroy
 
 ```bash
+npm run before-destroy   # 親と一緒に削除されるものを state から外す
 cdktn destroy
 ```
 
+`before-destroy`（`scripts/before-destroy.sh`）は、Azure の PostgreSQL のサーバーのパラメータを Terraform の state から外します。パラメータの destroy はサーバーの値を戻す操作で、データベースに論理レプリケーションのスロットがあると失敗します（下の「Azure — PostgreSQL: サーバーのパラメータを戻せない」）。パラメータはサーバーと一緒に削除されます。クラウドには何も変更しません。
+
 マネージドサービスの中には、リソースを非同期に解放するものがあります。そのため、依存関係の順序が正しくても、destroy がエラーで止まることがあります。下の既知の問題を確認し、指示があれば `cdktn destroy` をもう一度実行してください。
+
+1 つのクラウドで待ちが必要なとき（下の Google Cloud のサブネットなど。1〜2 時間）、Terraform は最初のエラーで止まり、他のクラウドのリソースも残ります。他のクラウドを先に削除し、待つクラウドは後で `cdktn destroy` で削除します：
+
+```bash
+cd /app/cdktf.out/stacks/app
+# Azure（AWS は aws_）。削除するものが計画に表示されるので、確認して yes
+terraform destroy $(terraform state list | grep -E '^(azurerm_|azuredevops_)' | sed 's/^/-target=/')
+```
+
+それらに依存するもの（他のクラウドの Azure との VPN の接続など）も一緒に削除されます。Terraform は一部だけの destroy だという警告を出します。
 
 ### destroy の後にもう一度 deploy する
 
@@ -101,10 +103,9 @@ cdktn destroy
 | 1 | Google Cloud：Cloud SQL のインスタンスの `name` を変える（`config/google/cloudsql/cloudsql.ts`） | 削除したインスタンス名は約1週間再利用できません。末尾の日時を新しくします（例：`cloudsql-postgres-instance-2026-1018-1500`）。この名前を参照している設定は他にありません（API は deploy のときにインスタンスのアドレスを受け取り、プライベート DNS の名前 `aRecordName` は変わりません）。インスタンス名を指定するコマンド（`gcloud sql instances describe` など）は新しい名前で実行します |
 | 2 | Google Cloud：ログのバケットの ID（`googleUseLogBuckets` が `true` のときだけ） | 削除したバケットの ID は 7 日間再利用できません（上の「ログ」）。dev は `false` のままにしています |
 | 3 | Azure：Key Vault の名前（既にあるというエラーで deploy が失敗したときだけ） | provider は destroy のときに論理削除された Key Vault を完全に削除（purge）します。されなかった場合（purge の権限がないなど）は、`az keyvault purge --name <Key Vault の名前>` を実行します |
-| 4 | その環境の API コンテナの設定（`config/apicontainer.ts`）を初回の値に戻す：`azureSecretReady`・`readinessProbe`・`journalPrune.enabled` を `false` | 新しい Key Vault にはまだシークレットがなく（参照する Container App は起動できません）、CI/CD が API をデプロイするまでコンテナは仮のイメージで動くためです |
+| 4 | 構築の段階を 1 にする：destroy の前の `npm run before-destroy` が 1 に戻す（`npm run build-stage` で確認） | 新しい Key Vault にはまだシークレットがなく（参照する Container App は起動できません）、CI/CD が API をデプロイするまでコンテナは仮のイメージで動くためです |
 
-deploy の後は、初回と同じく、シークレットを入れ直し（下の「シークレット」。値はストアと一緒に削除されています）、データベースをセットアップし直し（アプリのリポジトリの getting-started の「データベースのセットアップ」）、API をデプロイし（上と同じくパイプラインを 1 回実行）、`readinessProbe` と `journalPrune.enabled` を `true` にして
-deploy します（手順 6）。
+deploy の後は、初回と同じく、シークレットを入れ直し（下の「シークレット」。値はストアと一緒に削除されています）、データベースをセットアップし直し（アプリのリポジトリの getting-started の「データベースのセットアップ」）、API をデプロイし（上と同じくパイプラインを 1 回実行）、構築の段階を進めます（「環境を構築する」の手順 4〜8）。
 
 ## ログ
 
@@ -167,6 +168,7 @@ deploy します（手順 6）。
 | `api-errors` | `/aws/ecs/api-service` のメトリクスフィルター（`"failed"`）とアラーム | Cloud Run のサービスのログベースの指標とアラートポリシー | `backend-api-service` の `ContainerAppConsoleLogs` のログアラート | API が 5 分以内にエラーをログに出した（例：DB に接続できない、マイグレーションが足りないときの `Readiness check failed: ...`、`Idle connection to ... failed`） |
 | `journal-prune-failed` | 同じロググループ（ジョブは API のタスク定義で動く） | Cloud Run のジョブのログベースの指標 | Container Apps のジョブのログのアラート | 毎日の変更履歴の削除ジョブが失敗した（`Journal pruning failed: ...`） |
 | `<ロードバランサー>-5xx` | ALB の `HTTPCode_ELB_5XX_Count` と `HTTPCode_Target_5XX_Count` | リージョンのロードバランサーの `request_count`（レスポンスコードのクラス 500） | Application Gateway の `ResponseStatus`（`HttpStatusGroup` が 5xx） | 5 分以内に 5xx が 10 回以上（ロードバランサーが返したもの〔正常な API がないなど〕、または API が返したもの） |
+| ビルドの結果（`cicd` が有効なとき） | CodeBuild のプロジェクトの状態の変化（`SUCCEEDED`・`FAILED`・`STOPPED`）を EventBridge のルールで SNS のトピックへ（`buildNotifications`） | Cloud Build のログに一致するログ一致のアラートのポリシー：`cloud-build-succeeded`（`DONE`）、`cloud-build-failed`（`ERROR` で始まる行）。それぞれ最短 5 分に 1 通 | —（Azure DevOps がパイプラインを実行した人にメールする） | CI/CD のビルドが終わったとき |
 
 ロードバランサーのアラートは、各クラウドの HTTP と HTTPS の両方のロードバランサーについて書いてあり、作られているほうにだけ
 作られます。HTTP と HTTPS を切り替えても、アラートの設定を変える必要はありません。
@@ -214,8 +216,8 @@ API のロールのパスワードは**全ノードで同じ**です。すべて
 （`config/apicontainer.ts`。アプリのリポジトリの getting-started）。レプリケーションのパスワードも全ノードで同じです。
 
 Azure: Container App が Key Vault のシークレットを参照するのは `apiContainerConfig.azureSecretReady` が `true` の
-ときだけです。参照するシークレットがないと Container App は起動できません。`false` で deploy し、Azure の VM から
-`db-api-password` を設定してから、`true` にしてもう一度 deploy します。
+ときだけです（構築の段階 2 以降）。参照するシークレットがないと Container App は起動できません。段階 1 で deploy し、
+Azure の VM から `db-api-password` を設定してから、`npm run build-stage -- 2` にしてもう一度 deploy します。
 
 cdktn に渡した値（`CHANGE_ME` と、`.env.<環境名>` の DB の管理者パスワード）は、Terraform の state に残ります。state は作業端末だけに置いてください。
 
@@ -276,8 +278,9 @@ scripts/secrets-set.sh aws        # 他のクラウドでは google / azure
 
 DB のスクリプトはアプリのリポジトリのものです。そのリポジトリの getting-started（「データベースのセットアップ」）を
 参照してください。クラウド単体なら、`scripts/node-setup.sh <cloud>` が、VM でクラウドの CLI にサインインしていれば
-API のパスワードをそのクラウドのシークレットストアから読み取ります。クラスタでは、どれか1台の VM でスクリプトを
-実行し、そのクラウドのシークレットストアから 2 つのパスワードを読みます。
+API のパスワードをそのクラウドのシークレットストアから読み取ります。クラスタでは、どれか1台の VM で
+`scripts/cluster-setup.sh <cloud>` を実行し、そのクラウドのシークレットストアから 2 つのパスワードを読みます。データベース同士は
+プライベート DNS の名前で接続します（Cloud SQL はピアリングされた DNS ドメイン経由。configuration/google.ja.md）。
 
 ### クラウドの CLI の更新
 
@@ -325,6 +328,14 @@ Cloud SQL を削除している間に、プライベート サービス アク�
 ### Azure — Container Apps: 最初の destroy が失敗する
 
 Container Apps の destroy は、1 回目に失敗することがあります。`cdktn destroy` をもう一度実行してください。
+
+### Azure — PostgreSQL: サーバーのパラメータを戻せない
+
+サーバーのパラメータ（`wal_level` など）の destroy はサーバーの値を既定に戻す操作で、`InternalServerError`（"An
+unexpected error occured while processing the request"）で失敗することがあります。`wal_level` を戻すには再起動が
+必要で、データベースに論理レプリケーションのスロットがあると（クラスタ）成功しないためと考えられます。`npm run before-destroy`
+が先にパラメータを state から外します（サーバーと一緒に削除されます）。それでもエラーになった場合は、`npm run before-destroy`
+と `cdktn destroy` をもう一度実行します。
 
 ### AWS — ECR: リポジトリが空でない
 
