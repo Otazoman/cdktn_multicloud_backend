@@ -421,7 +421,7 @@ export function createAwsContainers(ctx: AwsBuildContext): void {
                   launchType: "FARGATE",
                   networkConfiguration: {
                     // Like the service (constructs/container/awsecs.ts)
-                    assignPublicIp: true,
+                    assignPublicIp: false,
                     securityGroups: config.securityGroupNames.map(
                       (name) => awsVpcResources.securityGroupMapping[name],
                     ),

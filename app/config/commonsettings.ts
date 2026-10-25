@@ -55,7 +55,7 @@ export const googleToAzure: boolean = true;
 // ---- Cross-cloud private DNS -----------------------------------------------
 
 /** Private DNS zones and cross-cloud DNS forwarding */
-export const hostZones: boolean = true;
+export const hostZones: boolean = false;
 
 // ---- Per-cloud switches ----------------------------------------------------
 // Each feature is created when the cloud and the feature are enabled. VPN

@@ -32,7 +32,12 @@ interface SecurityGroupRuleConfig {
   fromPort: number;
   toPort: number;
   protocol: string;
-  cidrBlocks: string[];
+  cidrBlocks?: string[];
+  /**
+   * Ingress only: security groups (names in the same configuration) whose
+   * members may connect, e.g. only the ALB
+   */
+  sourceSecurityGroupNames?: string[];
   ipv6CidrBlocks?: string[];
   description?: string;
 }
@@ -259,7 +264,7 @@ export function createAwsVpcResources(
               fromPort: rule.fromPort,
               toPort: rule.toPort,
               protocol: rule.protocol,
-              cidrBlocks: rule.cidrBlocks,
+              cidrBlocks: rule.cidrBlocks ?? [],
               ipv6CidrBlocks: rule.ipv6CidrBlocks,
               description: rule.description,
             }))
@@ -270,6 +275,21 @@ export function createAwsVpcResources(
       },
     });
     return sg;
+  });
+
+  // Ingress from other security groups, once they all exist (any order)
+  params.securityGroups.forEach((sgConfig, index) => {
+    sgConfig.ingress.forEach((rule, ruleIndex) => {
+      if (!rule.sourceSecurityGroupNames) return;
+      const ids = rule.sourceSecurityGroupNames.map((name) => {
+        const sourceIndex = params.securityGroups.findIndex((s) => s.name === name);
+        if (sourceIndex < 0) {
+          throw new Error(`Security group "${sgConfig.name}": source security group "${name}" not found`);
+        }
+        return securityGroups[sourceIndex].id;
+      });
+      securityGroups[index].addOverride(`ingress.${ruleIndex}.security_groups`, ids);
+    });
   });
 
   const firstSubnet = subnets[0];

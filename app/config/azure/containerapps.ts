@@ -49,6 +49,12 @@ export type AzureAcaSettings = Omit<
   cnameRecordName?: string;
   /** Application Gateway backend pool that routes to this app */
   appGwBackendName?: string;
+  /**
+   * Subnets (names in vnet/subnets.ts) allowed to reach the app's ingress,
+   * e.g. only the Application Gateway; other sources are denied (the VNet
+   * and the VPN-connected clouds included). Default: no restriction
+   */
+  allowedSourceSubnets?: string[];
 };
 
 export const azureAcaConfigs: AzureAcaSettings[] = [
@@ -73,5 +79,7 @@ export const azureAcaConfigs: AzureAcaSettings[] = [
     maxReplicas: 10,
     cnameRecordName: "api-backend",
     appGwBackendName: "http-backend-pool",
+    // Only the Application Gateway reaches the API
+    allowedSourceSubnets: ["web-appgw-subnet"],
   },
 ];

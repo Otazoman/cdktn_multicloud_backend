@@ -10,6 +10,7 @@ import {
   azureAppGwConfigs,
 } from "../../config/azure/azuresettings";
 import { apiContainerConfig } from "../../config/apicontainer";
+import { subnets as azureSubnetConfigs } from "../../config/azure/vnet/subnets";
 import { isFeatureEnabled } from "../../config/features";
 import {
   API_LIVENESS_PATH,
@@ -154,6 +155,15 @@ export function createAzureContainers(ctx: AzureBuildContext): void {
             azureProvider,
             {
               ...config,
+              allowedSourceRanges: config.allowedSourceSubnets?.map((name) => {
+                const subnet = azureSubnetConfigs.find((s) => s.name === name);
+                if (!subnet) {
+                  throw new Error(
+                    `Container App "${config.name}": allowedSourceSubnets "${name}" not found in config/azure/vnet/subnets.ts`,
+                  );
+                }
+                return subnet.cidr;
+              }),
               env: api ? [...(config.env ?? []), ...api.environment] : config.env,
               keyVaultSecrets,
               secretEnv,

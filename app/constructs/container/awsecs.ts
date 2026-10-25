@@ -228,7 +228,9 @@ export function createAwsEcsFargateResources(
     networkConfiguration: {
       securityGroups: config.securityGroupIds,
       subnets: config.subnetIds,
-      assignPublicIp: true,
+      // Private subnets: outbound through the NAT gateway (config/aws/vpc/vpc.ts);
+      // a public IP is not needed and would be billed
+      assignPublicIp: false,
     },
 
     deploymentController: { type: "ECS" },

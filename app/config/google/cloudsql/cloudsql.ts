@@ -8,7 +8,7 @@ export const cloudSqlConfig = {
     // PostgreSQL Instance
     {
       build: true,
-      name: "cloudsql-postgres-instance-2026-1025-1500",
+      name: "cloudsql-postgres-instance-2026-1025-1700",
       // DNS A record name for google.inner zone (e.g., cloudsql-postgres.google.inner)
       aRecordName: "cloudsql-postgres.google.inner",
       edition: "ENTERPRISE",

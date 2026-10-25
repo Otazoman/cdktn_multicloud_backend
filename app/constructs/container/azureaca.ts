@@ -26,6 +26,11 @@ export interface AzureContainerAppConfig {
   targetPort: number;
   internal: boolean;
   externalEnabled: boolean;
+  /**
+   * Source address ranges (CIDR) allowed to reach the app's ingress; any
+   * other source is denied. Default: no restriction
+   */
+  allowedSourceRanges?: string[];
   subnetName: string;
   env?: { name: string; value: string }[];
   /**
@@ -185,6 +190,12 @@ export function createAzureContainerAppResources(
       targetPort: config.targetPort,
       allowInsecureConnections: true,
       trafficWeight: [{ percentage: 100, latestRevision: true }],
+      ipSecurityRestriction: config.allowedSourceRanges?.map((range, i) => ({
+        name: `allow-${i + 1}`,
+        action: "Allow",
+        ipAddressRange: range,
+        description: "Allowed source (others are denied)",
+      })),
     },
   });
 

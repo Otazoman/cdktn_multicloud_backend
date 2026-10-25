@@ -230,27 +230,14 @@ export const securityGroups = [
     tags: {
       Purpose: "ALB",
     },
+    // Only the ALB reaches the containers (not the rest of the VPC)
     ingress: [
       {
         fromPort: 8080,
         toPort: 8080,
         protocol: "tcp",
-        cidrBlocks: ["10.0.0.0/16"],
-        description: "Allow API (container port 8080) from the ALB",
-      },
-      {
-        fromPort: 80,
-        toPort: 80,
-        protocol: "tcp",
-        cidrBlocks: ["10.0.0.0/16"],
-        description: "Allow HTTP inbound traffic",
-      },
-      {
-        fromPort: 443,
-        toPort: 443,
-        protocol: "tcp",
-        cidrBlocks: ["10.0.0.0/16"],
-        description: "Allow HTTPS inbound traffic",
+        sourceSecurityGroupNames: ["alb-sg"],
+        description: "Allow API (container port 8080) from the ALB only",
       },
     ],
     egress: [
