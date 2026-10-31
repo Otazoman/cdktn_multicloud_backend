@@ -16,7 +16,7 @@ export const cloudSqlConfig = {
       tier: "db-custom-2-8192",
       region: LOCATION,
       // "ZONAL": a single instance. "REGIONAL": high availability (a standby in another zone)
-      availabilityType: "REGIONAL",
+      availabilityType: "ZONAL",
       diskType: "PD_SSD",
       diskSize: 10,
       diskAutoresize: true,

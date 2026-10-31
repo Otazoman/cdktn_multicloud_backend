@@ -76,6 +76,13 @@ else
   printf '{ "stage": %s }\n' "$stage" > "$FILE"
 fi
 show
+# Stage 3 switches the health checks to /readyz, which the placeholder images
+# do not answer: deploy it only once CI/CD has deployed the API everywhere
+if [[ "$stage" == 3 ]]; then
+  echo "Note: deploy stage 3 only after the API build succeeded on every cloud (the build" >&2
+  echo "      result emails). Before that, the placeholder images fail the /readyz health" >&2
+  echo "      checks and the deployments take longer." >&2
+fi
 # A cluster without the private DNS needs the Azure database's IP from stage 2
 if [[ "$stage" != 1 && -z "$ip" ]] &&
   grep -qE '^export const hostZones: boolean = false;' "$APP_DIR/config/commonsettings.ts"; then
