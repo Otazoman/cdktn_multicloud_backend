@@ -69,6 +69,33 @@ done
 # A new build creates a new database (a new address)
 [[ "$stage" != 1 ]] || ip=""
 
+# Stages 2 and 3 are confirmed first (stage 1 is not: npm run before-destroy
+# sets it), after the notes that apply
+if [[ "$stage" != 1 ]]; then
+  echo "Set the $DEPLOY_ENV build stage to $(describe "$stage")"
+  [[ -z "$ip" ]] || echo "  with the Azure database private IP $ip"
+  # Stage 3 switches the health checks to /readyz, which the placeholder
+  # images do not answer: deploy it only once CI/CD has deployed the API
+  if [[ "$stage" == 3 ]]; then
+    echo "Note: deploy stage 3 only after the API build succeeded on every cloud (the build"
+    echo "      result emails). Before that, the placeholder images fail the /readyz health"
+    echo "      checks and the deployments take longer."
+  fi
+  # A cluster without the private DNS needs the Azure database's IP
+  if [[ -z "$ip" ]] &&
+    grep -qE '^export const hostZones: boolean = false;' "$APP_DIR/config/commonsettings.ts"; then
+    echo "Note: hostZones is off. A cluster without the private DNS needs the Azure database's"
+    echo "      private IP: npm run build-stage -- $stage --azure-db-ip <ip>"
+    echo "      (docs/operations.md, \"A cluster without the private DNS\")"
+  fi
+  read -r -p "Continue? [y/N] " answer
+  if [[ "$answer" != [yY]* ]]; then
+    echo "Cancelled: the build stage is unchanged."
+    show
+    exit 1
+  fi
+fi
+
 mkdir -p "$(dirname "$FILE")"
 if [[ -n "$ip" ]]; then
   printf '{ "stage": %s, "azureDbPrivateIp": "%s" }\n' "$stage" "$ip" > "$FILE"
@@ -76,18 +103,4 @@ else
   printf '{ "stage": %s }\n' "$stage" > "$FILE"
 fi
 show
-# Stage 3 switches the health checks to /readyz, which the placeholder images
-# do not answer: deploy it only once CI/CD has deployed the API everywhere
-if [[ "$stage" == 3 ]]; then
-  echo "Note: deploy stage 3 only after the API build succeeded on every cloud (the build" >&2
-  echo "      result emails). Before that, the placeholder images fail the /readyz health" >&2
-  echo "      checks and the deployments take longer." >&2
-fi
-# A cluster without the private DNS needs the Azure database's IP from stage 2
-if [[ "$stage" != 1 && -z "$ip" ]] &&
-  grep -qE '^export const hostZones: boolean = false;' "$APP_DIR/config/commonsettings.ts"; then
-  echo "Note: hostZones is off. A cluster without the private DNS needs the Azure database's" >&2
-  echo "      private IP: npm run build-stage -- $stage --azure-db-ip <ip>" >&2
-  echo "      (docs/operations.md, \"A cluster without the private DNS\")" >&2
-fi
 echo "Next: cdktn diff, then cdktn deploy"
