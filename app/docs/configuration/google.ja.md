@@ -64,7 +64,7 @@
 | `databaseVersion` | バージョン | 例: `POSTGRES_18` | **必須** | |
 | `tier` | マシンのティア | 例: `db-custom-2-8192` | **必須** | |
 | `region` | リージョン | | **必須** | |
-| `availabilityType` | 可用性 | `ZONAL`、`REGIONAL` | **必須** | |
+| `availabilityType` | 可用性 | `ZONAL`、`REGIONAL` | **必須** | `REGIONAL` で高可用性（別ゾーンに待機系。費用は約 2 倍） |
 | `diskType`、`diskSize`、`diskAutoresize`、`diskAutoresizeLimit` | ディスク | `PD_SSD`/`PD_HDD`、GiB、`boolean`、GiB | **必須** | |
 | `username`、`password` | 管理者ユーザー | `GOOGLEDB_ROOT_USER`、`GOOGLEDB_ROOT_PASSWORD` から | | |
 | `managedPasswordEnabled` | パスワードを Google が管理する | `boolean` | **必須** | |

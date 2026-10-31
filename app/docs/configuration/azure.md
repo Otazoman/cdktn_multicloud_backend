@@ -82,7 +82,7 @@ Names that must be unique in Azure use `envScopedName()`: Key Vault, ACR, databa
 | `version` | PostgreSQL major version | e.g. `"18"` | **Required** | |
 | `backupRetentionDays` | Backup retention | 7–35 | provider default | |
 | `geoRedundantBackupEnabled` | Geo-redundant backup | `boolean` | `false` | |
-| `zone`, `highAvailabilityMode`, `standbyAvailabilityZone` | Zone and HA | `"1"`…; `"ZoneRedundant"`, `"SameZone"`, undefined; zone | HA off | |
+| `zone`, `highAvailabilityMode`, `standbyAvailabilityZone` | Zone and HA | `"1"`…; `"ZoneRedundant"`, `"SameZone"`, undefined; zone | HA off | HA needs a General Purpose or Memory Optimized `skuName` (not Burstable). The logical replication slots are synchronized to the standby (parameters `sync_replication_slots`, `hot_standby_feedback` in `postgres-parameters.ts`; the application creates the subscriptions with `failover = true`) |
 | `publicNetworkAccessEnabled` | Public access | `boolean` | provider default | `false`: VNet integration only |
 | `maintenanceWindow` | `{ dayOfWeek, startHour, startMinute }` | 0–6; 0–23; 0–59 | Azure chooses | |
 | `tlsEnforcementEnabled` | | `boolean` | provider default | |

@@ -95,7 +95,7 @@ Only PostgreSQL (5432) is opened in `myaws-db-sg`.
 | `engine` | Engine | `"postgres"` (RDS), `"aurora-postgresql"` (Aurora) | **Required** | MySQL / MariaDB are not supported |
 | `engineVersion` | Engine version | string | **Required** | |
 | `instanceClass` | Instance class | string | **Required** | |
-| `instanceCount` | Aurora instances | number | `1` | Aurora only |
+| `instanceCount` | Aurora instances | number | `1` | Aurora only. `2` or more: a writer and readers (redundancy: a reader becomes the writer on failover); give one name per instance in `names.instances`. The logical replication slots are on the shared cluster storage |
 | `allocatedStorage`, `storageType` | Storage | GiB; `gp3` etc. | — | RDS only |
 | `username` / `masterUsername`, `password` | Master user | from `AWSDB_ROOT_USER`, `AWSDB_ROOT_PASSWORD` | — | |
 | `manageMasterUserPassword` | Let AWS keep the password in Secrets Manager | `boolean` | `false` in samples | When `true`, `password` is not used |

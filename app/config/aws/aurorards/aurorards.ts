@@ -26,7 +26,7 @@ export const auroraConfigs = [
       subnetGroup: "aurora-postgres-cluster-sng",
       clusterParameterGroup: "aurora-postgres-cluster-cpg",
       instanceParameterGroup: "aurora-postgres-cluster-ipg",
-      instances: ["aurora-postgres-cluster-instance-1"],
+      instances: ["aurora-postgres-cluster-instance-1", "aurora-postgres-cluster-instance-2"],
     },
     engine: "aurora-postgresql",
     engineVersion: "18.3",
@@ -44,7 +44,8 @@ export const auroraConfigs = [
       "config/aws/aurorards/aurora-postgres-cluster-parameters.ts", // Path to cluster parameter file
     skipFinalSnapshot: true,
     instanceClass: "db.t4g.medium",
-    instanceCount: 1,
+    // 1: a single instance. 2 or more: a writer and readers (failover targets)
+    instanceCount: 2,
     instanceParameterGroupFamily: "aurora-postgresql18",
     // Backup
     backupRetentionPeriod: 14,

@@ -95,7 +95,7 @@
 | `engine` | エンジン | `"postgres"`（RDS）、`"aurora-postgresql"`（Aurora） | **必須** | MySQL / MariaDB には対応しない |
 | `engineVersion` | エンジンのバージョン | 文字列 | **必須** | |
 | `instanceClass` | インスタンスクラス | 文字列 | **必須** | |
-| `instanceCount` | Aurora のインスタンス数 | 数値 | `1` | Aurora のみ |
+| `instanceCount` | Aurora のインスタンス数 | 数値 | `1` | Aurora のみ。`2` 以上でライターとリーダー（冗長化。フェイルオーバーでリーダーがライターになる）。`names.instances` にインスタンスごとの名前を書く |
 | `allocatedStorage`、`storageType` | ストレージ | GiB、`gp3` など | — | RDS のみ |
 | `username` / `masterUsername`、`password` | マスターユーザー | `AWSDB_ROOT_USER`、`AWSDB_ROOT_PASSWORD` から | — | |
 | `manageMasterUserPassword` | パスワードを AWS が Secrets Manager で管理する | `boolean` | サンプルでは `false` | `true` のときは `password` を使わない |

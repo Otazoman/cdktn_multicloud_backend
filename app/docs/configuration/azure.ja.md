@@ -82,7 +82,7 @@ Azure 全体で一意である必要がある名前は `envScopedName()` を使�
 | `version` | PostgreSQL のメジャーバージョン | 例: `"18"` | **必須** | |
 | `backupRetentionDays` | バックアップの保存期間 | 7〜35 | provider の既定 | |
 | `geoRedundantBackupEnabled` | geo 冗長バックアップ | `boolean` | `false` | |
-| `zone`、`highAvailabilityMode`、`standbyAvailabilityZone` | ゾーンと高可用性 | `"1"` など。`"ZoneRedundant"`、`"SameZone"`、未指定。ゾーン | 高可用性なし | |
+| `zone`、`highAvailabilityMode`、`standbyAvailabilityZone` | ゾーンと高可用性 | `"1"` など。`"ZoneRedundant"`、`"SameZone"`、未指定。ゾーン | 高可用性なし |HA は汎用かメモリ最適化の `skuName` が必要（バースト可能は不可）。論理レプリケーションのスロットは待機系に同期する（`postgres-parameters.ts` の `sync_replication_slots`・`hot_standby_feedback`。アプリはサブスクリプションを `failover = true` で作る） |
 | `publicNetworkAccessEnabled` | パブリックアクセス | `boolean` | provider の既定 | `false`: VNet 統合のみ |
 | `maintenanceWindow` | `{ dayOfWeek, startHour, startMinute }` | 0〜6、0〜23、0〜59 | Azure が決める | |
 | `tlsEnforcementEnabled` | | `boolean` | provider の既定 | |

@@ -62,6 +62,18 @@ export const postgresParameters = [
     name: "max_wal_size",
     value: "1024", // 1GB (unit: MB)
   },
+  // High availability: keep the logical replication slots on the standby, so
+  // that the other clouds' subscriptions continue after a failover
+  // (PostgreSQL 17+; the subscriptions are created with failover = true by the
+  // application's scripts/replication-setup.sh). Harmless without it
+  {
+    name: "sync_replication_slots",
+    value: "on",
+  },
+  {
+    name: "hot_standby_feedback",
+    value: "on",
+  },
 ];
 
 export default postgresParameters;

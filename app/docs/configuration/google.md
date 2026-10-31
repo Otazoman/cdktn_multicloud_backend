@@ -64,7 +64,7 @@ One peering connection with several non-overlapping reserved ranges.
 | `databaseVersion` | Version | e.g. `POSTGRES_18` | **Required** | |
 | `tier` | Machine tier | e.g. `db-custom-2-8192` | **Required** | |
 | `region` | Region | | **Required** | |
-| `availabilityType` | Availability | `ZONAL`, `REGIONAL` | **Required** | |
+| `availabilityType` | Availability | `ZONAL`, `REGIONAL` | **Required** | `REGIONAL`: high availability (a standby in another zone; about twice the cost) |
 | `diskType`, `diskSize`, `diskAutoresize`, `diskAutoresizeLimit` | Disk | `PD_SSD`/`PD_HDD`; GiB; `boolean`; GiB | **Required** | |
 | `username`, `password` | Admin user | from `GOOGLEDB_ROOT_USER`, `GOOGLEDB_ROOT_PASSWORD` | | |
 | `managedPasswordEnabled` | Let Google manage the password | `boolean` | **Required** | |

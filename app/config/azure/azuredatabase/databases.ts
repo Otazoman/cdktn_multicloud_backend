@@ -20,7 +20,8 @@ export const azureDatabaseConfig = {
       subnetKey: "db-postgres-subnet", // Each database needs its own subnet (matches subnets.ts)
       serverAdminLogin: process.env.AZUREDB_ROOT_USER!,
       serverAdminPassword: process.env.AZUREDB_ROOT_PASSWORD!,
-      skuName: "B_Standard_B1ms",
+      // High availability needs General Purpose or Memory Optimized (not Burstable, e.g. B_Standard_B1ms)
+      skuName: "GP_Standard_D2ds_v5",
       storageMb: 32768, // 32 GB
       storageIops: 360, // Storage IOPS
       version: "18", // PostgreSQL 18
@@ -29,8 +30,8 @@ export const azureDatabaseConfig = {
       geoRedundantBackupEnabled: false,
       // High Availability
       zone: "1",
-      highAvailabilityMode: undefined, // "ZoneRedundant" or "SameZone" or undefined
-      standbyAvailabilityZone: undefined,
+      highAvailabilityMode: "ZoneRedundant", // "ZoneRedundant" or "SameZone" or undefined (single server)
+      standbyAvailabilityZone: "2",
       // Networking
       publicNetworkAccessEnabled: false, // VNet integration only
       // Labels

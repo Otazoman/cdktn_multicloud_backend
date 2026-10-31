@@ -36,7 +36,7 @@ export type VpnMode = "singleTunnel" | "haBgp";
 
 export const vpnMode: VpnMode = byEnv<VpnMode>({
   dev: "singleTunnel",
-  stg: "singleTunnel",
+  stg: "haBgp",
   prod: "haBgp",
 });
 
@@ -55,7 +55,7 @@ export const googleToAzure: boolean = true;
 // ---- Cross-cloud private DNS -----------------------------------------------
 
 /** Private DNS zones and cross-cloud DNS forwarding */
-export const hostZones: boolean = false;
+export const hostZones: boolean = true;
 
 // ---- Per-cloud switches ----------------------------------------------------
 // Each feature is created when the cloud and the feature are enabled. VPN
