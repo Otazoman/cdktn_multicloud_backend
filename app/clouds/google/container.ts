@@ -32,6 +32,7 @@ import { GoogleLbResourcesWithDns } from "./types";
 import { googleCicdDeployTargets } from "./cicd";
 import { addTerraformDependency } from "../../utils/terraformDependency";
 import { addApiHealthUrl } from "../healthurls";
+import { assertUniqueLoadBalancerHostNames } from "../hostnames";
 import { GoogleBuildContext } from "./context";
 import { ComputeSubnetwork } from "@cdktn/provider-google/lib/compute-subnetwork";
 import { GoogleGlobalLbResources, GoogleRegionalLbResources } from "./types";
@@ -300,6 +301,11 @@ export function createGoogleContainers(ctx: GoogleBuildContext): void {
     }
 
     // 6b. Load Balancers
+    assertUniqueLoadBalancerHostNames(
+      "google",
+      "config/google/cloudloadbalancing.ts",
+      gcpLbConfigs.filter((config) => config.build),
+    );
     gcpLbConfigs
       .filter((config) => config.build)
       .forEach((config) => {

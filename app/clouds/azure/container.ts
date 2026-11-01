@@ -38,6 +38,7 @@ import { LoadBalancerDnsInfo } from "../common";
 import { NAME_RULES, resourceName, idPart } from "../../utils/naming";
 import { addTerraformDependency } from "../../utils/terraformDependency";
 import { addApiHealthUrl } from "../healthurls";
+import { assertUniqueLoadBalancerHostNames } from "../hostnames";
 import { AzureBuildContext } from "./context";
 import { azureCicdDeployTarget } from "./cicd";
 import { createAzureIdentityWithRoles } from "../../constructs/iam/azureidentity";
@@ -337,6 +338,11 @@ export function createAzureContainers(ctx: AzureBuildContext): void {
 
       // 6b. AppGW (injects ACA FQDNs into backend pools)
       if (azureAppGwConfigs) {
+        assertUniqueLoadBalancerHostNames(
+          "azure",
+          "config/azure/applicationgateway.ts",
+          azureAppGwConfigs.filter((config) => config.build),
+        );
         const azureAppGws: AzureAppGwResourcesWithDns[] = azureAppGwConfigs
           .filter((config) => config.build)
           .map((config) => {

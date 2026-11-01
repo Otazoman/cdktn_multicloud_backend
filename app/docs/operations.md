@@ -70,7 +70,7 @@ scheduled run before the API is deployed would fail, so they come with
 
 | # | Step | Where |
 |---|---|---|
-| 1 | One-time preparation: `.env.<env>` (including `AZURE_KEYVAULT_SECRETS_OFFICER_IDS`, your object ID for the Key Vault), the cloud permissions and APIs | [getting-started.md](getting-started.md) |
+| 1 | One-time preparation: `.env.<env>` (including `AZURE_KEYVAULT_SECRETS_OFFICER_IDS`, your object ID for the Key Vault), the cloud permissions and APIs, and the delegation from the parent zone: the IAM role of the parent account and `state/<env>/parent-dns.json` (without the file, register the NS records by hand during the deploy) | [getting-started.md](getting-started.md), "Public DNS sub-domain delegation" |
 | 2 | `npm run build-stage` shows stage 1 (`npm run before-destroy` sets it back; otherwise `npm run build-stage -- 1`). After a destroy, also change the names that cannot be reused yet ("Deploy again after a destroy" below) | cdktn container, config files |
 | 3 | `cdktn diff`, then `cdktn deploy` ("Deploy" below) | cdktn container |
 | 4 | Set the passwords on every cloud: `scripts/secrets-set.sh <cloud>` (application repository; "Secrets" below) | AWS and Google Cloud: Cloud Shell or their VM; Azure: its VM |

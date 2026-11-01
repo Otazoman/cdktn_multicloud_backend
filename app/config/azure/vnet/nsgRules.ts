@@ -324,7 +324,7 @@ export const nsgConfigs = [
         protocol: "Tcp",
         sourcePortRange: "*",
         destinationPortRange: "*",
-        sourceAddressPrefix: "10.2.0.0/16", // AppGW Subnet CIDR
+        sourceAddressPrefix: "10.2.0.0/16", // VNet CIDR (the Application Gateway is restricted by the Container App's IP restriction, API-29)
         destinationAddressPrefix: "*",
       },
       {

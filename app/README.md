@@ -77,3 +77,9 @@ The output files contain secrets from the environment variables (`.env.<env>`); 
 State is stored locally per environment (`state/<env>/terraform.tfstate`,
 ignored by git; see docs/operations.md to move an older `terraform.app.tfstate`). It contains
 secrets in plain text — keep it out of version control and back it up securely.
+
+The same directory keeps two settings files of the environment, read at
+every synthesis: `build-stage.json` (`npm run build-stage`,
+docs/operations.md) and `parent-dns.json` (the parent zone that cdktn
+writes the NS records into; docs/getting-started.md, "Public DNS sub-domain
+delegation").

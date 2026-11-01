@@ -1,4 +1,6 @@
+import { assertUniquePublicZoneNames } from "../clouds/hostnames";
 import { CloudContext } from "../clouds/types";
+import { CloudId } from "../config/commonsettings";
 import { addTerraformDependency } from "../utils/terraformDependency";
 import { PARENT_NS_TTL, parentDnsFile, parentDnsSettings } from "../config/parentdns";
 import { createAwsNsDelegation } from "../constructs/dns/delegation/awsnsdelegation";
@@ -14,11 +16,11 @@ export const createPublicDnsDelegation = (ctx: CloudContext): void => {
   const { scope, providers, outputs } = ctx;
 
   // Name servers are attribute references (known after the zones exist)
-  const zones: Array<{ domain: string; nameServers: string[] }> = [
-    ...Object.entries(outputs.aws.publicZones ?? {}),
-    ...Object.entries(outputs.google.publicZones ?? {}),
-    ...Object.entries(outputs.azure.publicZones ?? {}),
-  ].map(([domain, zone]) => ({ domain, nameServers: zone.nameServers }));
+  const zones: Array<{ cloud: CloudId; domain: string; nameServers: string[] }> = [
+    ...Object.entries(outputs.aws.publicZones ?? {}).map(([d, z]) => ({ cloud: "aws" as const, d, z })),
+    ...Object.entries(outputs.google.publicZones ?? {}).map(([d, z]) => ({ cloud: "google" as const, d, z })),
+    ...Object.entries(outputs.azure.publicZones ?? {}).map(([d, z]) => ({ cloud: "azure" as const, d, z })),
+  ].map(({ cloud, d, z }) => ({ cloud, domain: d, nameServers: z.nameServers }));
   if (zones.length === 0) return;
 
   const parent = parentDnsSettings();
@@ -30,6 +32,8 @@ export const createPublicDnsDelegation = (ctx: CloudContext): void => {
     );
     return;
   }
+  // Each zone gets one NS record in the parent zone
+  assertUniquePublicZoneNames(zones);
 
   const records = zones.map(({ domain, nameServers }) =>
     createAwsNsDelegation(scope, provider, {

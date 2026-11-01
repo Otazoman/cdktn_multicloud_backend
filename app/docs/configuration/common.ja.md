@@ -40,7 +40,7 @@
 | `...features.storage` | ファイルストレージ（EFS / Filestore / Azure Files） | `boolean` | `false` | |
 | `...features.containers` | マネージドコンテナとそのロードバランサー | `boolean` | `false` | |
 | `...features.cicd` | CI/CD | `boolean` | `false` | |
-| `...features.dns` | 公開 DNS のゾーンとレコード | `boolean` | `false` | `false` では公開ゾーンと A レコードを作らない。AWS のマネージド証明書は検証に公開ゾーンが必要なため、これも作られない |
+| `...features.dns` | 公開 DNS のゾーンとレコード | `boolean` | `false` | `false` では公開ゾーンと A レコードを作らない。AWS のマネージド証明書は検証に公開ゾーンが必要なため、これも作られない。`true` では、1 つのクラウドで作る 2 つのロードバランサーが同じホスト名（`dnsConfig`）を使えない。親ゾーンからの委任では、2 つのクラウドが同じ公開ゾーンを使えない。どちらも synth が名前を示して止まる |
 | `...features.alerting` | 通知先とアラーム / アラートポリシー | `boolean` | AWS `false`、Google `false`、Azure `true` | |
 | `...features.logArchive` | コンテナのログをオブジェクトストレージに保管する | `boolean` | `false` | バケット / アカウントの名前を、そのクラウドの監視の設定に書く必要がある |
 

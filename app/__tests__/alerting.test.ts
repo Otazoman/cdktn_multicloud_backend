@@ -4,6 +4,7 @@
  * created per cloud, and that `features.alerting` switches them off.
  */
 import { awsAlertingConfig } from "../config/aws/monitoring";
+import { azureAppGwConfigs } from "../config/azure/applicationgateway";
 import { azureAlertingConfig } from "../config/azure/azuremonitor";
 import { googleAlertingConfig } from "../config/google/monitoring";
 import {
@@ -129,6 +130,16 @@ const synthWith = (alerting: boolean) =>
       ),
     },
   });
+
+// These tests expect the plain HTTP Application Gateway, whatever the dev
+// config builds (config/azure/applicationgateway.ts)
+const appGwBuild = azureAppGwConfigs.map((c) => c.build);
+beforeAll(() => {
+  azureAppGwConfigs.forEach((c) => (c.build = c.name === "plain-http-appgw"));
+});
+afterAll(() => {
+  azureAppGwConfigs.forEach((c, i) => (c.build = appGwBuild[i]));
+});
 
 describe("alerting", () => {
   const originals = {

@@ -5,9 +5,20 @@
  * googlecloudrun.ts).
  */
 import { FEATURE_SETS, synthCase } from "../scripts/dev/synthMatrix";
+import { azureAppGwConfigs } from "../config/azure/applicationgateway";
 
 const resourcesOf = (synth: any, type: string): any[] =>
   Object.values(synth.resource?.[type] ?? {});
+
+// These tests expect the plain HTTP Application Gateway, whatever the dev
+// config builds (config/azure/applicationgateway.ts)
+const appGwBuild = azureAppGwConfigs.map((c) => c.build);
+beforeAll(() => {
+  azureAppGwConfigs.forEach((c) => (c.build = c.name === "plain-http-appgw"));
+});
+afterAll(() => {
+  azureAppGwConfigs.forEach((c, i) => (c.build = appGwBuild[i]));
+});
 
 let synth: any;
 beforeAll(() => {

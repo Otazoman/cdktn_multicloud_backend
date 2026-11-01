@@ -71,3 +71,5 @@ npx ts-node scripts/dev/synth-matrix.ts compare cdktf.out/before.json cdktf.out/
 ## Terraform の state
 
 state は環境ごとにローカルに保存します（`state/<環境名>/terraform.tfstate`、Git の管理外。古い `terraform.app.tfstate` を移す手順は docs/operations.ja.md を参照）。state には秘密の値が平文で含まれます。バージョン管理に入れず、安全な場所にバックアップしてください。
+
+同じディレクトリに、環境の設定ファイルが 2 つあります（合成のたびに読む）。`build-stage.json`（`npm run build-stage`、docs/operations.ja.md）と `parent-dns.json`（cdktn が NS レコードを書き込む親ゾーン。docs/getting-started.ja.md の「公開 DNS のサブドメインの委任」）です。

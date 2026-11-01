@@ -453,6 +453,13 @@ the records are registered by hand as below.
 
 #### Manual delegation
 
+Not needed when `state/<env>/parent-dns.json` exists: the deploy registers
+the NS records (above). Use this procedure when the parent zone is not in
+Route 53, or before the role and the file are set up (synth then warns, and
+the deploy prints the name servers as outputs `aws-ns-*`, `gcp-ns-*` and
+`azure-ns-*`). Register them during the deploy when certificates wait for
+DNS validation (the AWS-managed certificate, the Azure Let's Encrypt job).
+
 Get the name servers of each sub-domain:
 
 ```bash

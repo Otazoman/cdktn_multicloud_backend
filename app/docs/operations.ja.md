@@ -55,7 +55,7 @@ CI/CD が API のイメージに切り替えます。ただ、API のデプロ�
 
 | # | 作業 | 場所 |
 |---|---|---|
-| 1 | 事前準備（一度だけ）：`.env.<環境名>`（Key Vault 用の自分のオブジェクト ID `AZURE_KEYVAULT_SECRETS_OFFICER_IDS` を含む）、クラウドの権限と API | [getting-started.ja.md](getting-started.ja.md) |
+| 1 | 事前準備（一度だけ）：`.env.<環境名>`（Key Vault 用の自分のオブジェクト ID `AZURE_KEYVAULT_SECRETS_OFFICER_IDS` を含む）、クラウドの権限と API、親ゾーンからの委任（親ゾーンのアカウントの IAM ロールと `state/<環境名>/parent-dns.json`。ファイルがなければ deploy 中に NS レコードを手動で登録） | [getting-started.ja.md](getting-started.ja.md) の「公開 DNS のサブドメインの委任」 |
 | 2 | `npm run build-stage` で段階 1 であることを確認（`npm run before-destroy` が 1 に戻す。そうでなければ `npm run build-stage -- 1`）。destroy の後は、まだ再利用できない名前も変える（下の「destroy の後にもう一度 deploy する」） | cdktn のコンテナ、設定ファイル |
 | 3 | `cdktn diff` の後、`cdktn deploy`（下の「deploy」） | cdktn のコンテナ |
 | 4 | すべてのクラウドにパスワードを入れる：`scripts/secrets-set.sh <cloud>`（アプリのリポジトリ。下の「シークレット」） | AWS と Google Cloud は Cloud Shell か VM、Azure は VM |

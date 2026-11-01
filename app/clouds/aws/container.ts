@@ -29,6 +29,7 @@ import { LoadBalancerDnsInfo } from "../common";
 
 import { addTerraformDependency } from "../../utils/terraformDependency";
 import { addApiHealthUrl } from "../healthurls";
+import { assertUniqueLoadBalancerHostNames } from "../hostnames";
 import { AwsBuildContext } from "./context";
 import { idPart, resourceName } from "../../utils/naming";
 
@@ -40,6 +41,11 @@ export function createAwsContainers(ctx: AwsBuildContext): void {
   // 6. ACM Certificate + ALB + ECS
   // ──────────────────────────────────────────────
   if (isFeatureEnabled("aws", "containers") && albConfigs) {
+    assertUniqueLoadBalancerHostNames(
+      "aws",
+      "config/aws/alb.ts",
+      albConfigs.filter((config) => config.build),
+    );
     const awsAlbs: AwsAlbResourcesWithDns[] = albConfigs
       .filter((config) => config.build)
       .map((config) => {

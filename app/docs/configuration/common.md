@@ -40,7 +40,7 @@ Example: `byEnv({ default: {}, stg: { awsAccountId: "123456789012", azureSubscri
 | `...features.storage` | File storage (EFS / Filestore / Azure Files) | `boolean` | `false` | |
 | `...features.containers` | Managed containers and their load balancers | `boolean` | `false` | |
 | `...features.cicd` | CI/CD | `boolean` | `false` | |
-| `...features.dns` | Public DNS zones and records | `boolean` | `false` | When `false`, public zones and A records are not created. AWS-managed certificates need a public zone for validation, so they are not created either |
+| `...features.dns` | Public DNS zones and records | `boolean` | `false` | When `false`, public zones and A records are not created. AWS-managed certificates need a public zone for validation, so they are not created either. With `true`, two built load balancers of a cloud must not use the same host name (`dnsConfig`), and with the parent zone delegation two clouds must not use the same public zone: synth stops with the names |
 | `...features.alerting` | Notification targets and alarms / alert policies | `boolean` | AWS `false`, Google `false`, Azure `true` | |
 | `...features.logArchive` | Archive container logs to object storage | `boolean` | `false` | The bucket / account names must be set in the cloud's monitoring config |
 
