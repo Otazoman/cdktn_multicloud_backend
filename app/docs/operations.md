@@ -243,6 +243,26 @@ storage and delete them.
   true` adds double encryption; it can only be set when the account is created
   (changing it replaces the account and deletes the archived logs).
 
+## Azure — Let's Encrypt certificate of the Application Gateway
+
+With `mode: "LETS_ENCRYPT"` (`config/azure/applicationgateway.ts`), the
+deploy starts the renewal job once and waits for the certificate
+(`[cert-job-wait]` lines); afterwards the job runs daily and renews the
+certificate 30 days before it expires. Nothing has to be done.
+
+```bash
+# Host Azure CLI: executions of the job, and run it now
+az containerapp job execution list -n <job name> -g <resource group> -o table
+az containerapp job start -n <job name> -g <resource group>
+```
+
+Logs (Log Analytics): `ContainerAppConsoleLogs_CL | where ContainerJobName_s == "<job name>"`
+(`[cert-renew]` lines). If the deploy fails while waiting, check the logs
+(usually the DNS delegation of the public zone, or role assignments still
+propagating) and run `cdktn deploy` again. Each new environment uses one of
+the 5 certificates Let's Encrypt issues for the same names per 7 days; set
+`acmeServer: "staging"` to rebuild more often (browsers do not trust it).
+
 ## Alerting
 
 Alerting is created per cloud when `clouds.<cloud>.features.alerting` is

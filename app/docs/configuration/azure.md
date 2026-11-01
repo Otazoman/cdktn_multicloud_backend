@@ -92,6 +92,9 @@ Names that must be unique in Azure use `envScopedName()`: Key Vault, ACR, databa
 
 ## Key Vault (`secrets.ts`, `azureKeyVaultConfig`, feature `dbs`)
 
+Also created without `dbs` when a built Application Gateway has a
+`LETS_ENCRYPT` certificate (feature `containers`), which is kept here.
+
 | Item | Description | Allowed values | Default | Notes |
 |---|---|---|---|---|
 | `name` | Vault name | 3–24 characters, via `envScopedName` | **Required** | Globally unique |
@@ -169,8 +172,36 @@ Names that must be unique in Azure use `envScopedName()`: Key Vault, ACR, databa
 | `pathRules[]` | Path-based routing | `{ name, paths, backendName }` | — | |
 | `wafConfig` | `{ enabled, firewallMode, ruleSetType?, ruleSetVersion? }` | `Detection`, `Prevention` | `OWASP`, `3.2` | `WAF_v2` only |
 | `wafCustomRules[]` | Custom WAF rules | `{ name, priority, ruleType: "MatchRule", action: "Allow" \| "Block" \| "Log", matchConditions }` | — | |
-| `sslCertificates[]` | PFX certificates | `{ name, data: path, password }` | — | `password` from `AZURE_APPGW_SSL_CERT_PASSWORD` |
+| `sslCertificates[]` | Listener certificates | `{ name, mode?, domains?, keyVaultCertificateName?, acmeServer?, renewalJobName?, data?, password? }` | — | `mode: "LETS_ENCRYPT"`: issued by Let's Encrypt and renewed automatically into the Key Vault by the renewal job (below); the gateway reads it with its identity. Needs the public zone of `dnsConfig.subdomain` (`dns`) and the Container Apps environment; the Key Vault is created for it even without `dbs`. `acmeServer`: `production` (default) or `staging`. `renewalJobName` at most 32 characters, default `<PROJECT_NAME>-azure-cert-renew-<name>` (shortened). `IMPORT` or omitted: PFX file `data` and `password` (from `AZURE_APPGW_SSL_CERT_PASSWORD`) |
+| `identityName` | User-assigned identity of the gateway (`LETS_ENCRYPT`: `Key Vault Secrets User` on the Key Vault) | string | `<PROJECT_NAME>-azure-identity-<name>` | |
 | `tags` | Tags | map | — | |
+
+### Certificate renewal job (`certrenewal.ts`, `azureCertRenewalConfig`)
+
+Created for each `LETS_ENCRYPT` certificate. A Container Apps job in the
+environment runs `scripts/azure/cert-renew.sh` on a schedule: when the
+certificate is missing in the Key Vault or expires within
+`renewBeforeDays`, it requests one with lego (DNS-01 on the public zone,
+the job's system-assigned identity with `DNS Zone Contributor` on the zone
+and `Key Vault Certificates Officer` on the Key Vault) and imports it. The
+gateway references the certificate without a version and picks up a new
+version within 4 hours. During the deploy, `scripts/azure-cert-job-wait.sh`
+starts the job once and waits for it (ARM REST API with the `ARM_*` service
+principal), so that the certificate exists when the gateway is created.
+Let's Encrypt issues at most 5 certificates for the same names per 7 days;
+every new environment uses one.
+
+| Item | Description | Allowed values | Default | Notes |
+|---|---|---|---|---|
+| `environmentName` | Container Apps environment of the job | `containerapps.ts` `environmentName` | `main-env` | Must be built |
+| `cronExpression` | Schedule (UTC) | cron | `0 18 * * *` (03:00 JST) | |
+| `renewBeforeDays` | Renew when the certificate expires within | days | `30` | Let's Encrypt certificates are valid for 90 days |
+| `cpu`, `memory` | Resources of the job | Consumption combinations (memory = 2 × cpu) | `1.0`, `2Gi` | Installing the missing tools with tdnf was killed with `0.5Gi` |
+| `image` | Image of the job | image | `mcr.microsoft.com/azure-cli:2.91.0-azurelinux3.0` | bash, jq; the script installs curl / tar when missing |
+| `lego.version`, `lego.linuxAmd64Sha256` | ACME client downloaded by the job, checked against the SHA-256 | release tag, SHA-256 | `v4.35.2` | Update both together (the SHA-256 of `lego_<version>_linux_amd64.tar.gz` on the release page) |
+| `acmeDirectories` | Let's Encrypt directories | URLs | production / staging | |
+| `deployWaitTimeoutSeconds` | Wait of the deploy for the job | seconds | `1800` | The deploy fails after it; run it again |
+| `replicaTimeoutSeconds` | Limit of one job run | seconds | `1500` | |
 
 ## CI/CD (`devops_acr_config.ts`, `azureDevOpsAcrConfigs[]`, feature `cicd`)
 

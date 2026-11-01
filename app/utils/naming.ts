@@ -19,6 +19,8 @@ export const NAME_RULES = {
   azureStorageAccount: { maxLength: 24, allowHyphen: false },
   /** Azure Container Registry names */
   azureContainerRegistry: { maxLength: 50, allowHyphen: false },
+  /** Azure Container Apps / jobs names */
+  azureContainerApp: { maxLength: 32 },
 } satisfies Record<string, NameRule>;
 
 /**

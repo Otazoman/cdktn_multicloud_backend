@@ -138,7 +138,7 @@
 | `reserveStaticIp` | IP を予約する | `boolean` | **必須** | |
 | `networkTier`、`loadBalancingScheme` | | `PREMIUM`、`EXTERNAL_MANAGED` | provider の既定 | |
 | `dnsConfig.subdomain`、`dnsConfig.fqdn` | 公開ゾーンとレコード | 文字列 | — | `PUBLIC_DOMAIN` から作る。`features.dns` で A レコードを作る |
-| `managedSsl` | 証明書 | `{ certificateName?, domains, certificatePath?, privateKeyPath? }` | — | ファイルを指定: 自己管理の証明書をアップロード（リージョン）。ファイルなし: Google マネージド（グローバル）。名前の既定は `<PROJECT_NAME>-google-ssl-certificate-<LB の名前>` |
+| `managedSsl` | 証明書 | `{ mode?, certificateName?, domains, validationZone?, dnsAuthorizationNames?, certificatePath?, privateKeyPath? }` | — | `mode: "CERTIFICATE_MANAGER"`（リージョンのみ）: Certificate Manager の Google マネージド証明書（Google が発行・更新）。ドメインごとに DNS 認証（`PER_PROJECT_RECORD`）と、公開ゾーン `validationZone` への CNAME レコードを作る。`features.dns`（ゾーンがないと証明書を作らず、synth で警告が出る）と Certificate Manager API が必要。`dnsAuthorizationNames` の既定は `<PROJECT_NAME>-google-dns-authorization-<LB の名前>-<ドメイン>`。それ以外（`IMPORT` または省略）: ファイルを指定: 自己管理の証明書をアップロード（リージョン）。ファイルなし: Google マネージド（グローバル）。名前の既定は `<PROJECT_NAME>-google-ssl-certificate-<LB の名前>` |
 | `sslCertificateNames` | 既存の証明書 | 名前 | — | |
 | `backends[]` | バックエンド | `{ name, key?, names?: { serverlessNeg?, healthCheck? }, protocol, loadBalancingScheme, timeoutSec?, cloudRunServiceName?, healthCheck?: { requestPath, port } }` | **必須** | `cloudRunServiceName` は作成する Cloud Run のサービスと一致すること |
 | `defaultBackendName` | 既定のバックエンド | `backends[].name` | **必須** | |

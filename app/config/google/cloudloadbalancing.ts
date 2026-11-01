@@ -74,11 +74,23 @@ export const gcpLbConfigs = [
     },
 
     // SSL Configuration for Regional LB
-    // Includes domain names and paths to certificate files
+    // CERTIFICATE_MANAGER: Google issues and renews the certificate
+    //   (Certificate Manager, DNS authorization records in validationZone;
+    //   needs features.dns and the Certificate Manager API)
+    // IMPORT: uploads certificatePath / privateKeyPath
     managedSsl: {
+      mode: "CERTIFICATE_MANAGER" as "CERTIFICATE_MANAGER" | "IMPORT",
       // Default: <project>-google-ssl-certificate-<LB name>
       certificateName: "run-regional-https-lb-cert",
       domains: [`api.${PUBLIC_DOMAIN}`],
+      // CERTIFICATE_MANAGER: public zone of the DNS authorization records
+      validationZone: PUBLIC_DOMAIN,
+      // CERTIFICATE_MANAGER: DNS authorization name per domain
+      // (default: <project>-google-dns-authorization-<LB name>-<domain>)
+      dnsAuthorizationNames: {
+        [`api.${PUBLIC_DOMAIN}`]: "run-regional-https-lb-dnsauth-api",
+      } as Record<string, string>,
+      // IMPORT: certificate files
       certificatePath: "./sslcerts/openssl/server.crt",
       privateKeyPath: "./sslcerts/openssl/server.key",
     },

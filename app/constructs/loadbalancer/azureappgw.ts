@@ -10,11 +10,14 @@ import * as fs from "fs";
  * Listener configuration for different ports/protocols
  */
 
-export interface AzureAppGwSslCertificate {
-  name: string;
-  data: string;
-  password: string;
-}
+/**
+ * Certificate of a listener: a PFX (`data`: file path or base64, with
+ * `password`), or a Key Vault secret ID read with the gateway's identity
+ * (without a version: the gateway picks up new versions).
+ */
+export type AzureAppGwSslCertificate =
+  | { name: string; data: string; password: string }
+  | { name: string; keyVaultSecretId: string };
 
 export interface AzureAppGwListenerConfig {
   name: string;
@@ -116,6 +119,8 @@ export interface AzureAppGwConfig {
   };
   wafCustomRules?: AzureWafCustomRule[];
   sslCertificates?: AzureAppGwSslCertificate[];
+  /** User-assigned identities of the gateway (Key Vault certificates) */
+  identityIds?: string[];
   tags?: { [key: string]: string };
 }
 
@@ -253,6 +258,9 @@ export function createAzureAppGwResources(
 
     //  SSL Certificates
     sslCertificate: config.sslCertificates?.map((cert) => {
+      if ("keyVaultSecretId" in cert) {
+        return { name: cert.name, keyVaultSecretId: cert.keyVaultSecretId };
+      }
       let base64Data: string;
       if (fs.existsSync(cert.data)) {
         const fileBuffer = fs.readFileSync(cert.data);
@@ -266,6 +274,10 @@ export function createAzureAppGwResources(
         password: cert.password,
       };
     }),
+
+    identity: config.identityIds?.length
+      ? { type: "UserAssigned", identityIds: config.identityIds }
+      : undefined,
 
     httpListener: config.listeners.map((l) => ({
       name: names.listener(l.name),

@@ -7,6 +7,7 @@ import { LbListener } from "@cdktn/provider-aws/lib/lb-listener";
 import { LbTargetGroup } from "@cdktn/provider-aws/lib/lb-target-group";
 import { SecurityGroup } from "@cdktn/provider-aws/lib/security-group";
 import { Vpc as AwsVpc } from "@cdktn/provider-aws/lib/vpc";
+import { Route53Zone } from "@cdktn/provider-aws/lib/route53-zone";
 import { LoadBalancerDnsInfo } from "../common";
 
 // Types of the AWS cloud module (clouds/aws).
@@ -70,6 +71,8 @@ export interface AwsAlbResourcesWithDns extends AwsAlbResources {
 export interface AwsResourcesOutput {
   /** VPC resources – passed to VPN and Private Zone orchestrators */
   vpc?: AwsVpcResources;
+  /** Public DNS zones by domain (features.dns), for the parent zone delegation */
+  publicZones?: Record<string, Route53Zone>;
   /** RDS / Aurora resources for Private Zone CNAME registration */
   dbResources?: AwsDbResources;
   /** EFS instance metadata for Private Zone CNAME registration */

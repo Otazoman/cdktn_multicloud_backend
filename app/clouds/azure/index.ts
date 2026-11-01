@@ -112,6 +112,7 @@ export const createAzureResources = (
 
   // Populated by createAzurePublicDns, used by createAzureContainers
   const publicZones: Record<string, DnsZone> = {};
+  output.publicZones = publicZones;
   // Populated by createAzureCicd, used by createAzureContainers
   const acrRegistryMap = new Map<string, ContainerRegistry>();
   // Populated by createAzureContainers, used by createAzureMonitoring

@@ -92,6 +92,8 @@ Azure 全体で一意である必要がある名前は `envScopedName()` を使�
 
 ## Key Vault（`secrets.ts`、`azureKeyVaultConfig`、機能 `dbs`）
 
+`dbs` がなくても、作る Application Gateway に `LETS_ENCRYPT` の証明書があれば（機能 `containers`）作られ、その証明書を保管します。
+
 | 項目名 | 設定する内容 | 設定できる値 | 指定がない場合のデフォルト値 | 備考 |
 |---|---|---|---|---|
 | `name` | Key Vault の名前 | 3〜24 文字、`envScopedName` で作る | **必須** | 全世界で一意 |
@@ -169,8 +171,25 @@ Azure 全体で一意である必要がある名前は `envScopedName()` を使�
 | `pathRules[]` | パスでのルーティング | `{ name, paths, backendName }` | — | |
 | `wafConfig` | `{ enabled, firewallMode, ruleSetType?, ruleSetVersion? }` | `Detection`、`Prevention` | `OWASP`、`3.2` | `WAF_v2` のみ |
 | `wafCustomRules[]` | WAF のカスタムルール | `{ name, priority, ruleType: "MatchRule", action: "Allow" \| "Block" \| "Log", matchConditions }` | — | |
-| `sslCertificates[]` | PFX の証明書 | `{ name, data: パス, password }` | — | `password` は `AZURE_APPGW_SSL_CERT_PASSWORD` から |
+| `sslCertificates[]` | リスナーの証明書 | `{ name, mode?, domains?, keyVaultCertificateName?, acmeServer?, renewalJobName?, data?, password? }` | — | `mode: "LETS_ENCRYPT"`: Let's Encrypt が発行し、更新ジョブ（下記）が Key Vault に自動で更新する。ゲートウェイは自分の ID で読む。`dnsConfig.subdomain` の公開ゾーン（`dns`）と Container Apps の環境が必要。Key Vault は `dbs` がなくても作られる。`acmeServer`: `production`（既定）か `staging`。`renewalJobName` は 32 文字まで、既定は `<PROJECT_NAME>-azure-cert-renew-<name>`（短縮）。`IMPORT` または省略: PFX ファイル `data` と `password`（`AZURE_APPGW_SSL_CERT_PASSWORD` から） |
+| `identityName` | ゲートウェイのユーザー割り当て ID（`LETS_ENCRYPT`: Key Vault に対する `Key Vault Secrets User`） | 文字列 | `<PROJECT_NAME>-azure-identity-<name>` | |
 | `tags` | タグ | マップ | — | |
+
+### 証明書の更新ジョブ（`certrenewal.ts`、`azureCertRenewalConfig`）
+
+`LETS_ENCRYPT` の証明書ごとに作られます。環境の中の Container Apps のジョブが、スケジュールで `scripts/azure/cert-renew.sh` を実行します。証明書が Key Vault にない、または `renewBeforeDays` 以内に期限が切れるとき、lego で申請し（公開ゾーンでの DNS-01。ジョブのシステム割り当て ID に、ゾーンへの `DNS Zone Contributor` と Key Vault への `Key Vault Certificates Officer`）、Key Vault に取り込みます。ゲートウェイはバージョンなしで証明書を参照し、新しい版を 4 時間以内に使い始めます。deploy の中では `scripts/azure-cert-job-wait.sh` がジョブを 1 回起動して待つので（`ARM_*` のサービスプリンシパルで ARM の REST API を使う）、ゲートウェイを作る時点で証明書があります。Let's Encrypt は同じ名前の証明書を 7 日に 5 枚までしか発行せず、環境を作るたびに 1 枚使います。
+
+| 項目 | 説明 | 指定できる値 | 既定値 | 備考 |
+|---|---|---|---|---|
+| `environmentName` | ジョブの Container Apps の環境 | `containerapps.ts` の `environmentName` | `main-env` | 作られていること |
+| `cronExpression` | スケジュール（UTC） | cron | `0 18 * * *`（日本時間 3:00） | |
+| `renewBeforeDays` | 期限まで何日未満で更新するか | 日数 | `30` | Let's Encrypt の証明書の有効期間は 90 日 |
+| `cpu`、`memory` | ジョブのリソース | Consumption の組み合わせ（メモリ = 2 × CPU） | `1.0`、`2Gi` | `0.5Gi` では、足りない道具の tdnf でのインストールが強制終了された |
+| `image` | ジョブのイメージ | イメージ | `mcr.microsoft.com/azure-cli:2.91.0-azurelinux3.0` | bash、jq。curl や tar がなければスクリプトが入れる |
+| `lego.version`、`lego.linuxAmd64Sha256` | ジョブがダウンロードする ACME クライアント（SHA-256 で確認） | リリースのタグ、SHA-256 | `v4.35.2` | 2 つを一緒に変える（リリースのページの `lego_<version>_linux_amd64.tar.gz` の SHA-256） |
+| `acmeDirectories` | Let's Encrypt のディレクトリ | URL | production / staging | |
+| `deployWaitTimeoutSeconds` | deploy がジョブを待つ時間 | 秒 | `1800` | 超えると deploy は失敗する。もう一度実行する |
+| `replicaTimeoutSeconds` | ジョブの 1 回の実行の上限 | 秒 | `1500` | |
 
 ## CI/CD（`devops_acr_config.ts`、`azureDevOpsAcrConfigs[]`、機能 `cicd`）
 

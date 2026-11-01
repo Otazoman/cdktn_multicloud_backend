@@ -3,13 +3,47 @@ import { LOCATION, PUBLIC_DOMAIN, RESOURCE_GROUP } from "./common";
 import type { AzureAppGwConfig } from "../../constructs/loadbalancer/azureappgw";
 
 /**
+ * TLS certificate of a listener.
+ *
+ * LETS_ENCRYPT: issued by Let's Encrypt and renewed automatically by the
+ *   renewal job (certrenewal.ts) into the Key Vault, which the gateway
+ *   references. Needs the public zone (features.dns) and the Container Apps
+ *   environment; the Key Vault (secrets.ts) is created for it even without
+ *   features.dbs.
+ * IMPORT (or omitted): the PFX file `data` with its `password`.
+ */
+export interface AzureAppGwCertificateSettings {
+  name: string;
+  mode?: "LETS_ENCRYPT" | "IMPORT";
+  // LETS_ENCRYPT
+  /** Names of the certificate (in the public zone of dnsConfig.subdomain) */
+  domains?: string[];
+  /** Name of the certificate in the Key Vault */
+  keyVaultCertificateName?: string;
+  /** production (trusted by browsers) or staging (relaxed rate limits) */
+  acmeServer?: "production" | "staging";
+  /** Renewal job (certrenewal.ts), at most 32 characters. Default: <PROJECT_NAME>-azure-cert-renew-<name> (shortened) */
+  renewalJobName?: string;
+  // IMPORT
+  data?: string;
+  password?: string;
+}
+
+/**
  * Application Gateway settings: the construct's AzureAppGwConfig with the
  * subnet *name* (resolved to an ID by clouds/azure/container.ts), plus DNS
- * settings.
+ * and certificate settings.
  */
-export interface AzureAppGwSettings extends Omit<AzureAppGwConfig, "subnetId"> {
+export interface AzureAppGwSettings
+  extends Omit<
+    AzureAppGwConfig,
+    "subnetId" | "sslCertificates" | "identityIds"
+  > {
   subnetName: string;
   dnsConfig?: { subdomain: string; fqdn?: string };
+  sslCertificates?: AzureAppGwCertificateSettings[];
+  /** User-assigned identity of the gateway (LETS_ENCRYPT certificates). Default: <PROJECT_NAME>-azure-identity-<name> */
+  identityName?: string;
 }
 
 export const azureAppGwConfigs: AzureAppGwSettings[] = [
@@ -27,7 +61,7 @@ export const azureAppGwConfigs: AzureAppGwSettings[] = [
     },
     location: LOCATION,
     resourceGroupName: RESOURCE_GROUP,
-    build: false,
+    build: true,
     // false: fixed `capacity` instances. true: autoscale between
     // minCapacity (0-100) and maxCapacity (2-125); capacity is then ignored.
     useAutoscale: false,
@@ -88,8 +122,14 @@ export const azureAppGwConfigs: AzureAppGwSettings[] = [
     sslCertificates: [
       {
         name: "my-ssl-cert",
+        mode: "LETS_ENCRYPT",
+        domains: [`api.${PUBLIC_DOMAIN}`],
+        keyVaultCertificateName: "plain-https-appgw-api-cert",
+        acmeServer: "production",
+        renewalJobName: "plain-https-appgw-cert-renew",
+        // IMPORT: PFX file and its password
         data: "./sslcerts/pfx/azureappgw_certificate.pfx",
-        password: process.env.AZURE_APPGW_SSL_CERT_PASSWORD!,
+        password: process.env.AZURE_APPGW_SSL_CERT_PASSWORD,
       },
     ],
     tags: {
@@ -110,7 +150,7 @@ export const azureAppGwConfigs: AzureAppGwSettings[] = [
     },
     location: LOCATION,
     resourceGroupName: RESOURCE_GROUP,
-    build: true,
+    build: false,
     useAutoscale: false,
     sku: {
       name: "Standard_v2",

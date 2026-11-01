@@ -212,6 +212,7 @@ cdktn が使う IAM ユーザーに、有効にするリソースの権限に加
 | Filestore | Cloud Filestore API |
 | Secret Manager（Cloud SQL と一緒に使う） | Secret Manager API |
 | 変更履歴の削除ジョブ（`apiContainerConfig.journalPrune.enabled`） | Cloud Scheduler API（ないと、deploy が `Cloud Scheduler API has not been used in project ... or it is disabled` で失敗します）、Cloud Run Admin API |
+| `managedSsl.mode: "CERTIFICATE_MANAGER"` の HTTPS のロードバランサー | Certificate Manager API（`certificatemanager.googleapis.com`） |
 | CI/CD | Cloud Build API、Secret Manager API（GitHub との接続）、Artifact Registry API、Cloud Run Admin API、IAM API、Service Networking API（プライベートプールがプライベート サービス アクセスを使うため） |
 
 ```bash
@@ -269,6 +270,106 @@ gcloud projects get-iam-policy "$PROJECT" --flatten="bindings[].members" \
 ### 公開 DNS のサブドメインの委任
 
 クラウドごとに、それぞれのサブドメイン（例: `awstest.example.com`）を持ちます。公開ゾーンを作った後、親ゾーンから委任します。
+
+#### 自動の委任（親ゾーンが別の AWS アカウントの Route 53 にある場合）
+
+親ゾーンが Route 53（通常は別の AWS アカウント）にあるとき、cdktn は deploy の中で各公開ゾーンの NS レコードを親ゾーンに書き込みます（`resources/publicDnsDelegation.ts`）。手動の登録は不要で、destroy の後に作り直して（ネームサーバーが変わっても）同じです。cdktn は自分の AWS の認証情報で、親ゾーンのアカウントの IAM ロールを引き受けます。最初に 1 回だけ設定します。
+
+1. cdktn の IAM ユーザー。cdktn のコンテナの認証情報（`.env.<env>` の `AWS_ACCESS_KEY_ID`）で実行します。コンテナには AWS CLI がありません。ホストで実行するときは、アクセスキー ID の先頭を比べて、ホストが同じ IAM ユーザーを使っているか確かめます（シークレットキーは表示しない）。
+
+   ```bash
+   aws sts get-caller-identity --query Arn --output text   # ホスト
+   aws configure get aws_access_key_id | cut -c1-8          # ホスト
+   echo "${AWS_ACCESS_KEY_ID:0:8}"                           # cdktn のコンテナ
+   ```
+
+2. **親ゾーンのアカウント**で、ロール `cdktn-ns-delegation` を作ります。信頼ポリシー（cdktn の IAM ユーザーだけが引き受けられる）:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Effect": "Allow",
+       "Principal": { "AWS": "arn:aws:iam::<cdktn のアカウント ID>:user/<cdktn の IAM ユーザー>" },
+       "Action": "sts:AssumeRole"
+     }]
+   }
+   ```
+
+   権限ポリシー（サブドメインの NS レコードだけを変更できる。Route 53 の条件キー。名前は小文字で末尾のドットなし）。親ゾーンを使うすべての環境のサブドメインを並べます。
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": "route53:ChangeResourceRecordSets",
+         "Resource": "arn:aws:route53:::hostedzone/<親ゾーンの ID>",
+         "Condition": {
+           "ForAllValues:StringEquals": {
+             "route53:ChangeResourceRecordSetsNormalizedRecordNames": [
+               "awstest.example.com", "googletest.example.com", "azuretest.example.com"
+             ],
+             "route53:ChangeResourceRecordSetsRecordTypes": ["NS"],
+             "route53:ChangeResourceRecordSetsActions": ["CREATE", "UPSERT", "DELETE"]
+           }
+         }
+       },
+       {
+         "Effect": "Allow",
+         "Action": ["route53:GetHostedZone", "route53:ListResourceRecordSets"],
+         "Resource": "arn:aws:route53:::hostedzone/<親ゾーンの ID>"
+       },
+       {
+         "Effect": "Allow",
+         "Action": "route53:GetChange",
+         "Resource": "arn:aws:route53:::change/*"
+       }
+     ]
+   }
+   ```
+
+3. **cdktn のアカウント**で、cdktn の IAM ユーザーがロールを引き受けられるようにします（`AdministratorAccess` が直接またはグループ経由で付いていれば不要）。IAM を変更できる認証情報で実行します。
+
+   ```bash
+   USER_NAME=<cdktn の IAM ユーザー>
+   PARENT_ACCOUNT_ID=<親ゾーンのアカウント ID>   # 12 桁
+   cat > assume-ns-role.json <<EOF
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Effect": "Allow",
+       "Action": "sts:AssumeRole",
+       "Resource": "arn:aws:iam::${PARENT_ACCOUNT_ID}:role/cdktn-ns-delegation"
+     }]
+   }
+   EOF
+   aws iam put-user-policy --user-name "$USER_NAME" \
+     --policy-name assume-cdktn-ns-delegation \
+     --policy-document file://assume-ns-role.json
+   ```
+
+4. 確認（cdktn の IAM ユーザーで）: 有効期限の日時が表示されれば成功です。`AccessDenied` のときは、信頼ポリシーの `Principal` と、手順 3 のポリシーの `Resource`（アカウント ID は 12 桁）を確かめます。
+
+   ```bash
+   aws sts assume-role \
+     --role-arn "arn:aws:iam::${PARENT_ACCOUNT_ID}:role/cdktn-ns-delegation" \
+     --role-session-name check --query 'Credentials.Expiration' --output text
+   ```
+
+5. 環境ごとに、ロールと親ゾーンを `state/<環境名>/parent-dns.json` に書きます（Git 管理外。ARN にアカウント ID が含まれるため。合成のたびに読むので、コンテナの再起動は不要）。
+
+   ```bash
+   cat > state/dev/parent-dns.json <<'EOF'
+   { "roleArn": "arn:aws:iam::<親ゾーンのアカウント ID>:role/cdktn-ns-delegation",
+     "hostedZoneId": "<親ゾーンの ID>" }
+   EOF
+   ```
+
+NS レコード（TTL 60）は、以前に手動で登録した同じ名前のレコードを上書きし、destroy で削除されます。ファイルがないときは synth で警告が出て、下の手順で手動で登録します。
+
+#### 手動の委任
 
 各サブドメインのネームサーバーを調べます。
 
@@ -596,6 +697,8 @@ build: byEnv({ default: false, stg: true }),   // 既定値 + 違う環境だけ
 | Google の CI/CD | API を有効にした（Service Networking を含む）、GitHub の接続が `COMPLETE`、cdktn のサービスアカウントに 3 つの IAM のロールがある（5 章「Google Cloud」） |
 | Azure の CI/CD | 「Azure: Azure DevOps ...」の手順 1〜10（組織、プロジェクト、GitHub のサービス接続、組織へのサービスプリンシパルの追加、リソースプロバイダー、`AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID`）、ロールを割り当てる権限（5 章「Azure」）、アプリのリポジトリの `azure-pipelines.yml` |
 | AWS の HTTPS のロードバランサー | 証明書があること（AWS マネージド証明書なら `features.dns`、または証明書ファイル（`IMPORT`））。ない場合は HTTP のパターンを使う（synth で警告が出る） |
+| Azure の HTTPS の Application Gateway | `LETS_ENCRYPT`（既定）: `features.dns`（Key Vault は `features.dbs` がなくても作られる）、親ゾーンへの公開ゾーンの NS の登録（`state/<環境名>/parent-dns.json` があれば自動。なければ deploy が証明書のジョブを待つ間に登録する）、cdktn の ID がロールを割り当てられること。`IMPORT`: PFX ファイルと `AZURE_APPGW_SSL_CERT_PASSWORD` |
+| Google の HTTPS のロードバランサー | `CERTIFICATE_MANAGER`（既定）: `features.dns`、親ゾーンへの公開ゾーンの NS の登録（`state/<環境名>/parent-dns.json` があれば自動）、Certificate Manager API。`IMPORT`: 証明書ファイル。ゾーンがないと証明書を作らない（synth で警告が出る） |
 
 ```bash
 echo "$DEPLOY_ENV"      # このコンテナの環境

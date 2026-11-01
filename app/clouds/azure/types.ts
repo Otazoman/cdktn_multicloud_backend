@@ -2,6 +2,7 @@ import { LogAnalyticsWorkspace } from "@cdktn/provider-azurerm/lib/log-analytics
 import { createAzureDatabases } from "../../constructs/relationaldatabase/azuredatabase";
 import { createAzureVnetResources } from "../../constructs/vpcnetwork/azurevnet";
 import { ApplicationGateway } from "@cdktn/provider-azurerm/lib/application-gateway";
+import { DnsZone } from "@cdktn/provider-azurerm/lib/dns-zone";
 import { NetworkSecurityGroup } from "@cdktn/provider-azurerm/lib/network-security-group";
 import { NetworkSecurityRule } from "@cdktn/provider-azurerm/lib/network-security-rule";
 import { PublicIp } from "@cdktn/provider-azurerm/lib/public-ip";
@@ -9,6 +10,7 @@ import { Subnet as AzureSubnet } from "@cdktn/provider-azurerm/lib/subnet";
 import { SubnetNatGatewayAssociation } from "@cdktn/provider-azurerm/lib/subnet-nat-gateway-association";
 import { SubnetNetworkSecurityGroupAssociation } from "@cdktn/provider-azurerm/lib/subnet-network-security-group-association";
 import { VirtualNetwork } from "@cdktn/provider-azurerm/lib/virtual-network";
+import { TerraformResource } from "cdktn";
 import { LoadBalancerDnsInfo } from "../common";
 
 // Types of the Azure cloud module (clouds/azure).
@@ -72,6 +74,14 @@ export interface AzureContainerAppConfig {
 export interface AzureResourcesOutput {
   /** VNet resources – passed to VPN and Private Zone orchestrators */
   vpc?: AzureVnetResources;
+  /** Public DNS zones by domain (features.dns), for the parent zone delegation */
+  publicZones?: Record<string, DnsZone>;
+  /**
+   * Resources that need the public zones delegated from the parent zone
+   * (Let's Encrypt issuance during the deploy): they depend on the NS
+   * records created by resources/publicDnsDelegation.ts
+   */
+  needsPublicDnsDelegation?: TerraformResource[];
   /** Azure Database resources for Private Zone CNAME registration */
   dbResources?: Array<{
     server: AzureDatabaseOutput["server"];

@@ -35,15 +35,15 @@ export const accounts: EnvAccounts = byEnv<EnvAccounts>({
 export type VpnMode = "singleTunnel" | "haBgp";
 
 export const vpnMode: VpnMode = byEnv<VpnMode>({
-  dev: "singleTunnel",
-  stg: "haBgp",
+  dev: "haBgp",
+  stg: "singleTunnel",
   prod: "haBgp",
 });
 
 // ---- Cross-cloud VPN -------------------------------------------------------
 
 /** Create VPN resources at all */
-export const useVpn: boolean = true;
+export const useVpn: boolean = false;
 
 // Direct VPN connection per cloud pair. When two pairs share a cloud
 // (e.g. awsToAzure + googleToAzure), that cloud acts as a hub and routes
@@ -55,7 +55,7 @@ export const googleToAzure: boolean = true;
 // ---- Cross-cloud private DNS -----------------------------------------------
 
 /** Private DNS zones and cross-cloud DNS forwarding */
-export const hostZones: boolean = true;
+export const hostZones: boolean = false;
 
 // ---- Per-cloud switches ----------------------------------------------------
 // Each feature is created when the cloud and the feature are enabled. VPN
@@ -88,7 +88,7 @@ export interface CloudSettings {
 
 export const clouds: Record<CloudId, CloudSettings> = {
   aws: {
-    enabled: true,
+    enabled: false,
     features: {
       vms: true,
       dbs: true,
@@ -101,14 +101,14 @@ export const clouds: Record<CloudId, CloudSettings> = {
     },
   },
   google: {
-    enabled: true,
+    enabled: false,
     features: {
       vms: true,
       dbs: true,
       storage: false,
       containers: true,
       cicd: true,
-      dns: false,
+      dns: true,
       alerting: true,
       logArchive: false,
     },
@@ -116,13 +116,13 @@ export const clouds: Record<CloudId, CloudSettings> = {
   azure: {
     enabled: true,
     features: {
-      vms: true,
-      dbs: true,
+      vms: false,
+      dbs: false,
       storage: false,
       containers: true,
-      cicd: true,
-      dns: false,
-      alerting: true,
+      cicd: false,
+      dns: true,
+      alerting: false,
       logArchive: false,
     },
   },

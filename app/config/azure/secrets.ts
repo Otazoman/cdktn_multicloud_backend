@@ -2,7 +2,9 @@ import { envScopedName } from "../environment";
 import { LOCATION, RESOURCE_GROUP } from "./common";
 
 /**
- * Key Vault (FEAT-01). Created when clouds.azure.features.dbs is enabled.
+ * Key Vault (FEAT-01). Created when clouds.azure.features.dbs is enabled
+ * (database secrets), or for the Let's Encrypt certificates of a built
+ * Application Gateway (applicationgateway.ts, features.containers).
  *
  * The vault is reachable only through its private endpoint, so cdktn creates
  * the vault and the access only, not the secrets. The secrets are created

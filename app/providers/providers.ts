@@ -10,6 +10,7 @@ import { azureDevOpsConfig } from "../config/azure/cicd";
 import { accounts } from "../config/commonsettings";
 import { currentEnv } from "../config/environment";
 import { isCloudEnabled } from "../config/features";
+import { parentDnsSettings } from "../config/parentdns";
 import {
   LOCATION as GOOGLE_REGION,
   PROJECT_NAME as GOOGLE_PROJECT,
@@ -37,6 +38,13 @@ export interface Providers {
    * which must be a member of the organization.
    */
   azuredevops(): AzuredevopsProvider;
+  /**
+   * Returns the AWS provider of the parent DNS zone (another AWS account,
+   * state/<env>/parent-dns.json), creating it on first use: it assumes the
+   * parent account's IAM role with the AWS credentials of cdktn. Undefined
+   * when the file does not exist.
+   */
+  awsParentDns(): AwsProvider | undefined;
 }
 
 export const createProviders = (scope: Construct): Providers => {
@@ -66,6 +74,7 @@ export const createProviders = (scope: Construct): Providers => {
 
   let nullProvider: NullProvider | undefined;
   let azuredevopsProvider: AzuredevopsProvider | undefined;
+  let awsParentDnsProvider: AwsProvider | undefined;
 
   return {
     aws: awsProvider,
@@ -80,6 +89,18 @@ export const createProviders = (scope: Construct): Providers => {
         orgServiceUrl: `https://dev.azure.com/${azureDevOpsConfig.organization}`,
       });
       return azuredevopsProvider;
+    },
+    awsParentDns: () => {
+      const parent = parentDnsSettings();
+      if (!parent) return undefined;
+      awsParentDnsProvider ??= new AwsProvider(scope, "aws-parent-dns", {
+        alias: "parent-dns",
+        region: AWS_REGION,
+        // Refuse to run against another account than the role's
+        allowedAccountIds: [parent.accountId],
+        assumeRole: [{ roleArn: parent.roleArn, sessionName: "cdktn-ns-delegation" }],
+      });
+      return awsParentDnsProvider;
     },
   };
 };

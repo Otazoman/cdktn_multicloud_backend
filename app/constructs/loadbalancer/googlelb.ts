@@ -78,6 +78,11 @@ export interface GcpLbConfig {
   protocol: "HTTP" | "HTTPS";
   port: number;
   sslCertificateNames?: string[];
+  /**
+   * Certificate Manager certificate IDs (REGIONAL only). When set, they are
+   * used instead of sslCertificateNames (the two cannot be mixed on a proxy)
+   */
+  certificateManagerCertificates?: string[];
   networkTier?: string;
   loadBalancingScheme?: string;
   cloudRunResources?: Record<string, any>;
@@ -413,7 +418,9 @@ function createRegionalLb(
           config.name,
         ),
         urlMap: urlMap.id,
-        sslCertificates: config.sslCertificateNames || [],
+        ...(config.certificateManagerCertificates?.length
+          ? { certificateManagerCertificates: config.certificateManagerCertificates }
+          : { sslCertificates: config.sslCertificateNames || [] }),
         region: config.region,
       },
     );

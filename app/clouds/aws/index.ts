@@ -166,6 +166,7 @@ export const createAwsResources = (
 
   // Populated by createAwsPublicDns, used by createAwsContainers
   const publicZones: Record<string, Route53Zone> = {};
+  output.publicZones = publicZones;
 
   const ctx: AwsBuildContext = {
     scope,

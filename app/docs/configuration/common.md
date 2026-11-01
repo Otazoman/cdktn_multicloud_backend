@@ -46,6 +46,13 @@ Example: `byEnv({ default: {}, stg: { awsAccountId: "123456789012", azureSubscri
 
 A feature is created when both the cloud and the feature are enabled. VPN connections do not affect these switches.
 
+### Parent zone delegation (`config/parentdns.ts`)
+
+| Item | Description | Allowed values | Default | Notes |
+|---|---|---|---|---|
+| `state/<env>/parent-dns.json` | Parent zone in Route 53 (another AWS account) into which cdktn writes the NS records of every public zone (`features.dns`) | `{ "roleArn": "arn:aws:iam::<12 digits>:role/<name>", "hostedZoneId": "<parent zone ID>" }` | none (NS records registered by hand; synth warns) | Not in Git, read at every synthesis. The role and its policy: docs/getting-started.md, "Public DNS sub-domain delegation". The provider refuses other accounts than the role's |
+| `PARENT_NS_TTL` | TTL of the NS records | seconds | `60` | |
+
 ## Cross-cloud VPN
 
 | Item | Description | Allowed values | Default | Notes |

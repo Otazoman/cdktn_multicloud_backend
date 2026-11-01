@@ -29,6 +29,8 @@ export interface AzureKeyVaultConfig {
 export interface AzureKeyVaultOutput {
   keyVault: KeyVault;
   privateEndpoint: PrivateEndpoint;
+  /** Link of the privatelink.vaultcore.azure.net zone to the VNet */
+  privateDnsZoneVnetLink: PrivateDnsZoneVirtualNetworkLink;
 }
 
 /**
@@ -81,7 +83,7 @@ export function createAzureKeyVault(
     name: "privatelink.vaultcore.azure.net",
     resourceGroupName: config.resourceGroupName,
   });
-  new PrivateDnsZoneVirtualNetworkLink(scope, "azure-keyvault-private-dns-vnet-link", {
+  const privateDnsZoneVnetLink = new PrivateDnsZoneVirtualNetworkLink(scope, "azure-keyvault-private-dns-vnet-link", {
     provider,
     name: resourceName(
       config.names?.privateDnsZoneVnetLink,
@@ -130,5 +132,5 @@ export function createAzureKeyVault(
     },
   );
 
-  return { keyVault, privateEndpoint };
+  return { keyVault, privateEndpoint, privateDnsZoneVnetLink };
 }

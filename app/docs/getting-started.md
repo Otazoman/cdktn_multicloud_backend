@@ -251,6 +251,7 @@ Enable the APIs for the features you use:
 | Filestore | Cloud Filestore API |
 | Secret Manager (with Cloud SQL) | Secret Manager API |
 | Journal pruning job (`apiContainerConfig.journalPrune.enabled`) | Cloud Scheduler API (without it the deploy fails with `Cloud Scheduler API has not been used in project ... or it is disabled`), Cloud Run Admin API |
+| HTTPS load balancer with `managedSsl.mode: "CERTIFICATE_MANAGER"` | Certificate Manager API (`certificatemanager.googleapis.com`) |
 | CI/CD | Cloud Build API, Secret Manager API (GitHub connection), Artifact Registry API, Cloud Run Admin API, IAM API, Service Networking API (the private pool uses Private Service Access) |
 
 ```bash
@@ -331,6 +332,126 @@ remove-iam-policy-binding` with the same `--member`, `--role` and
 
 Each cloud hosts its own sub-domain (e.g. `awstest.example.com`). After the
 public zones are created, delegate them from the parent zone.
+
+#### Automatic delegation (parent zone in Route 53 of another AWS account)
+
+When the parent zone is in Route 53 (usually of another AWS account), cdktn
+writes the NS records of every public zone into it during the deploy
+(`resources/publicDnsDelegation.ts`), so no manual registration is needed,
+also after a destroy and a new deploy (the name servers may change). cdktn
+assumes an IAM role of the parent account with its own AWS credentials. Set
+it up once:
+
+1. The IAM user of cdktn. Run with the credentials of the cdktn container
+   (`AWS_ACCESS_KEY_ID` of `.env.<env>`). The container has no AWS CLI: when
+   you run the commands on the host, check that the host uses the same IAM
+   user by comparing the first characters of the access key IDs (do not
+   print the secret key):
+
+   ```bash
+   aws sts get-caller-identity --query Arn --output text   # host
+   aws configure get aws_access_key_id | cut -c1-8          # host
+   echo "${AWS_ACCESS_KEY_ID:0:8}"                           # cdktn container
+   ```
+
+2. In the **parent account**, create the role `cdktn-ns-delegation`. Trust
+   policy (only the cdktn IAM user can assume it):
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Effect": "Allow",
+       "Principal": { "AWS": "arn:aws:iam::<cdktn account ID>:user/<cdktn IAM user>" },
+       "Action": "sts:AssumeRole"
+     }]
+   }
+   ```
+
+   Permission policy: only the NS records of the sub-domains can be changed
+   (Route 53 condition keys; names in lowercase without the trailing dot).
+   List the sub-domains of every environment that uses the parent zone:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": "route53:ChangeResourceRecordSets",
+         "Resource": "arn:aws:route53:::hostedzone/<parent zone ID>",
+         "Condition": {
+           "ForAllValues:StringEquals": {
+             "route53:ChangeResourceRecordSetsNormalizedRecordNames": [
+               "awstest.example.com", "googletest.example.com", "azuretest.example.com"
+             ],
+             "route53:ChangeResourceRecordSetsRecordTypes": ["NS"],
+             "route53:ChangeResourceRecordSetsActions": ["CREATE", "UPSERT", "DELETE"]
+           }
+         }
+       },
+       {
+         "Effect": "Allow",
+         "Action": ["route53:GetHostedZone", "route53:ListResourceRecordSets"],
+         "Resource": "arn:aws:route53:::hostedzone/<parent zone ID>"
+       },
+       {
+         "Effect": "Allow",
+         "Action": "route53:GetChange",
+         "Resource": "arn:aws:route53:::change/*"
+       }
+     ]
+   }
+   ```
+
+3. In the **cdktn account**, let the cdktn IAM user assume the role (not
+   needed with `AdministratorAccess`, directly or through a group). Run with
+   credentials that can change IAM:
+
+   ```bash
+   USER_NAME=<cdktn IAM user>
+   PARENT_ACCOUNT_ID=<parent account ID>   # 12 digits
+   cat > assume-ns-role.json <<EOF
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Effect": "Allow",
+       "Action": "sts:AssumeRole",
+       "Resource": "arn:aws:iam::${PARENT_ACCOUNT_ID}:role/cdktn-ns-delegation"
+     }]
+   }
+   EOF
+   aws iam put-user-policy --user-name "$USER_NAME" \
+     --policy-name assume-cdktn-ns-delegation \
+     --policy-document file://assume-ns-role.json
+   ```
+
+4. Check (as the cdktn IAM user): an expiration time is printed. On
+   `AccessDenied`, check the `Principal` of the trust policy and the
+   `Resource` of the policy of step 3 (the account ID has 12 digits).
+
+   ```bash
+   aws sts assume-role \
+     --role-arn "arn:aws:iam::${PARENT_ACCOUNT_ID}:role/cdktn-ns-delegation" \
+     --role-session-name check --query 'Credentials.Expiration' --output text
+   ```
+
+5. Per environment, write the role and the parent zone into
+   `state/<env>/parent-dns.json` (not in Git: the ARN contains the account
+   ID; read at every synthesis, so the container does not need a restart):
+
+   ```bash
+   cat > state/dev/parent-dns.json <<'EOF'
+   { "roleArn": "arn:aws:iam::<parent account ID>:role/cdktn-ns-delegation",
+     "hostedZoneId": "<parent zone ID>" }
+   EOF
+   ```
+
+The NS records (TTL 60) overwrite records of the same name registered by
+hand before, and are deleted on destroy. Without the file, synth warns and
+the records are registered by hand as below.
+
+#### Manual delegation
 
 Get the name servers of each sub-domain:
 
@@ -806,6 +927,8 @@ Before the first deploy, check the preparation of the features you enabled:
 | Google CI/CD | APIs enabled (including Service Networking), GitHub connection `COMPLETE`, the three IAM roles of the cdktn service account (section 5, "Google Cloud") |
 | Azure CI/CD | Steps 1–10 of "Azure: Azure DevOps ..." (organization, project, GitHub service connection, service principal in the organization, resource providers, `AZURE_DEVOPS_INFRASTRUCTURE_PRINCIPAL_ID`), role assignment permission (section 5, "Azure"), `azure-pipelines.yml` in the application repository |
 | AWS HTTPS load balancer | A certificate: `features.dns` for AWS-managed certificates, or certificate files (`IMPORT`); otherwise use the plain-HTTP pattern (synth warns) |
+| Azure HTTPS Application Gateway | `LETS_ENCRYPT` (default): `features.dns` (the Key Vault is created even without `features.dbs`), the NS records of the public zone in the parent zone (automatic with `state/<env>/parent-dns.json`; otherwise register them while the deploy waits for the certificate job), the identity of cdktn can create role assignments; `IMPORT`: PFX file and `AZURE_APPGW_SSL_CERT_PASSWORD` |
+| Google HTTPS load balancer | `CERTIFICATE_MANAGER` (default): `features.dns`, the NS records of the public zone in the parent zone (automatic with `state/<env>/parent-dns.json`), Certificate Manager API; `IMPORT`: certificate files. Without the zone no certificate is created (synth warns) |
 
 ```bash
 echo "$DEPLOY_ENV"      # the environment of this container

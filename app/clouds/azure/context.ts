@@ -6,6 +6,7 @@ import { ContainerRegistry } from "@cdktn/provider-azurerm/lib/container-registr
 import { DnsZone } from "@cdktn/provider-azurerm/lib/dns-zone";
 import { AzurermProvider } from "@cdktn/provider-azurerm/lib/provider";
 import { StorageAccount } from "@cdktn/provider-azurerm/lib/storage-account";
+import { TerraformResource } from "cdktn";
 import { Construct } from "constructs";
 import { AzureMonitorResources } from "../../constructs/observability/azuremonitor";
 import { AzureResourcesOutput, AzureVnetResources, AzureAppGwResourcesWithDns } from "./types";
@@ -25,8 +26,10 @@ export interface AzureBuildContext {
   azureMonitor?: AzureMonitorResources;
   /** Log archive storage account and archived environments (features.logArchive) */
   logArchive?: { storageAccount: StorageAccount; environments: string[] };
-  /** Key Vault of the database secrets (config/azure/secrets.ts), set by the dbs feature */
+  /** Key Vault (config/azure/secrets.ts) of the database secrets (dbs feature) and the Let's Encrypt certificates (containers feature) */
   keyVault?: KeyVault;
+  /** Private endpoint and DNS link of the Key Vault: needed to reach it from the VNet */
+  keyVaultPrivateAccess?: TerraformResource[];
   /** Journal pruning jobs by the Container App whose image they run, set by the containers feature */
   journalPruneJobs: Map<string, ContainerAppJob>;
   /** Application Gateways by name (config/azure/applicationgateway.ts), set by the containers feature */

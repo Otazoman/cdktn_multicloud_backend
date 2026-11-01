@@ -304,8 +304,47 @@ export function createGoogleContainers(ctx: GoogleBuildContext): void {
       .filter((config) => config.build)
       .forEach((config) => {
         let sslCertificateNames: string[] = [];
+        const certificateManagerCertificates: string[] = [];
 
-        if (
+        if (config.managedSsl?.mode === "CERTIFICATE_MANAGER") {
+          // The DNS authorization records go into the public zone (features.dns)
+          const managedSsl = config.managedSsl;
+          const validationZone = publicZones[managedSsl.validationZone ?? ""];
+          if (!validationZone) {
+            console.warn(
+              `⚠️  Warning: DNS zone "${managedSsl.validationZone}" not found for ${config.name}. ` +
+                "The Certificate Manager certificate needs features.dns.",
+            );
+          } else {
+            const certRes = createGoogleCertificate(scope, googleProvider, {
+              id: `${config.name}-cert`,
+              name: resourceName(
+                managedSsl.certificateName,
+                "google",
+                "ssl-certificate",
+                config.name,
+              ),
+              mode: "CERTIFICATE_MANAGER",
+              domains: managedSsl.domains,
+              project: config.project,
+              type: config.loadBalancerType as "GLOBAL" | "REGIONAL",
+              region: config.region,
+              dnsZone: { name: validationZone.name, project: validationZone.project },
+              dnsAuthorizationNames: Object.fromEntries(
+                managedSsl.domains.map((domain) => [
+                  domain,
+                  resourceName(
+                    managedSsl.dnsAuthorizationNames?.[domain],
+                    "google",
+                    "dns-authorization",
+                    `${config.name}-${domain}`,
+                  ),
+                ]),
+              ),
+            });
+            certificateManagerCertificates.push(certRes.certificateId);
+          }
+        } else if (
           config.managedSsl &&
           config.managedSsl.domains &&
           config.managedSsl.domains.length > 0
@@ -357,6 +396,7 @@ export function createGoogleContainers(ctx: GoogleBuildContext): void {
             protocol: config.protocol as "HTTP" | "HTTPS",
             loadBalancerType: config.loadBalancerType as "GLOBAL" | "REGIONAL",
             sslCertificateNames,
+            certificateManagerCertificates,
             cloudRunResources: cloudRunServices,
           },
           googleVpcResources.vpc,

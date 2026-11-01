@@ -14,7 +14,8 @@ app.ts
     │   └ clouds/<cloud>/index.ts         foundations (network, ...) + feature modules
     │       └ clouds/<cloud>/<feature>.ts dns / storage / database / compute / container / cicd
     ├ resources/vpnResources.ts           cross-cloud VPN      (+ resources/vpn/<pair>.ts)
-    └ resources/privateZoneResources.ts   cross-cloud private DNS (+ resources/privatezone/<cloud>.ts)
+    ├ resources/privateZoneResources.ts   cross-cloud private DNS (+ resources/privatezone/<cloud>.ts)
+    └ resources/publicDnsDelegation.ts    NS records of the public zones in the parent zone
          ↓ call
     constructs/<category>/<cloud><service>.ts   resource definitions
          ↑ read
@@ -37,6 +38,8 @@ app.ts
    passes it to the cross-cloud modules:
    - VPN, when `useVpn` is enabled — see [networking/vpn.md](networking/vpn.md)
    - private DNS, when `hostZones` is enabled
+   - delegation of the public zones from the parent zone (Route 53 of another
+     AWS account), when `state/<env>/parent-dns.json` exists
 
 ## Switches
 

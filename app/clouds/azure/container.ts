@@ -2,6 +2,8 @@ import { ContainerAppJob } from "@cdktn/provider-azurerm/lib/container-app-job";
 import { DataAzurermContainerApp } from "@cdktn/provider-azurerm/lib/data-azurerm-container-app";
 import { DnsARecord } from "@cdktn/provider-azurerm/lib/dns-a-record";
 import { RoleAssignment } from "@cdktn/provider-azurerm/lib/role-assignment";
+import { TerraformResource } from "cdktn";
+import * as path from "path";
 
 import {
   azureAcaConfigs,
@@ -10,6 +12,8 @@ import {
   azureAppGwConfigs,
 } from "../../config/azure/azuresettings";
 import { apiContainerConfig } from "../../config/apicontainer";
+import { AzureAppGwSettings } from "../../config/azure/applicationgateway";
+import { azureCertRenewalConfig } from "../../config/azure/certrenewal";
 import { subnets as azureSubnetConfigs } from "../../config/azure/vnet/subnets";
 import { isFeatureEnabled } from "../../config/features";
 import {
@@ -21,13 +25,17 @@ import {
   journalPruneEnvironment,
 } from "../apicontainer";
 import { createAzureContainerAppResources } from "../../constructs/container/azureaca";
+import { createAzureCertRenewalJob } from "../../constructs/container/azurecertjob";
 import {
   createAzureAcaPrivateDnsResources,
 } from "../../constructs/dns/privatezone/azureprivatezone";
-import { createAzureAppGwResources } from "../../constructs/loadbalancer/azureappgw";
+import {
+  AzureAppGwSslCertificate,
+  createAzureAppGwResources,
+} from "../../constructs/loadbalancer/azureappgw";
 import { AzureAppGwResourcesWithDns } from "./types";
 import { LoadBalancerDnsInfo } from "../common";
-import { resourceName, idPart } from "../../utils/naming";
+import { NAME_RULES, resourceName, idPart } from "../../utils/naming";
 import { addTerraformDependency } from "../../utils/terraformDependency";
 import { addApiHealthUrl } from "../healthurls";
 import { AzureBuildContext } from "./context";
@@ -350,11 +358,18 @@ export function createAzureContainers(ctx: AzureBuildContext): void {
                 : be;
             });
 
+            const certificates = resolveAppGwCertificates(ctx, config, envMap);
+
             const resources = createAzureAppGwResources(scope, azureProvider, {
               ...config,
               backends: backendsWithResolvedFqdns,
               subnetId: subnet.id,
+              sslCertificates: certificates.sslCertificates,
+              identityIds: certificates.identityIds,
             });
+            // Let's Encrypt: the certificate is in the Key Vault and the
+            // gateway's identity can read it before the gateway is created
+            addTerraformDependency(resources.appGw, certificates.dependencies);
 
             addTerraformDependency(resources.appGw, azureVnetResources.subnets);
 
@@ -443,4 +458,120 @@ export function createAzureContainers(ctx: AzureBuildContext): void {
     }
   }
 
+}
+
+/**
+ * Certificates of an Application Gateway. LETS_ENCRYPT entries get a renewal
+ * job (issued during the deploy) and are referenced from the Key Vault with
+ * the gateway's user-assigned identity; IMPORT entries are the PFX files.
+ */
+function resolveAppGwCertificates(
+  ctx: AzureBuildContext,
+  config: AzureAppGwSettings,
+  envMap: Map<string, ContainerAppEnvironment>,
+): {
+  sslCertificates: AzureAppGwSslCertificate[];
+  identityIds?: string[];
+  dependencies: TerraformResource[];
+} {
+  const { scope, providers, azureProvider, output, publicZones } = ctx;
+  const entries = config.sslCertificates ?? [];
+  const letsEncrypt = entries.filter((c) => c.mode === "LETS_ENCRYPT");
+
+  const importCertificate = (c: (typeof entries)[number]): AzureAppGwSslCertificate => {
+    if (!c.data || !c.password) {
+      throw new Error(
+        `Application Gateway "${config.name}": certificate "${c.name}" (IMPORT) needs data and password`,
+      );
+    }
+    return { name: c.name, data: c.data, password: c.password };
+  };
+  if (letsEncrypt.length === 0) {
+    return { sslCertificates: entries.map(importCertificate), dependencies: [] };
+  }
+
+  const label = `Application Gateway "${config.name}" (Let's Encrypt certificates)`;
+  const keyVault = ctx.keyVault;
+  if (!keyVault) {
+    throw new Error(`${label}: the Key Vault (config/azure/secrets.ts) was not created`);
+  }
+  const zone = publicZones[config.dnsConfig?.subdomain ?? ""];
+  if (!zone) {
+    throw new Error(
+      `${label}: the public zone of dnsConfig.subdomain (features.dns) is required`,
+    );
+  }
+  const environment = envMap.get(azureCertRenewalConfig.environmentName);
+  if (!environment) {
+    throw new Error(
+      `${label}: Container Apps environment "${azureCertRenewalConfig.environmentName}" ` +
+        `(config/azure/certrenewal.ts) is not built`,
+    );
+  }
+
+  const gateway = createAzureIdentityWithRoles(scope, azureProvider, {
+    name: resourceName(config.identityName, "azure", "identity", config.name),
+    resourceGroupName: config.resourceGroupName,
+    location: config.location,
+    grants: [{ key: "kv-secrets-user", role: "Key Vault Secrets User", scope: keyVault.id }],
+  });
+
+  const issued = letsEncrypt.map((c) => {
+    if (!c.domains?.length || !c.keyVaultCertificateName) {
+      throw new Error(`${label}: certificate "${c.name}" needs domains and keyVaultCertificateName`);
+    }
+    const job = createAzureCertRenewalJob(scope, azureProvider, providers.null(), {
+      certificateName: c.keyVaultCertificateName,
+      jobName: resourceName(
+        c.renewalJobName,
+        "azure",
+        "cert-renew",
+        c.name,
+        NAME_RULES.azureContainerApp,
+      ),
+      location: config.location,
+      resourceGroupName: config.resourceGroupName,
+      containerAppEnvironmentId: environment.id,
+      image: azureCertRenewalConfig.image,
+      cpu: azureCertRenewalConfig.cpu,
+      memory: azureCertRenewalConfig.memory,
+      cronExpression: azureCertRenewalConfig.cronExpression,
+      replicaTimeoutSeconds: azureCertRenewalConfig.replicaTimeoutSeconds,
+      scriptPath: path.join(process.cwd(), "scripts", "azure", "cert-renew.sh"),
+      environment: {
+        keyVaultUri: keyVault.vaultUri,
+        domains: c.domains,
+        acmeServer: azureCertRenewalConfig.acmeDirectories[c.acmeServer ?? "production"],
+        renewBeforeDays: azureCertRenewalConfig.renewBeforeDays,
+        legoVersion: azureCertRenewalConfig.lego.version,
+        legoSha256: azureCertRenewalConfig.lego.linuxAmd64Sha256,
+        zoneResourceGroupName: zone.resourceGroupName,
+        zoneName: zone.name,
+      },
+      dnsZoneId: zone.id,
+      keyVaultId: keyVault.id,
+      deployWait: {
+        scriptPath: path.join(process.cwd(), "scripts", "azure-cert-job-wait.sh"),
+        timeoutSeconds: azureCertRenewalConfig.deployWaitTimeoutSeconds,
+      },
+    });
+    // The job reaches the Key Vault through its private endpoint
+    addTerraformDependency(job.issued, ctx.keyVaultPrivateAccess ?? []);
+    return job.issued;
+  });
+  output.needsPublicDnsDelegation = [...(output.needsPublicDnsDelegation ?? []), ...issued];
+
+  return {
+    sslCertificates: entries.map((c) =>
+      c.mode === "LETS_ENCRYPT"
+        ? {
+            name: c.name,
+            // Without a version: the gateway picks up renewed versions
+            keyVaultSecretId: `${keyVault.vaultUri}secrets/${c.keyVaultCertificateName}`,
+          }
+        : importCertificate(c),
+    ),
+    identityIds: [gateway.identity.id],
+    dependencies: [...issued, ...gateway.roleAssignments],
+  };
 }

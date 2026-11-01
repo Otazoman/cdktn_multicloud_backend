@@ -7,6 +7,7 @@ import { hostZones, useVpn } from "../config/commonsettings";
 import { currentEnv } from "../config/environment";
 import { createProviders } from "../providers/providers";
 import { createPrivateZoneResources } from "../resources/privateZoneResources";
+import { createPublicDnsDelegation } from "../resources/publicDnsDelegation";
 import { createVpnResources } from "../resources/vpnResources";
 
 /**
@@ -20,7 +21,7 @@ import { createVpnResources } from "../resources/vpnResources";
  * references are available for CDKTN to generate proper references in cdk.tf.json,
  * which is the key fix for the Google VPC subnet zombie-deletion issue.
  *
- * Cross-cloud resources (VPN, Private DNS Zones) receive every cloud's output through
+ * Cross-cloud resources (VPN, Private DNS Zones, parent zone delegation) receive every cloud's output through
  * a single CloudContext.
  */
 export class MultiCloudBackendStack extends TerraformStack {
@@ -57,5 +58,9 @@ export class MultiCloudBackendStack extends TerraformStack {
     if (hostZones) {
       createPrivateZoneResources(ctx, vpn);
     }
+
+    // ── Cross-cloud: NS records of the public zones in the parent zone ─────
+    // Only with state/<env>/parent-dns.json (config/parentdns.ts).
+    createPublicDnsDelegation(ctx);
   }
 }

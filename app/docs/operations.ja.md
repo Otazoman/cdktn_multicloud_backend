@@ -180,6 +180,18 @@ deploy の後は、初回と同じく、シークレットを入れ直し（下�
 - AWS の `firehose` モード: 1 つのロググループに付けられるサブスクリプションフィルターは 2 つまでです。
 - Azure: アーカイブのストレージアカウントは HTTPS（TLS 1.2 以上）だけを受け付け、Microsoft が管理するキーで保存時に暗号化されます。`infrastructureEncryption: true` で二重に暗号化します。これはアカウントの作成時にしか設定できません（変えるとアカウントが作り直され、アーカイブしたログは削除されます）。
 
+## Azure — Application Gateway の Let's Encrypt の証明書
+
+`mode: "LETS_ENCRYPT"`（`config/azure/applicationgateway.ts`）では、deploy が更新ジョブを 1 回起動して証明書を待ちます（`[cert-job-wait]` の行）。その後はジョブが毎日動き、期限の 30 日前に更新します。作業は不要です。
+
+```bash
+# ホストの Azure CLI: ジョブの実行の一覧と、今すぐ実行する
+az containerapp job execution list -n <ジョブ名> -g <リソースグループ> -o table
+az containerapp job start -n <ジョブ名> -g <リソースグループ>
+```
+
+ログ（Log Analytics）: `ContainerAppConsoleLogs_CL | where ContainerJobName_s == "<ジョブ名>"`（`[cert-renew]` の行）。deploy が待ちの途中で失敗したら、ログを確かめ（多くは公開ゾーンの DNS の委任か、ロールの割り当ての反映待ち）、もう一度 `cdktn deploy` を実行します。Let's Encrypt は同じ名前の証明書を 7 日に 5 枚までしか発行せず、環境を作るたびに 1 枚使います。もっと頻繁に作り直すときは `acmeServer: "staging"` にします（ブラウザは信頼しない）。
+
 ## アラート
 
 `config/commonsettings.ts` で `clouds.<cloud>.features.alerting` を有効にすると、クラウドごとにアラートを作ります。

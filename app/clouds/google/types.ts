@@ -59,7 +59,7 @@ export interface GoogleLbResourcesWithDns {
 export interface GoogleResourcesOutput {
   /** VPC resources – passed to VPN and Private Zone orchestrators */
   vpc?: GoogleVpcResources;
-  /** Public DNS zones – created inside the orchestrator (internal use; exposed for debugging) */
+  /** Public DNS zones by domain (features.dns), for the parent zone delegation */
   publicZones?: Record<string, DnsManagedZone>;
   /** LB resources with DNS info (A-record registration happens inside the orchestrator) */
   lbs?: GoogleLbResourcesWithDns[];

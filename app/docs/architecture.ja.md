@@ -14,7 +14,8 @@ app.ts
     │   └ clouds/<cloud>/index.ts         基盤（ネットワークなど）+ 機能のモジュール
     │       └ clouds/<cloud>/<feature>.ts dns / storage / database / compute / container / cicd
     ├ resources/vpnResources.ts           クラウド間の VPN        (+ resources/vpn/<pair>.ts)
-    └ resources/privateZoneResources.ts   クラウド間のプライベート DNS (+ resources/privatezone/<cloud>.ts)
+    ├ resources/privateZoneResources.ts   クラウド間のプライベート DNS (+ resources/privatezone/<cloud>.ts)
+    └ resources/publicDnsDelegation.ts    親ゾーンへの公開ゾーンの NS レコード
          ↓ 呼び出す
     constructs/<category>/<cloud><service>.ts   リソースの定義
          ↑ 読む
@@ -30,6 +31,7 @@ app.ts
 4. スタックは `CloudContext`（`scope`、`providers`、`outputs`）を作り、クラウドをまたぐモジュールに渡します。
    - VPN: `useVpn` が有効なとき。[networking/vpn.ja.md](networking/vpn.ja.md) を参照
    - プライベート DNS: `hostZones` が有効なとき
+   - 親ゾーン（別の AWS アカウントの Route 53）からの公開ゾーンの委任: `state/<環境名>/parent-dns.json` があるとき
 
 ## 切り替え
 
