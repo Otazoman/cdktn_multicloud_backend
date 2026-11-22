@@ -248,7 +248,8 @@ Pipeline variables set by cdktn: `AZURE_CLIENT_ID`, `ACR_NAME`, `ACR_LOGIN_SERVE
 | `isEnabled` | Create the monitoring resources | `boolean` | `true` | |
 | `resourceGroupName`, `location` | | | **Required** | |
 | `logAnalyticsWorkspace` | `{ name, sku, retentionInDays }` | `sku`: `PerGB2018` | **Required** | |
-| `tableRetention` | Retention per table | map of table → days | workspace retention | `AzureDiagnostics` (VPN gateway), `ContainerAppConsoleLogs`, `ContainerAppSystemLogs` |
+| `tableRetention` | Retention per table, set at every deploy | map of table → days | workspace retention | Tables that exist in every workspace: `ContainerAppConsoleLogs`, `ContainerAppSystemLogs` |
+| `deferredTableRetention` | Retention per table, for tables Azure creates on the first log | map of table → days | workspace retention | `AzureDiagnostics` (VPN gateway). Set only with the Azure VPN gateway and `logs`, from build stage 3 (operations.md, "Logging") |
 | `applicationInsightsName` | Application Insights | string | **Required** | |
 | `actionGroups[]` | Notification targets | `{ key, name, shortName, emailReceivers: [{ name, emailAddress, useCommonAlertSchema }] }` | `ops` with `ALERT_EMAILS` | Created only with `features.alerting`. Referenced by `key` |
 | `tags` | Tags | map | — | |
@@ -295,6 +296,6 @@ Pipeline variables set by cdktn: `AZURE_CLIENT_ID`, `ACR_NAME`, `ACR_LOGIN_SERVE
 | `sku` | Gateway SKU | `VpnGw1AZ`, ... | `VpnGw1AZ` | |
 | `type`, `vpnType`, `vpnConnectionType` | | `Vpn`; `RouteBased`; `IPsec` | | |
 | `azureAsn` | Azure-side BGP ASN | number | `65515` | |
-| `logs`, `diagnosticSettingName`, `retentionInDays` | Gateway logs to Log Analytics | `boolean`; string; days | `true` | Retention of the `AzureDiagnostics` table is `tableRetention` |
+| `logs`, `diagnosticSettingName`, `retentionInDays` | Gateway logs to Log Analytics | `boolean`; string; days | `true` | Retention of the `AzureDiagnostics` table is `deferredTableRetention` (from build stage 3) |
 | `localNetworkGateways.<aws\|google>` | `gatewayNames`, `connectionNames` in tunnel order | strings | `<PROJECT_NAME>-azure-lng-<peer>-<n>` / `-vpn-connection-<peer>-<n>` | AWS has four, Google two |
 | `vpnGwtags`, `localGwtags` | Tags | map | | |

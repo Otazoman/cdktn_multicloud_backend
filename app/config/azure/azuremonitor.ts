@@ -19,13 +19,20 @@ export const azureMonitorConfig = {
     retentionInDays: 30,
   },
   // Retention in days per table (default: logAnalyticsWorkspace.retentionInDays).
-  // VPN gateway logs only go to the shared AzureDiagnostics table (every
-  // resource sending in "Azure diagnostics" mode uses it). Container Apps
+  // Tables that exist in every workspace: set at every deploy. Container Apps
   // environments use the resource-specific ContainerApp* tables.
   tableRetention: {
-    AzureDiagnostics: 30,
     ContainerAppConsoleLogs: 30,
     ContainerAppSystemLogs: 30,
+  } as Record<string, number>,
+  // Tables that Azure creates only when the first log arrives; their retention
+  // cannot be set before. VPN gateway logs only go to the shared
+  // AzureDiagnostics table (every resource sending in "Azure diagnostics" mode
+  // uses it). Set only when the Azure VPN gateway is built with logs
+  // (azureVpnparams.logs) and the build stage is 3 (config/buildstage.ts);
+  // until then the table uses the workspace retention.
+  deferredTableRetention: {
+    AzureDiagnostics: 30,
   } as Record<string, number>,
   applicationInsightsName: "app-insights-prod",
   // Notification targets. Created only when `clouds.azure.features.alerting`

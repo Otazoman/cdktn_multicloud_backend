@@ -142,7 +142,7 @@ deploy の後は、初回と同じく、シークレットを入れ直し（下�
 | AWS | ECS | 常に ON | ロググループ（`cloudwatchLogGroupName`） | ロググループごと |
 | Google Cloud | VPN ゲートウェイと Cloud Router | `logs` / `logBucket`（`config/google/vpn.ts`） | ログバケット（`config/google/cloudlogging.ts`） | ログバケットごと（`retentionDays`） |
 | Google Cloud | Cloud Run | サービスごとの `logs` / `logBucket`（`config/google/cloudrun.ts`） | ログバケット | ログバケットごと |
-| Azure | VPN ゲートウェイ | `logs`（`config/azure/vpn.ts`） | Log Analytics ワークスペースの `AzureDiagnostics` テーブル | テーブルごと（`azureMonitorConfig.tableRetention`） |
+| Azure | VPN ゲートウェイ | `logs`（`config/azure/vpn.ts`） | Log Analytics ワークスペースの `AzureDiagnostics` テーブル | テーブルごと（`azureMonitorConfig.deferredTableRetention`。構築の段階 3 から） |
 | Azure | Container Apps の環境 | `azureAcaEnvironmentDefaults` / `azureAcaEnvironmentSettings`（`config/azure/containerapps.ts`） | Log Analytics ワークスペースの `ContainerAppConsoleLogs` / `ContainerAppSystemLogs` | テーブルごと |
 
 - Google Cloud: `logs: true` では、ログはログバケットに送られ、`_Default` バケットからは除外されます。そのため、保存（と課金）は 1 回だけです。`logs: false` では除外だけが行われます（保存されません）。
@@ -153,6 +153,7 @@ deploy の後は、初回と同じく、シークレットを入れ直し（下�
 
   バケットのロケーションは作成後に変えられません。30 日を超える保存は課金されます。
 - Azure: VPN ゲートウェイのログは、共有の `AzureDiagnostics` テーブルにしか送れません。そのため、このテーブルの保存期間は、「Azure 診断」モードでログを送るすべてのリソースに適用されます。`tableRetention` から項目を削除すると、そのテーブルはワークスペースの保存期間に戻ります。
+- Azure: `AzureDiagnostics` テーブルは、最初のログが届いたときに Azure が作ります。それより前には保存期間を設定できません（deploy が `ResourceNotFound: The specified table: 'AzureDiagnostics' was not found` で失敗します）。そのため、このテーブルの保存期間は `deferredTableRetention` に書き、Azure の VPN ゲートウェイを `logs` 付きで作り、構築の段階が 3 のときだけ設定します。それまでは、ワークスペースの保存期間が使われます。ゲートウェイは、ゲートウェイと接続を作ったとき（段階 1）に設定のログを出し、ログは数分後に届きます。段階 3 になってから初めて VPN を有効にすると、ゲートウェイと保存期間が同じ deploy で作られ、このエラーで失敗します。ゲートウェイのログが届くまで待って（数分。もっとかかることもあります）、もう一度 `cdktn deploy` を実行してください。
 - AWS: 既存の VPN トンネルの `logOutputFormat`（`text` / `json`）を変えると、各トンネルが数分間切断されます。ECS の Container Insights（`config/aws/ecs.ts` の `awsEcsClusterSettings`）と awslogs のモード（サービスごとの `logMode` / `logMaxBufferSize`）は、指定しなければアカウントの設定を使います。
 
 ## オートスケーリング

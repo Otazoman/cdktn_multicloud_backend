@@ -179,7 +179,7 @@ set where they are stored.
 | AWS | ECS | Always on | Log group (`cloudwatchLogGroupName`) | Per log group |
 | Google Cloud | VPN gateways and Cloud Routers | `logs` / `logBucket` (`config/google/vpn.ts`) | Log bucket (`config/google/cloudlogging.ts`) | Per log bucket (`retentionDays`) |
 | Google Cloud | Cloud Run | `logs` / `logBucket` per service (`config/google/cloudrun.ts`) | Log bucket | Per log bucket |
-| Azure | VPN gateway | `logs` (`config/azure/vpn.ts`) | Log Analytics Workspace, `AzureDiagnostics` table | Per table (`azureMonitorConfig.tableRetention`) |
+| Azure | VPN gateway | `logs` (`config/azure/vpn.ts`) | Log Analytics Workspace, `AzureDiagnostics` table | Per table (`azureMonitorConfig.deferredTableRetention`, from build stage 3) |
 | Azure | Container Apps environments | `azureAcaEnvironmentDefaults` / `azureAcaEnvironmentSettings` (`config/azure/containerapps.ts`) | Log Analytics Workspace, `ContainerAppConsoleLogs` / `ContainerAppSystemLogs` | Per table |
 
 - Google Cloud: with `logs: true` the logs are routed to the log bucket and
@@ -199,6 +199,17 @@ set where they are stored.
   its retention applies to every resource that sends logs in "Azure
   diagnostics" mode. Removing an entry from `tableRetention` resets the table
   to the workspace retention.
+- Azure: Azure creates the `AzureDiagnostics` table only when the first log
+  arrives, and its retention cannot be set before (the deploy fails with
+  `ResourceNotFound: The specified table: 'AzureDiagnostics' was not found`).
+  Its retention is therefore in `deferredTableRetention` and is set only when
+  the Azure VPN gateway is built with `logs` and the build stage is 3; until
+  then the table uses the workspace retention. The gateway logs its
+  configuration when the gateway and the connections are created (stage 1),
+  and the log shows up after some minutes. If the VPN is enabled for the
+  first time at stage 3, the gateway and the retention are created in the
+  same deploy and it fails with this error: wait until the gateway's logs
+  arrive (minutes, at times longer) and run `cdktn deploy` again.
 - AWS: changing `logOutputFormat` (`text` / `json`) of existing VPN tunnels
   interrupts each tunnel for several minutes. ECS Container Insights
   (`awsEcsClusterSettings` in `config/aws/ecs.ts`) and the awslogs mode

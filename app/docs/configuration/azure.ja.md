@@ -236,7 +236,8 @@ cdktn が設定するパイプラインの変数: `AZURE_CLIENT_ID`、`ACR_NAME`
 | `isEnabled` | 監視のリソースを作る | `boolean` | `true` | |
 | `resourceGroupName`、`location` | | | **必須** | |
 | `logAnalyticsWorkspace` | `{ name, sku, retentionInDays }` | `sku`: `PerGB2018` | **必須** | |
-| `tableRetention` | テーブルごとの保存期間 | テーブル → 日数のマップ | ワークスペースの保存期間 | `AzureDiagnostics`（VPN ゲートウェイ）、`ContainerAppConsoleLogs`、`ContainerAppSystemLogs` |
+| `tableRetention` | テーブルごとの保存期間（deploy のたびに設定） | テーブル → 日数のマップ | ワークスペースの保存期間 | どのワークスペースにもあるテーブル: `ContainerAppConsoleLogs`、`ContainerAppSystemLogs` |
+| `deferredTableRetention` | テーブルごとの保存期間（最初のログで Azure が作るテーブル） | テーブル → 日数のマップ | ワークスペースの保存期間 | `AzureDiagnostics`（VPN ゲートウェイ）。Azure の VPN ゲートウェイと `logs` が有効なときだけ、構築の段階 3 から設定（operations.ja.md の「ログ」） |
 | `applicationInsightsName` | Application Insights | 文字列 | **必須** | |
 | `actionGroups[]` | 通知先 | `{ key, name, shortName, emailReceivers: [{ name, emailAddress, useCommonAlertSchema }] }` | `ALERT_EMAILS` を使う `ops` | `features.alerting` のときだけ作る。`key` で参照する |
 | `tags` | タグ | マップ | — | |
@@ -283,6 +284,6 @@ cdktn が設定するパイプラインの変数: `AZURE_CLIENT_ID`、`ACR_NAME`
 | `sku` | ゲートウェイの SKU | `VpnGw1AZ` など | `VpnGw1AZ` | |
 | `type`、`vpnType`、`vpnConnectionType` | | `Vpn`、`RouteBased`、`IPsec` | | |
 | `azureAsn` | Azure 側の BGP の ASN | 数値 | `65515` | |
-| `logs`、`diagnosticSettingName`、`retentionInDays` | ゲートウェイのログを Log Analytics に送る | `boolean`、文字列、日数 | `true` | `AzureDiagnostics` テーブルの保存期間は `tableRetention` |
+| `logs`、`diagnosticSettingName`、`retentionInDays` | ゲートウェイのログを Log Analytics に送る | `boolean`、文字列、日数 | `true` | `AzureDiagnostics` テーブルの保存期間は `deferredTableRetention`（構築の段階 3 から） |
 | `localNetworkGateways.<aws\|google>` | トンネルの順番の `gatewayNames`、`connectionNames` | 文字列 | `<PROJECT_NAME>-azure-lng-<相手>-<n>` / `-vpn-connection-<相手>-<n>` | AWS は 4 つ、Google は 2 つ |
 | `vpnGwtags`、`localGwtags` | タグ | マップ | | |

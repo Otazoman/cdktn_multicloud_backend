@@ -31,7 +31,11 @@ import { Construct } from "constructs";
 import {
   azureMonitorConfig,
   azureVnetResourcesparams,
+  azureVpnparams,
 } from "../../config/azure/azuresettings";
+import * as commonSettings from "../../config/commonsettings";
+import { buildStage } from "../../config/buildstage";
+import { isCloudConnected } from "../../config/connections";
 import { isCloudEnabled, isFeatureEnabled } from "../../config/features";
 import { AzureMonitorResources } from "../../constructs/observability/azuremonitor";
 import { createAzureVnetResources } from "../../constructs/vpcnetwork/azurevnet";
@@ -98,6 +102,17 @@ export const createAzureResources = (
       azureProvider,
       {
         ...azureMonitorConfig,
+        // AzureDiagnostics exists only after the VPN gateway's first log
+        // (deferredTableRetention in config/azure/azuremonitor.ts)
+        tableRetention: {
+          ...azureMonitorConfig.tableRetention,
+          ...(commonSettings.useVpn &&
+          isCloudConnected("azure") &&
+          azureVpnparams.logs &&
+          buildStage() >= 3
+            ? azureMonitorConfig.deferredTableRetention
+            : {}),
+        },
         actionGroups: isFeatureEnabled("azure", "alerting")
           ? azureMonitorConfig.actionGroups
           : undefined,

@@ -3,6 +3,7 @@
  * buckets / sinks / _Default exclusions, Azure Container Apps environment
  * logs and table retention, AWS VPN log format and ECS log settings.
  */
+import { apiContainerConfig } from "../config/apicontainer";
 import { awsEcsClusterSettings, awsEcsConfigs } from "../config/aws/ecs";
 import { awsVpnparams } from "../config/aws/vpn";
 import { azureAlertingConfig, azureMonitorConfig } from "../config/azure/azuremonitor";
@@ -151,6 +152,55 @@ describe("logging: defaults (logs on)", () => {
     expect(Object.fromEntries(tables.map((t) => [t.name, t.retention_in_days]))).toEqual(
       azureMonitorConfig.tableRetention,
     );
+  });
+
+  describe("Azure: retention of tables created on the first log (AzureDiagnostics)", () => {
+    const retentionOf = (s: any) =>
+      Object.fromEntries(
+        resourcesOf(s, "azurerm_log_analytics_workspace_table").map((t) => [
+          t.name,
+          t.retention_in_days,
+        ]),
+      );
+    const stageOriginal = process.env.BUILD_STAGE;
+    afterEach(() => {
+      process.env.BUILD_STAGE = stageOriginal;
+    });
+
+    test("is set from build stage 3 when the VPN gateway sends logs", () => {
+      expect(Object.keys(azureMonitorConfig.deferredTableRetention)).toContain(
+        "AzureDiagnostics",
+      );
+      process.env.BUILD_STAGE = "3";
+      expect(retentionOf(synthAllOn())).toEqual({
+        ...azureMonitorConfig.tableRetention,
+        ...azureMonitorConfig.deferredTableRetention,
+      });
+    });
+
+    test("is not set before build stage 3", () => {
+      process.env.BUILD_STAGE = "2";
+      expect(retentionOf(synthAllOn())).toEqual(azureMonitorConfig.tableRetention);
+    });
+
+    test("is not set without the VPN or its logs", () => {
+      process.env.BUILD_STAGE = "3";
+      // Without the VPN, every cloud runs its API alone
+      const topologyOriginal = apiContainerConfig.topology;
+      apiContainerConfig.topology = "independent";
+      try {
+        const noVpn = synthCase({
+          name: "logging-no-vpn",
+          overrides: { ...FEATURE_SETS.allOn, useVpn: false, hostZones: false },
+        });
+        expect(retentionOf(noVpn)).toEqual(azureMonitorConfig.tableRetention);
+      } finally {
+        apiContainerConfig.topology = topologyOriginal;
+      }
+
+      azureVpnparams.logs = false;
+      expect(retentionOf(synthAllOn())).toEqual(azureMonitorConfig.tableRetention);
+    });
   });
 
   test("ECS keeps the account defaults for Container Insights and the log mode", () => {
