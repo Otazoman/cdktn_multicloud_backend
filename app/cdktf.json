@@ -7,5 +7,6 @@
     "microsoft/azuredevops@~> 1.16"
   ],
   "terraformModules": [],
-  "context": {}
+  "context": {},
+  "sendUsageTelemetry": false
 }
