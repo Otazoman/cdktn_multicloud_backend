@@ -72,7 +72,7 @@ export const awsEcsConfigs: AwsEcsSettings[] = [
     enableExec: true,
     autoScaling: {
       enabled: true,
-      minCapacity: 2,
+      minCapacity: 1,
       maxCapacity: 10,
       cpuThreshold: 70,
       memoryThreshold: 80,
