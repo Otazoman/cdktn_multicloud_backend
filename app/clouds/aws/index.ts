@@ -64,6 +64,14 @@ export const createAwsResources = (
     return output;
   }
 
+  // Declared whenever AWS is built, not only with the uptime checks: their
+  // alarms and SNS topics live in us-east-1 and are created from build
+  // stage 3, but the destroy runs at stage 1 (npm run before-destroy). Without
+  // the provider in the configuration, Terraform cannot destroy them
+  // ("Provider configuration not present"). An unused provider creates
+  // nothing.
+  providers.awsUsEast1();
+
   // ──────────────────────────────────────────────
   // 0. CloudWatch Log Groups & IAM
   //

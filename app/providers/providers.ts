@@ -48,7 +48,9 @@ export interface Providers {
   /**
    * Returns the AWS provider of us-east-1 (same account), creating it on
    * first use: Route 53 health check metrics exist only there, so their
-   * alarms and SNS topics are created in us-east-1.
+   * alarms and SNS topics are created in us-east-1. clouds/aws/index.ts
+   * declares it whenever AWS is built, so that a destroy at build stage 1
+   * can still remove those resources.
    */
   awsUsEast1(): AwsProvider;
 }

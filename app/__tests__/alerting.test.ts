@@ -428,6 +428,13 @@ describe("uptime checks of /readyz (config/<cloud>/monitoring.ts uptimeCheck)", 
     process.env.BUILD_STAGE = stageOriginal;
   });
 
+  test("the us-east-1 provider is declared at every stage (destroy runs at stage 1)", () => {
+    process.env.BUILD_STAGE = "1";
+    const synth = synthWith(true);
+    expect(resourcesOf(synth, "aws_route53_health_check")).toHaveLength(0);
+    expect(synth.provider.aws.find((p: any) => p.alias === "us-east-1")?.region).toBe("us-east-1");
+  }, 120000);
+
   test("are not created before build stage 3 (the placeholder image has no /readyz)", () => {
     process.env.BUILD_STAGE = "2";
     const synth = synthWith(true);
