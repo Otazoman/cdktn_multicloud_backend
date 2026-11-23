@@ -6,18 +6,27 @@
  */
 import { FEATURE_SETS, synthCase } from "../scripts/dev/synthMatrix";
 import { azureAppGwConfigs } from "../config/azure/applicationgateway";
+import { albConfigs } from "../config/aws/alb";
+import { gcpLbConfigs } from "../config/google/cloudloadbalancing";
 
 const resourcesOf = (synth: any, type: string): any[] =>
   Object.values(synth.resource?.[type] ?? {});
 
 // These tests expect the plain HTTP Application Gateway, whatever the dev
 // config builds (config/azure/applicationgateway.ts)
+// The AWS and Google tests likewise expect their HTTP load balancers
 const appGwBuild = azureAppGwConfigs.map((c) => c.build);
+const albBuild = albConfigs.map((c) => c.build);
+const gcpLbBuild = gcpLbConfigs.map((c) => c.build);
 beforeAll(() => {
   azureAppGwConfigs.forEach((c) => (c.build = c.name === "plain-http-appgw"));
+  albConfigs.forEach((c) => (c.build = c.name === "plain-http-alb"));
+  gcpLbConfigs.forEach((c) => (c.build = c.name === "run-regional-http-lb"));
 });
 afterAll(() => {
   azureAppGwConfigs.forEach((c, i) => (c.build = appGwBuild[i]));
+  albConfigs.forEach((c, i) => (c.build = albBuild[i]));
+  gcpLbConfigs.forEach((c, i) => (c.build = gcpLbBuild[i]));
 });
 
 let synth: any;
