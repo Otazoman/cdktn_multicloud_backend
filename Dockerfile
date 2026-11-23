@@ -15,8 +15,9 @@ RUN apt-get update && apt-get install -y \
     software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
-# Install CDK for Terraform globally
-RUN npm install --global cdktn-cli@latest
+# Install the CDKTN CLI globally, at the same version as app/package.json
+# (cdktn-cli). Change both together.
+RUN npm install --global cdktn-cli@0.25.1
 
 # Install tenv
 ARG TERRAFORM_VERSION
