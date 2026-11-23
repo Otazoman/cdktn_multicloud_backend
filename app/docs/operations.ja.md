@@ -368,13 +368,28 @@ Error 400: The subnetwork resource '.../subnetworks/<vpc>-proxy-subnet' is alrea
 
 ### Google Cloud — Cloud SQL: プライベート サービス アクセスの接続を削除できない
 
-Cloud SQL を削除している間に、プライベート サービス アクセス（サービス ネットワーキング）の接続の削除が失敗することがあります（[terraform-provider-google#16275](https://github.com/hashicorp/terraform-provider-google/issues/16275)）。
+Cloud SQL を削除した後に、プライベート サービス アクセス（サービス ネットワーキング）の接続の削除が `Producer services (e.g. CloudSQL, Cloud Memstore, etc.) are still using this connection` で失敗することがあります（[terraform-provider-google#16275](https://github.com/hashicorp/terraform-provider-google/issues/16275)）。
 
-起きた場合:
+接続は `deletion_policy = "REMOVE_PEERING"`（`config/google/psa.ts` の `deletionPolicy`、google プロバイダー 8）で作ります。API が削除を断ると、destroy が代わりに VPC ピアリングを削除し、ネットワークを削除できるようにします。それでも止まった場合は、手で削除して（Cloud Shell。VPC の名前は `config/google/vpc/vpc.ts`）、`cdktn destroy` をもう一度実行します：
 
-1. VPC のプライベート サービス アクセスの接続を解除します（VPC ネットワーク → プライベート サービス アクセス）。
-2. `cdktn destroy` をもう一度実行します。
-3. VPC ネットワークに VPC ピアリングが残っていれば削除します。
+```bash
+VPC=multicloud-gcp-vpc
+gcloud services vpc-peerings delete --network=$VPC --service=servicenetworking.googleapis.com
+# 断られた場合や、ピアリングが残った場合:
+gcloud compute networks peerings list --network=$VPC
+gcloud compute networks peerings delete servicenetworking-googleapis-com --network=$VPC
+```
+
+その後、もう無い接続の削除で destroy が失敗した場合は、state から外します（`cdktf.out/stacks/app` で `google_service_networking_connection` を `terraform state rm`）。手で削除するのは接続とピアリングだけにし、残りは destroy に任せます。
+
+### Azure — Application Insights: アクション グループ「Application Insights Smart Detection」が残る
+
+死活監視（構築の段階 3）で Application Insights を作ると、Azure が Failure Anomalies のアラートのルールと、アクション グループ `Application Insights Smart Detection`（場所はグローバル）を作ります。cdktn の管理外なので、destroy の後もアクション グループがリソースグループに残ります（ルールとアクション グループは Microsoft のドキュメントに記載。azurerm のプロバイダーではアクション グループの作成を止められない: terraform-provider-azurerm#16124、#18026）。害はなく、destroy も止まらず（リソースグループは cdktn の管理外）、次の構築で使い回されます。削除する場合:
+
+```bash
+az monitor action-group delete -g rg_multicloud -n "Application Insights Smart Detection"
+az resource list -g rg_multicloud -o table   # 種類で絞らずに残りを確認する
+```
 
 ### Azure — Container Apps: 最初の destroy が失敗する
 

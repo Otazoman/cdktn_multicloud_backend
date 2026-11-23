@@ -31,6 +31,15 @@ export interface GooglePsaConfig {
    */
   isExisting?: boolean;
   /**
+   * What `cdktn destroy` does with the connection (deletion_policy):
+   * "DELETE" (default), "ABANDON" (only from the state; the peering then
+   * blocks deleting the network), "PREVENT", or "REMOVE_PEERING" (delete it,
+   * and when the API refuses because service producers such as Cloud SQL
+   * still use it, remove the VPC peering instead so that the network can be
+   * deleted)
+   */
+  deletionPolicy?: "DELETE" | "ABANDON" | "PREVENT" | "REMOVE_PEERING";
+  /**
    * Per-service IP range arrays to register in ServiceNetworkingConnection.
    * All ranges across all services must be non-overlapping.
    * Each array may contain one or more entries to support multiple ranges per service.
@@ -150,6 +159,7 @@ export class GooglePrivateServiceAccess extends Construct {
         network: config.vpcId,
         service: "servicenetworking.googleapis.com",
         reservedPeeringRanges,
+        deletionPolicy: config.deletionPolicy,
       },
     );
 

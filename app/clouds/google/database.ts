@@ -31,6 +31,7 @@ export function createGoogleDatabases(ctx: GoogleBuildContext): void {
         vpcName: googleVpcResources.vpc.name,
         isExisting: googlePsaConfig.isExisting,
         serviceRanges: googlePsaConfig.serviceRanges,
+        deletionPolicy: googlePsaConfig.deletionPolicy,
       },
     );
 

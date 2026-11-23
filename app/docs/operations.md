@@ -534,15 +534,45 @@ subnet is deleted. If the error still occurs, run `cdktn destroy` again.
 ### Google Cloud — Cloud SQL: Private Service Access connection cannot be deleted
 
 Deleting the Private Service Access (service networking) connection can fail
-while Cloud SQL is being deleted
+after Cloud SQL is deleted: `Producer services (e.g. CloudSQL, Cloud Memstore,
+etc.) are still using this connection`
 ([terraform-provider-google#16275](https://github.com/hashicorp/terraform-provider-google/issues/16275)).
 
-If it happens:
+The connection is created with `deletion_policy = "REMOVE_PEERING"`
+(`deletionPolicy` in `config/google/psa.ts`, google provider 8): when the API
+refuses to delete it, the destroy removes the VPC peering instead so that the
+network can be deleted. If the destroy still stops on it, remove them by hand
+(Cloud Shell, the VPC name of `config/google/vpc/vpc.ts`) and run
+`cdktn destroy` again:
 
-1. Release the Private Service Access connection of the VPC
-   (VPC network → Private service access).
-2. Run `cdktn destroy` again.
-3. Delete the remaining VPC peering of the VPC network if it still exists.
+```bash
+VPC=multicloud-gcp-vpc
+gcloud services vpc-peerings delete --network=$VPC --service=servicenetworking.googleapis.com
+# If it is refused or the peering remains:
+gcloud compute networks peerings list --network=$VPC
+gcloud compute networks peerings delete servicenetworking-googleapis-com --network=$VPC
+```
+
+If the destroy then fails on the connection that no longer exists, remove it
+from the state (`terraform state rm` of the
+`google_service_networking_connection` in `cdktf.out/stacks/app`). Delete only
+the connection and the peering by hand; the destroy removes the rest.
+
+### Azure — Application Insights: the "Application Insights Smart Detection" action group remains
+
+With the uptime checks (build stage 3), Azure creates, with the Application
+Insights resource, a Failure Anomalies alert rule and an action group named
+`Application Insights Smart Detection` (location global). cdktn does not
+manage them, so the destroy leaves the action group in the resource group
+(Microsoft documents the rule and the group; the azurerm provider cannot
+prevent the group: terraform-provider-azurerm#16124, #18026). It is harmless,
+does not stop the destroy (the resource group is not managed by cdktn) and is
+reused by the next build. To delete it:
+
+```bash
+az monitor action-group delete -g rg_multicloud -n "Application Insights Smart Detection"
+az resource list -g rg_multicloud -o table   # look for leftovers without filtering by type
+```
 
 ### Azure — Container Apps: first destroy fails
 

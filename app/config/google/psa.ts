@@ -24,6 +24,15 @@ export const googlePsaConfig = {
    */
   isExisting: false,
 
+  /**
+   * On destroy, delete the connection, and when the API refuses because
+   * Cloud SQL (already deleted by then) is still counted as using it, remove
+   * the VPC peering instead so that the VPC can be deleted (google provider
+   * 8). Without it, the destroy stops on "Producer services ... are still
+   * using this connection" (terraform-provider-google#16275).
+   */
+  deletionPolicy: "REMOVE_PEERING" as const,
+
   // --- Per-service IP ranges (arrays; all entries must be non-overlapping) ---
   serviceRanges: {
     /**

@@ -43,6 +43,7 @@ export function createGoogleCicd(ctx: GoogleBuildContext): void {
             vpcName: googleVpcResources.vpc.name,
             isExisting: googlePsaConfig.isExisting,
             serviceRanges: googlePsaConfig.serviceRanges,
+            deletionPolicy: googlePsaConfig.deletionPolicy,
           },
         );
 
