@@ -74,8 +74,10 @@ export interface AwsMetricAlarmDefinition {
   dimensions?: { [key: string]: string };
   /** The period in seconds over which the specified statistic is applied. (e.g., 60, 300). */
   period: number;
-  /** The statistic to apply to the alarm's associated metric (e.g., "SampleCount", "Average", "Sum", "Minimum", "Maximum"). */
-  statistic: string;
+  /** The statistic to apply to the alarm's associated metric (e.g., "SampleCount", "Average", "Sum", "Minimum", "Maximum"). Set this or extendedStatistic. */
+  statistic?: string;
+  /** Percentile statistic instead of `statistic` (e.g. "p95"). */
+  extendedStatistic?: string;
   /** The value against which the specified statistic is compared. */
   threshold: number;
   /** The list of actions to execute when this alarm transitions into an ALARM state (e.g., SNS Topic ARNs). */
@@ -206,6 +208,11 @@ export class AwsCloudWatchResources extends Construct {
     if (config.metricAlarms) {
       config.metricAlarms.forEach((alarmDef) => {
         const sanitizedId = (alarmDef.key ?? alarmDef.alarmName).replace(/[^a-zA-Z0-9-_]/g, "-");
+        if (!alarmDef.statistic === !alarmDef.extendedStatistic) {
+          throw new Error(
+            `Alarm "${alarmDef.alarmName}": set either statistic or extendedStatistic`,
+          );
+        }
 
         const metricAlarm = new CloudwatchMetricAlarm(
           this,
@@ -220,6 +227,7 @@ export class AwsCloudWatchResources extends Construct {
             dimensions: alarmDef.dimensions,
             period: alarmDef.period,
             statistic: alarmDef.statistic,
+            extendedStatistic: alarmDef.extendedStatistic,
             threshold: alarmDef.threshold,
             alarmActions: alarmDef.alarmActions,
             okActions: alarmDef.okActions,

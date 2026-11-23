@@ -164,7 +164,7 @@ deploy の後は、初回と同じく、シークレットを入れ直し（下�
 |---|---|---|
 | AWS ECS | サービスごとの `autoScaling`（`config/aws/ecs.ts`） | `minCapacity` / `maxCapacity`、`cpuThreshold` / `memoryThreshold`（%）と `requestCountPerTarget`（タスクあたりの ALB のリクエスト数。ROLLING のデプロイで、ALB の `targetGroupName` がある場合のみ）によるターゲット追跡、クールダウン |
 | Google Cloud Run | サービスごと（`config/google/cloudrun.ts`） | `minInstances` / `maxInstances`、`maxInstanceRequestConcurrency`（既定値 80）。Cloud Run は CPU 使用率と同時リクエスト数でスケールします。CPU の目標値は設定できません |
-| Azure Container Apps | アプリごと（`config/azure/containerapps.ts`） | `minReplicas` / `maxReplicas`、`scaleRules`（`http` / `tcp`: 同時リクエスト数、`cpu` / `memory`: 使用率 %）。ルールがなければ HTTP で、レプリカあたり同時リクエスト 10。CPU / メモリのルールでは 0 までスケールインできません |
+| Azure Container Apps | アプリごと（`config/azure/containerapps.ts`） | `minReplicas` / `maxReplicas`、`scaleRules`（`http` / `tcp`: 同時リクエスト数、`cpu` / `memory`: 使用率 %）。ルールがなければ HTTP で、レプリカあたり同時リクエスト 10。CPU / メモリのルールでは 0 までスケールインできません。API は最低 1 台を動かします（`minReplicas: 1`）。0 台だと、しばらくアクセスがなかった後の最初のリクエストが、レプリカの起動を待ちます |
 
 ## ログのアーカイブ
 
@@ -206,10 +206,18 @@ az containerapp job start -n <ジョブ名> -g <リソースグループ>
 | `api-errors` | `/aws/ecs/api-service` のメトリクスフィルター（`"failed"`）とアラーム | Cloud Run のサービスのログベースの指標とアラートポリシー | `backend-api-service` の `ContainerAppConsoleLogs` のログアラート | API が 5 分以内にエラーをログに出した（例：DB に接続できない、マイグレーションが足りないときの `Readiness check failed: ...`、`Idle connection to ... failed`） |
 | `journal-prune-failed` | 同じロググループ（ジョブは API のタスク定義で動く） | Cloud Run のジョブのログベースの指標 | Container Apps のジョブのログのアラート | 毎日の変更履歴の削除ジョブが失敗した（`Journal pruning failed: ...`） |
 | `<ロードバランサー>-5xx` | ALB の `HTTPCode_ELB_5XX_Count` と `HTTPCode_Target_5XX_Count` | リージョンのロードバランサーの `request_count`（レスポンスコードのクラス 500） | Application Gateway の `ResponseStatus`（`HttpStatusGroup` が 5xx） | 5 分以内に 5xx が 10 回以上（ロードバランサーが返したもの〔正常な API がないなど〕、または API が返したもの） |
+| `<ロードバランサー>-latency` | ALB の `TargetResponseTime` の p95 | リージョンのロードバランサーの `total_latencies` の p95 | Application Gateway の `ApplicationGatewayTotalTime` の平均（この指標には p95 がない） | 応答の時間が 5 分間 1 秒を超えた |
+| `<Application Gateway>-unhealthy-hosts` | —（死活監視で代わりにする） | —（死活監視で代わりにする） | Application Gateway の `UnhealthyHostCount` | 正常でないバックエンド（API のレプリカ）が 5 分間あった |
+| `<ロードバランサー>-uptime`（構築の段階 3 から） | Route 53 のヘルスチェックで `/readyz`（30 秒ごと、3 回続けて失敗で異常）、アラームは us-east-1 | 稼働時間チェックで `/readyz`（60 秒ごと、Google のチェックの各リージョンから） | Application Insights の標準テストで `/readyz`（5 分ごと、3 地点から） | AWS: ヘルスチェックが異常。Google: 2 分間、2 つ以上のリージョンで失敗。Azure: 2 地点以上で失敗。アクセスがなくても API が止まったことに気づける |
 | ビルドの結果（`cicd` が有効なとき） | CodeBuild のプロジェクトの状態の変化（`SUCCEEDED`・`FAILED`・`STOPPED`）を EventBridge のルールで SNS のトピックへ（`buildNotifications`） | Cloud Build のログに一致するログ一致のアラートのポリシー：`cloud-build-succeeded`（`DONE`）、`cloud-build-failed`（`ERROR` で始まる行）。それぞれ最短 5 分に 1 通 | —（Azure DevOps がパイプラインを実行した人にメールする） | CI/CD のビルドが終わったとき |
 
 ロードバランサーのアラートは、各クラウドの HTTP と HTTPS の両方のロードバランサーについて書いてあり、作られているほうにだけ
 作られます。HTTP と HTTPS を切り替えても、アラートの設定を変える必要はありません。
+
+死活監視（`uptime`）は、作られているロードバランサーのアドレス（`dns` が有効ならその FQDN、なければ DNS 名か IP。証明書は
+確認しない）の `/readyz` を、インターネットから呼びます。作るのは構築の段階 3 からです。それまでは仮のイメージが
+`/readyz` に応答しないためです。オートスケールは代わりになりません。負荷に合わせて台数を変えるだけで、起動してすぐ
+落ちるレプリカや、アクセスがない間に止まった API は知らせません。
 
 通知が来たら、API のログを確認します：AWS は CloudWatch Logs の `/aws/ecs/api-service`、Google Cloud は Cloud Logging
 （Cloud Run のサービス `web-service-with-lb`、またはジョブ `<PROJECT_NAME>-google-journal-prune`）、Azure は Log Analytics の
@@ -219,9 +227,12 @@ az containerapp job start -n <ジョブ名> -g <リソースグループ>
 
 | クラウド | 設定 | 通知先 | アラーム |
 |---|---|---|---|
-| AWS | `config/aws/monitoring.ts`（`awsAlertingConfig`） | `notificationTargets`（通知先ごとに SNS トピック 1 つ、アドレスごとにメールのサブスクリプション 1 つ） | `metricFilters`（`cloudwatchlogs.ts` のロググループ）、`alarms` |
-| Google Cloud | `config/google/monitoring.ts`（`googleAlertingConfig`） | `notificationTargets`（アドレスごとにメールの通知チャネル 1 つ） | `logMetrics`、`alertPolicies` |
-| Azure | `config/azure/azuremonitor.ts` | `azureMonitorConfig.actionGroups` | `azureAlertingConfig.logAlerts`（スケジュールされたクエリルール、v2 API）、`azureAlertingConfig.metricAlerts` |
+| AWS | `config/aws/monitoring.ts`（`awsAlertingConfig`） | `notificationTargets`（通知先ごとに SNS トピック 1 つ、アドレスごとにメールのサブスクリプション 1 つ） | `metricFilters`（`cloudwatchlogs.ts` のロググループ）、`alarms`、`uptimeCheck` |
+| Google Cloud | `config/google/monitoring.ts`（`googleAlertingConfig`） | `notificationTargets`（アドレスごとにメールの通知チャネル 1 つ） | `logMetrics`、`alertPolicies`、`uptimeCheck` |
+| Azure | `config/azure/azuremonitor.ts` | `azureMonitorConfig.actionGroups` | `azureAlertingConfig.logAlerts`（スケジュールされたクエリルール、v2 API）、`azureAlertingConfig.metricAlerts`、`azureAlertingConfig.uptimeCheck` |
+
+- アラートを止める：`alarms` / `alertPolicies` / `metricAlerts` の項目に `enabled: false` を書くと、その項目を作りません（既定は作る）。`uptimeCheck.enabled: false` で、そのクラウドの死活監視を作りません。クラウドのアラートをすべて止めるには、`commonsettings.ts` の `alerting` を無効にします。
+- 死活監視の設定：AWS は `requestInterval`（30 秒か 10 秒）と `failureThreshold`。Google は `period`、`timeout`、`selectedRegions`、`failedRegionsAbove`、`duration`。Azure は `frequency`（300・600・900 秒）、`timeout`、`locationCount`（候補 `geoLocations` の先頭から使う地点の数。場所のタグ、例 `apac-jp-kaw-edge`。Microsoft は 5 地点以上を推奨）、`failedLocationCount`（Microsoft は `locationCount - 2` を推奨）。Azure は、テストのために Application Insights（`azureMonitorConfig.applicationInsightsName`）を Log Analytics ワークスペースの上に作ります。
 
 - アラームは、`notify` に通知先の `key` を書いて参照します。AWS のアラームは、`notifyOnOk: true` で回復時にも通知します。
 - アラームの対象は、設定の名前で書きます（AWS: `ClusterName` / `ServiceName` などのメトリクスのディメンション、ALB の `LoadBalancer` のディメンションは `loadBalancer: <ALB の名前>`。Google Cloud: `resource.labels.service_name` などのラベルのフィルター、そのロードバランサーがあるときだけ作るには `loadBalancer: <名前>`。Azure: `target: { type: "containerApp" | "applicationGateway", name }` と、絞り込みの `dimensions`）。存在しないキーや名前があると、合成がエラーで止まります。
@@ -231,6 +242,8 @@ az containerapp job start -n <ジョブ名> -g <リソースグループ>
 ### AWS — メールのサブスクリプションを確認する
 
 `cdktn deploy` の後、SNS が各アドレスに確認のメールを送ります。受信者がメールのリンクをクリックするまで、サブスクリプションは `PendingConfirmation` のままで、アラームは届きません。状態は SNS のコンソール（トピック → 対象のトピック → サブスクリプション）で確認します。Terraform ではサブスクリプションを確認できません。
+
+死活監視のアラームは、us-east-1 の別のトピック（`<トピック>-us-east-1`、構築の段階 3 から）を使います。そのため、確認のメールがもう一度届きます。状態は、米国東部（バージニア北部）の SNS のコンソールで確認します。
 
 ## シークレット
 

@@ -70,7 +70,7 @@ test("defaults keep the current scaling", () => {
     expect(s.template.max_instance_request_concurrency).toBeUndefined(),
   );
   resourcesOf(synth, "azurerm_container_app").forEach((app) => {
-    expect(app.template).toMatchObject({ min_replicas: 0, max_replicas: 10 });
+    expect(app.template).toMatchObject({ min_replicas: 1, max_replicas: 10 });
     expect(app.template.http_scale_rule).toBeUndefined();
     expect(app.template.custom_scale_rule).toBeUndefined();
   });

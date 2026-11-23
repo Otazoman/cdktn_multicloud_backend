@@ -171,6 +171,7 @@ export const createAwsResources = (
   const ctx: AwsBuildContext = {
     scope,
     awsProvider,
+    awsUsEast1Provider: providers.awsUsEast1,
     output,
     awsVpcResources,
     cloudwatchResources,

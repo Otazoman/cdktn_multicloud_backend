@@ -79,7 +79,45 @@ export type AzureMetricAlertConfig = Omit<
   scopes?: string[];
   /** azureMonitorConfig.actionGroups keys */
   notify?: string[];
+  /** false: the alert is not created. Default: true */
+  enabled?: boolean;
 };
+
+/**
+ * Uptime check of the API from the internet: an Application Insights
+ * resource (azureMonitorConfig.applicationInsightsName, on the Log Analytics
+ * Workspace) and one standard web test of /readyz per built Application
+ * Gateway (its FQDN with the dns feature, else its public IP), with an
+ * alert. Created from build stage 3 (config/buildstage.ts): before, the
+ * placeholder image does not answer /readyz.
+ */
+export interface AzureUptimeCheckConfig {
+  /** false: no availability tests. Default: true */
+  enabled: boolean;
+  /** Seconds between tests: 300, 600 or 900 */
+  frequency: number;
+  /** Seconds */
+  timeout: number;
+  /**
+   * Number of test locations: the first locationCount entries of
+   * geoLocations. Microsoft recommends at least five ("Our minimum number of
+   * recommended test locations is five", Azure Monitor availability tests).
+   */
+  locationCount: number;
+  /**
+   * Candidate test locations in order of preference (population tags of the
+   * "Location population tags" table:
+   * https://learn.microsoft.com/azure/azure-monitor/app/availability-standard-tests)
+   */
+  geoLocations: string[];
+  /**
+   * The alert fires when at least this many locations fail (1 to
+   * locationCount). Microsoft recommends locationCount - 2, e.g. 3 of 5.
+   */
+  failedLocationCount: number;
+  /** azureMonitorConfig.actionGroups keys */
+  notify: string[];
+}
 
 /**
  * Alerts (created only when `clouds.azure.features.alerting` is enabled in
@@ -88,7 +126,35 @@ export type AzureMetricAlertConfig = Omit<
 export const azureAlertingConfig: {
   logAlerts: AzureLogAlertConfig[];
   metricAlerts: AzureMetricAlertConfig[];
+  uptimeCheck: AzureUptimeCheckConfig;
 } = {
+  uptimeCheck: {
+    enabled: true,
+    frequency: 300,
+    timeout: 30,
+    // The first 3 candidates. Microsoft's recommendation: locationCount 5,
+    // failedLocationCount 3
+    locationCount: 3,
+    failedLocationCount: 2,
+    geoLocations: [
+      "apac-jp-kaw-edge", // Japan East
+      "apac-hk-hkn-azr", // East Asia
+      "apac-sg-sin-azr", // Southeast Asia
+      "emea-au-syd-edge", // Australia East
+      "us-ca-sjc-azr", // West US
+      "us-va-ash-azr", // East US
+      "us-il-ch1-azr", // North Central US
+      "us-tx-sn1-azr", // South Central US
+      "us-fl-mia-edge", // Central US
+      "emea-nl-ams-azr", // West Europe
+      "emea-gb-db3-azr", // North Europe
+      "emea-fr-pra-edge", // France Central
+      "emea-ru-msa-edge", // UK South
+      "emea-se-sto-edge", // UK West
+      "latam-br-gru-edge", // Brazil South
+    ],
+    notify: ["ops"],
+  },
   logAlerts: [
     // Errors the API writes to its log (e.g. "Readiness check failed") and
     // failures of the journal pruning job (Container Apps job)
@@ -124,6 +190,37 @@ export const azureAlertingConfig: {
       dimensions: [{ name: "HttpStatusGroup", operator: "Include" as const, values: ["5xx"] }],
       operator: "GreaterThanOrEqual" as const,
       threshold: 10,
+      frequency: "PT5M",
+      windowSize: "PT5M",
+      notify: ["ops"],
+    })),
+    // No healthy API behind the Application Gateway: unhealthy backend hosts
+    // over 5 minutes. One per gateway; only the built one gets it.
+    ...["plain-http-appgw", "plain-https-appgw"].map((name) => ({
+      enabled: true,
+      name: `${name}-unhealthy-hosts`,
+      target: { type: "applicationGateway" as const, name },
+      metricNamespace: "Microsoft.Network/applicationGateways",
+      metricName: "UnhealthyHostCount",
+      aggregation: "Average" as const,
+      operator: "GreaterThan" as const,
+      threshold: 0,
+      frequency: "PT1M",
+      windowSize: "PT5M",
+      notify: ["ops"],
+    })),
+    // Response time (whole request at the gateway, ms): average over 5
+    // minutes above 1 second (the metric has no percentiles). One per
+    // gateway; only the built one gets it.
+    ...["plain-http-appgw", "plain-https-appgw"].map((name) => ({
+      enabled: true,
+      name: `${name}-latency`,
+      target: { type: "applicationGateway" as const, name },
+      metricNamespace: "Microsoft.Network/applicationGateways",
+      metricName: "ApplicationGatewayTotalTime",
+      aggregation: "Average" as const,
+      operator: "GreaterThan" as const,
+      threshold: 1000,
       frequency: "PT5M",
       windowSize: "PT5M",
       notify: ["ops"],

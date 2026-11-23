@@ -212,7 +212,8 @@
 |---|---|---|---|---|
 | `notificationTargets[]` | SNS のトピック | `{ key, name?, emails[], tags? }` | `ALERT_EMAILS` を使う `ops` | `name` の既定は `<PROJECT_NAME>-aws-alerts-<key>`。受信者はそれぞれ、サブスクリプションの確認メールで承認する必要がある |
 | `metricFilters[]` | ログのメトリクスフィルター | `{ name, key?, logGroupName, pattern, metricName, metricNamespace, value?, defaultValue? }` | `[]` | `logGroupName` は `cloudwatchlogs.ts` にあること。`value` の既定は `"1"` |
-| `alarms[]` | メトリクスのアラーム | `{ alarmName, key?, namespace, metricName, dimensions, statistic, comparisonOperator, threshold, period, evaluationPeriods, notify?, notifyOnOk?, loadBalancer? }` | API のエラー、削除ジョブの失敗、各 ALB の 5xx（[operations.ja.md](../operations.ja.md) の「アラート」） | `loadBalancer`：`alb.ts` の ALB の名前。その ALB が作られているときだけ、`LoadBalancer` のディメンションを付けて作る |
+| `alarms[]` | メトリクスのアラーム | `{ alarmName, key?, namespace, metricName, dimensions, statistic \| extendedStatistic, comparisonOperator, threshold, period, evaluationPeriods, notify?, notifyOnOk?, loadBalancer?, enabled? }` | API のエラー、削除ジョブの失敗、各 ALB の 5xx と応答の時間（`TargetResponseTime` の p95 が 1 秒超）（[operations.ja.md](../operations.ja.md) の「アラート」） | `loadBalancer`：`alb.ts` の ALB の名前。その ALB が作られているときだけ、`LoadBalancer` のディメンションを付けて作る。`extendedStatistic`：`statistic` の代わりに `p95` などのパーセンタイル。`enabled: false`：作らない |
+| `uptimeCheck` | 作られている ALB ごとに `/readyz` の Route 53 のヘルスチェック、アラームは us-east-1（構築の段階 3 から） | `{ enabled, requestInterval, failureThreshold, notify[] }` | `true`、`30`、`3`、`ops` | `requestInterval`：30 秒か 10 秒。ヘルスチェックの指標がある us-east-1 に、アラームと SNS のトピック（`notify` の通知先。サブスクリプションの確認も別に必要）を作る |
 | `buildNotifications` | CI/CD のビルドの結果のメール（作られている CodeBuild のプロジェクトの EventBridge のルールから SNS へ） | `{ states[], notify[] }` または `undefined` | `SUCCEEDED`・`FAILED`・`STOPPED` を `ops` へ | `cicd` が有効なときに作る。EventBridge が送信できるトピックのポリシーを付ける（既定の許可も残すので、CloudWatch のアラームの通知も続く） |
 
 ### ログのアーカイブ（機能 `logArchive`、`awsLogArchiveConfig`）

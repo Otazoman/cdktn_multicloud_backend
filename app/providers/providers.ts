@@ -45,6 +45,12 @@ export interface Providers {
    * when the file does not exist.
    */
   awsParentDns(): AwsProvider | undefined;
+  /**
+   * Returns the AWS provider of us-east-1 (same account), creating it on
+   * first use: Route 53 health check metrics exist only there, so their
+   * alarms and SNS topics are created in us-east-1.
+   */
+  awsUsEast1(): AwsProvider;
 }
 
 export const createProviders = (scope: Construct): Providers => {
@@ -75,6 +81,7 @@ export const createProviders = (scope: Construct): Providers => {
   let nullProvider: NullProvider | undefined;
   let azuredevopsProvider: AzuredevopsProvider | undefined;
   let awsParentDnsProvider: AwsProvider | undefined;
+  let awsUsEast1Provider: AwsProvider | undefined;
 
   return {
     aws: awsProvider,
@@ -101,6 +108,16 @@ export const createProviders = (scope: Construct): Providers => {
         assumeRole: [{ roleArn: parent.roleArn, sessionName: "cdktn-ns-delegation" }],
       });
       return awsParentDnsProvider;
+    },
+    awsUsEast1: () => {
+      awsUsEast1Provider ??= new AwsProvider(scope, "aws-us-east-1", {
+        alias: "us-east-1",
+        region: "us-east-1",
+        allowedAccountIds: accounts.awsAccountId
+          ? [accounts.awsAccountId]
+          : undefined,
+      });
+      return awsUsEast1Provider;
     },
   };
 };

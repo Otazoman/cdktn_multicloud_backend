@@ -224,7 +224,7 @@ Scaling is set per workload in its config file.
 |---|---|---|
 | AWS ECS | `autoScaling` per service (`config/aws/ecs.ts`) | `minCapacity` / `maxCapacity`, target tracking on `cpuThreshold` / `memoryThreshold` (%) and `requestCountPerTarget` (ALB requests per task; ROLLING deployments with `targetGroupName` on an ALB only), cooldowns |
 | Google Cloud Run | per service (`config/google/cloudrun.ts`) | `minInstances` / `maxInstances`, `maxInstanceRequestConcurrency` (default 80). Cloud Run scales on CPU utilization and concurrency; the CPU target cannot be set |
-| Azure Container Apps | per app (`config/azure/containerapps.ts`) | `minReplicas` / `maxReplicas`, `scaleRules` (`http` / `tcp`: concurrent requests, `cpu` / `memory`: utilization %). Without rules: HTTP, 10 concurrent requests per replica. CPU / memory rules cannot scale to zero |
+| Azure Container Apps | per app (`config/azure/containerapps.ts`) | `minReplicas` / `maxReplicas`, `scaleRules` (`http` / `tcp`: concurrent requests, `cpu` / `memory`: utilization %). Without rules: HTTP, 10 concurrent requests per replica. CPU / memory rules cannot scale to zero. The API keeps at least 1 replica (`minReplicas: 1`): with 0, the first request after an idle period waits for a replica to start |
 
 ## Log archive
 
@@ -289,11 +289,22 @@ repository, `config/notifications.ts`); every cloud's notification target
 | `api-errors` | Log metric filter on `/aws/ecs/api-service` (`"failed"`) and alarm | Log-based metric on the Cloud Run service and alert policy | Log alert on `ContainerAppConsoleLogs` of `backend-api-service` | The API logs an error within 5 minutes (e.g. `Readiness check failed: ...` when its database is unreachable or a migration is missing, `Idle connection to ... failed`) |
 | `journal-prune-failed` | Same log group (the job runs the API task definition) | Log-based metric on the Cloud Run job | Log alert on the Container Apps job's logs | The daily journal pruning job failed (`Journal pruning failed: ...`) |
 | `<load balancer>-5xx` | `HTTPCode_ELB_5XX_Count` and `HTTPCode_Target_5XX_Count` of the ALB | `request_count` of the regional load balancer with response code class 500 | `ResponseStatus` of the Application Gateway, `HttpStatusGroup` 5xx | 10 or more 5xx responses within 5 minutes (from the load balancer, e.g. no healthy API, or from the API) |
+| `<load balancer>-latency` | p95 of the ALB's `TargetResponseTime` | p95 of the regional load balancer's `total_latencies` | Average of the Application Gateway's `ApplicationGatewayTotalTime` (the metric has no percentiles) | The response time is above 1 second over 5 minutes |
+| `<gateway>-unhealthy-hosts` | — (the uptime check covers it) | — (the uptime check covers it) | `UnhealthyHostCount` of the Application Gateway | The gateway has an unhealthy backend (API replica) over 5 minutes |
+| `<load balancer>-uptime` (from build stage 3) | Route 53 health check of `/readyz` (every 30 s, unhealthy after 3 failures), alarm in us-east-1 | Uptime check of `/readyz` (every 60 s, from Google's checker regions) | Application Insights standard test of `/readyz` (every 5 minutes, from 3 locations) | AWS: the health check is unhealthy. Google: more than 1 region fails for 2 minutes. Azure: 2 or more locations fail. Notices the API is down even without traffic |
 | Build results (with the `cicd` feature) | EventBridge rule on the CodeBuild project's state changes (`SUCCEEDED`, `FAILED`, `STOPPED`) to the SNS topic (`buildNotifications`) | Log-match alert policies on the Cloud Build logs: `cloud-build-succeeded` (`DONE`), `cloud-build-failed` (lines starting with `ERROR`); at most one email per 5 minutes each | — (Azure DevOps emails the person who ran the pipeline) | A CI/CD build ends |
 
 The load balancer alerts are written for both the HTTP and the HTTPS load
 balancer of each cloud; only the one that is built gets them, so switching
 between them needs no change in the alerts.
+
+The uptime checks call `/readyz` from the internet at the address of the
+built load balancer (its FQDN with the `dns` feature, else its DNS name or
+IP; the certificate is not checked). They are created only from build stage
+3: before, the placeholder image does not answer `/readyz`. Autoscaling does
+not replace them: it changes the number of replicas with the load, but does
+not report replicas that fail to start or an API that is down without
+traffic.
 
 When an alert fires, look at the API's logs: AWS CloudWatch Logs
 `/aws/ecs/api-service`, Google Cloud Logging (Cloud Run service
@@ -305,9 +316,23 @@ operations guide describes the errors and what to do.
 
 | Cloud | Config | Notification targets | Alarms |
 |---|---|---|---|
-| AWS | `config/aws/monitoring.ts` (`awsAlertingConfig`) | `notificationTargets` (one SNS topic per target, one email subscription per address) | `metricFilters` (log groups from `cloudwatchlogs.ts`), `alarms` |
-| Google Cloud | `config/google/monitoring.ts` (`googleAlertingConfig`) | `notificationTargets` (one email notification channel per address) | `logMetrics`, `alertPolicies` |
-| Azure | `config/azure/azuremonitor.ts` | `azureMonitorConfig.actionGroups` | `azureAlertingConfig.logAlerts` (scheduled query rules, v2 API), `azureAlertingConfig.metricAlerts` |
+| AWS | `config/aws/monitoring.ts` (`awsAlertingConfig`) | `notificationTargets` (one SNS topic per target, one email subscription per address) | `metricFilters` (log groups from `cloudwatchlogs.ts`), `alarms`, `uptimeCheck` |
+| Google Cloud | `config/google/monitoring.ts` (`googleAlertingConfig`) | `notificationTargets` (one email notification channel per address) | `logMetrics`, `alertPolicies`, `uptimeCheck` |
+| Azure | `config/azure/azuremonitor.ts` | `azureMonitorConfig.actionGroups` | `azureAlertingConfig.logAlerts` (scheduled query rules, v2 API), `azureAlertingConfig.metricAlerts`, `azureAlertingConfig.uptimeCheck` |
+
+- Switching alerts off: `enabled: false` on an entry of `alarms` /
+  `alertPolicies` / `metricAlerts` does not create it (default: created);
+  `uptimeCheck.enabled: false` creates no uptime checks for that cloud. The
+  `alerting` feature (commonsettings.ts) switches all of a cloud's alerts off.
+- Uptime check settings: AWS `requestInterval` (30 or 10 seconds) and
+  `failureThreshold`; Google `period`, `timeout`, `selectedRegions`,
+  `failedRegionsAbove` and `duration`; Azure `frequency` (300, 600 or 900
+  seconds), `timeout`, `locationCount` (the first entries of the
+  `geoLocations` candidates, population tags such as `apac-jp-kaw-edge`;
+  Microsoft recommends at least five) and `failedLocationCount` (Microsoft
+  recommends `locationCount - 2`). Azure creates an Application Insights resource
+  (`azureMonitorConfig.applicationInsightsName`) on the Log Analytics
+  Workspace for the tests.
 
 - Alarms reference notification targets by `key` in `notify`. AWS alarms also
   notify on recovery with `notifyOnOk: true`.
@@ -329,6 +354,11 @@ SNS sends a confirmation email to each address after `cdktn deploy`. The
 subscription stays `PendingConfirmation` and receives no alarms until the
 recipient clicks the link in that email. Check the state in the SNS console
 (Topics → the topic → Subscriptions). Terraform cannot confirm subscriptions.
+
+The uptime check alarms use their own topic in us-east-1
+(`<topic>-us-east-1`, from build stage 3), so their subscriptions send
+another confirmation email; check them in the SNS console of US East (N.
+Virginia).
 
 ## Secrets
 

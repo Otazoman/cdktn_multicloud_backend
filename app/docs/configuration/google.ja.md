@@ -185,7 +185,8 @@
 |---|---|---|---|---|
 | `notificationTargets[]` | メールの通知チャネル | `{ key, name?, emails[] }` | `ALERT_EMAILS` を使う `ops` | `name` の既定は `<PROJECT_NAME>-google-alerts-<key>` |
 | `logMetrics[]` | ログベースのメトリクス | `GcpLogMetricDefinition`（`constructs/observability/googlecloudmonitoring.ts` を参照） | `[]` | メトリクスの種類は `logging.googleapis.com/user/<name>` |
-| `alertPolicies[]` | アラートポリシー | `notificationChannels` を除いた `GcpAlertPolicyDefinition` に、`notify?: string[]`、`loadBalancer?: string`、`cicd?: boolean` を加えたもの | API のエラー、削除ジョブの失敗、各リージョンのロードバランサーの 5xx、Cloud Build の結果（`cloud-build-succeeded`、`cloud-build-failed`） | `notify`：`notificationTargets` のキー。`loadBalancer`：`cloudloadbalancing.ts` の名前。そのロードバランサーが作られているときだけ作る。`cicd`：`cicd` が有効なときだけ作る。`logMatchFilter`：しきい値の代わりにログ一致の条件（一致するログごとに 1 通、最短 5 分に 1 通） |
+| `alertPolicies[]` | アラートポリシー | `notificationChannels` を除いた `GcpAlertPolicyDefinition` に、`notify?: string[]`、`loadBalancer?: string`、`cicd?: boolean`、`enabled?: boolean` を加えたもの | API のエラー、削除ジョブの失敗、各リージョンのロードバランサーの 5xx と応答の時間（`total_latencies` の p95 が 1 秒超）、Cloud Build の結果（`cloud-build-succeeded`、`cloud-build-failed`） | `notify`：`notificationTargets` のキー。`loadBalancer`：`cloudloadbalancing.ts` の名前。そのロードバランサーが作られているときだけ作る。`cicd`：`cicd` が有効なときだけ作る。`logMatchFilter`：しきい値の代わりにログ一致の条件（一致するログごとに 1 通、最短 5 分に 1 通）。`enabled: false`：作らない |
+| `uptimeCheck` | 作られているロードバランサーごとに `/readyz` の稼働時間チェックとアラートポリシー（構築の段階 3 から） | `{ enabled, period, timeout, selectedRegions?, failedRegionsAbove, duration, notify[] }` | `true`、`60s`、`10s`、すべてのリージョン、`1`、`120s`、`ops` | `failedRegionsAbove` より多いリージョンで `duration` の間失敗すると通知する（Google の推奨の条件）。`period`：`60s`、`300s`、`600s`、`900s` |
 
 ### ログのアーカイブ（機能 `logArchive`、`googleLogArchiveConfig`）
 

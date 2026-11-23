@@ -28,7 +28,29 @@ export type AwsAlarmConfig = Omit<
   loadBalancer?: string;
   /** Also notify the `notify` targets when the alarm returns to OK. Default: false */
   notifyOnOk?: boolean;
+  /** false: the alarm is not created. Default: true */
+  enabled?: boolean;
 };
+
+/**
+ * Uptime check of the API from the internet: one Route 53 health check of
+ * /readyz per built ALB (its FQDN with the dns feature, else its DNS name),
+ * and an alarm on its HealthCheckStatus. Route 53 health check metrics exist
+ * only in us-east-1, so the alarms and their SNS topics (the `notify`
+ * targets, with their own email subscriptions to confirm) are created there.
+ * Created from build stage 3 (config/buildstage.ts): before, the placeholder
+ * image does not answer /readyz.
+ */
+export interface AwsUptimeCheckConfig {
+  /** false: no health checks. Default: true */
+  enabled: boolean;
+  /** Seconds between checks: 30 (standard) or 10 (fast, charged more) */
+  requestInterval: number;
+  /** Consecutive failures before the endpoint is unhealthy */
+  failureThreshold: number;
+  /** notificationTargets keys */
+  notify: string[];
+}
 
 /**
  * Alerting configuration (created only when `clouds.aws.features.alerting`
@@ -46,6 +68,7 @@ export const awsAlertingConfig: {
    * metrics produced by metricFilters.
    */
   alarms: AwsAlarmConfig[];
+  uptimeCheck: AwsUptimeCheckConfig;
   /**
    * Results of the CI/CD builds (CodeBuild projects that are built, with
    * the cicd feature): EventBridge sends each result to the targets.
@@ -58,6 +81,7 @@ export const awsAlertingConfig: {
   };
 } = {
   notificationTargets: [{ key: "ops", emails: alertEmails }],
+  uptimeCheck: { enabled: true, requestInterval: 30, failureThreshold: 3, notify: ["ops"] },
   buildNotifications: { states: ["SUCCEEDED", "FAILED", "STOPPED"], notify: ["ops"] },
   metricFilters: [
     // Errors the API writes to its log (e.g. "Readiness check failed",
@@ -111,6 +135,22 @@ export const awsAlertingConfig: {
         notify: ["ops"],
       })),
     ),
+    // Response time of the API (seconds until the target starts to answer):
+    // p95 over 5 minutes above 1 second. One per ALB; only the built ALB
+    // gets it.
+    ...["plain-http-alb", "managed-https-alb"].map((alb) => ({
+      enabled: true,
+      alarmName: `${alb}-latency`,
+      loadBalancer: alb,
+      namespace: "AWS/ApplicationELB",
+      metricName: "TargetResponseTime",
+      extendedStatistic: "p95",
+      comparisonOperator: "GreaterThanThreshold" as const,
+      threshold: 1,
+      period: 300,
+      evaluationPeriods: 1,
+      notify: ["ops"],
+    })),
   ],
 };
 

@@ -27,7 +27,32 @@ export type GoogleAlertPolicyConfig = Omit<
   loadBalancer?: string;
   /** Created only when the cicd feature is enabled (build results) */
   cicd?: boolean;
+  /** false: the policy is not created. Default: true */
+  enabled?: boolean;
 };
+
+/**
+ * Uptime check of the API from the internet: one uptime check of /readyz
+ * per built load balancer (its FQDN with the dns feature, else its IP), and
+ * an alert policy on it. Created from build stage 3 (config/buildstage.ts):
+ * before, the placeholder image does not answer /readyz.
+ */
+export interface GoogleUptimeCheckConfig {
+  /** false: no uptime checks. Default: true */
+  enabled: boolean;
+  /** "60s", "300s", "600s" or "900s" */
+  period: string;
+  /** 1 to 60 seconds */
+  timeout: string;
+  /** Checker regions (at least 3 locations). Omitted: all */
+  selectedRegions?: string[];
+  /** The policy fires when more than this many checker regions fail ... */
+  failedRegionsAbove: number;
+  /** ... for this long (e.g. "120s") */
+  duration: string;
+  /** notificationTargets keys */
+  notify: string[];
+}
 
 /**
  * Alerting configuration (created only when `clouds.google.features.alerting`
@@ -38,8 +63,18 @@ export const googleAlertingConfig: {
   /** Log-based metrics usable from alertPolicies (metric type "logging.googleapis.com/user/<name>") */
   logMetrics: GcpLogMetricDefinition[];
   alertPolicies: GoogleAlertPolicyConfig[];
+  uptimeCheck: GoogleUptimeCheckConfig;
 } = {
   notificationTargets: [{ key: "ops", emails: alertEmails }],
+  // More than 1 failing region (as Google's default) for 2 minutes
+  uptimeCheck: {
+    enabled: true,
+    period: "60s",
+    timeout: "10s",
+    failedRegionsAbove: 1,
+    duration: "120s",
+    notify: ["ops"],
+  },
   logMetrics: [
     // Errors the API writes to its log (e.g. "Readiness check failed")
     {
@@ -93,6 +128,31 @@ export const googleAlertingConfig: {
       // Threshold conditions support only GT and LT: more than 9 = 10 or more
       comparison: "COMPARISON_GT" as const,
       thresholdValue: 9,
+      notify: ["ops"],
+    })),
+    // Response time of the API (whole request at the load balancer, ms):
+    // p95 over 5 minutes above 1 second. One per load balancer; only the
+    // built one gets it.
+    ...[
+      { lb: "run-regional-http-lb", forwardingRule: "run-regional-http-lb-http-fw" },
+      { lb: "run-regional-https-lb", forwardingRule: "run-regional-https-lb-https-fw" },
+    ].map(({ lb, forwardingRule }) => ({
+      enabled: true,
+      displayName: `${lb}-latency`,
+      loadBalancer: lb,
+      combiner: "OR" as const,
+      conditionFilter:
+        'metric.type="loadbalancing.googleapis.com/https/external/regional/total_latencies" AND ' +
+        'resource.type="http_external_regional_lb_rule" AND ' +
+        `resource.labels.forwarding_rule_name="${forwardingRule}"`,
+      aggregation: {
+        alignmentPeriod: "300s",
+        perSeriesAligner: "ALIGN_PERCENTILE_95",
+        crossSeriesReducer: "REDUCE_MAX",
+      },
+      duration: "0s",
+      comparison: "COMPARISON_GT" as const,
+      thresholdValue: 1000,
       notify: ["ops"],
     })),
     // Results of the CI/CD builds (Cloud Build): one email per build (log

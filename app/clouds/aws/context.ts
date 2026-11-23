@@ -10,6 +10,8 @@ import { AwsAlbResourcesWithDns, AwsResourcesOutput, AwsVpcResources } from "./t
 export interface AwsBuildContext {
   scope: Construct;
   awsProvider: AwsProvider;
+  /** us-east-1 provider (Route 53 health check alarms), created on first use */
+  awsUsEast1Provider: () => AwsProvider;
   output: AwsResourcesOutput;
   awsVpcResources: AwsVpcResources;
   cloudwatchResources: AwsCloudWatchResources;

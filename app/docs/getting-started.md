@@ -164,6 +164,10 @@ for the resources you enable:
   EventBridge Scheduler schedule): `AmazonEventBridgeSchedulerFullAccess`.
   Without it the deploy fails with `not authorized to perform:
   scheduler:CreateSchedule`
+- **Uptime checks** (`alerting`, from build stage 3: Route 53 health checks,
+  and CloudWatch alarms and SNS topics in us-east-1): the Route 53 health
+  check permissions (e.g. `AmazonRoute53FullAccess`), and the CloudWatch and
+  SNS permissions also in us-east-1
 - **Build result emails** (`alerting` and `cicd`: an EventBridge rule on the
   CodeBuild project, `buildNotifications`): `AmazonEventBridgeFullAccess`.
   Without it the deploy fails with `listing tags for EventBridge Rule ...

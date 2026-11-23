@@ -148,7 +148,7 @@ Azure 全体で一意である必要がある名前は `envScopedName()` を使�
 | `externalEnabled` | 外部からの上り（ingress） | `boolean` | **必須** | |
 | `subnetName` | 委任したサブネット | サブネットの `name` | 内部の環境では**必須** | 公開の環境では `""` |
 | `env[]` | 環境変数 | `{ name, value }` | — | |
-| `minReplicas`、`maxReplicas` | スケーリング | 数値 | `0`、`10` | |
+| `minReplicas`、`maxReplicas` | スケーリング | 数値 | `1`、`10` | 0 だと、しばらくアクセスがなかった後の最初のリクエストが、レプリカの起動を待つ |
 | `scaleRules[]` | スケールのルール | `{ type: "http", name, concurrentRequests }`、`{ type: "cpu" \| "memory", name, utilization }` | HTTP でスケール（レプリカあたり同時リクエスト 10） | CPU / メモリのルールでは 0 までスケールインできない |
 | `cnameRecordName` | `azure.inner` の CNAME | 名前 | — | |
 | `appGwBackendName` | このアプリを指す Application Gateway のバックエンド | バックエンドの `name` | — | |
@@ -247,7 +247,8 @@ cdktn が設定するパイプラインの変数: `AZURE_CLIENT_ID`、`ACR_NAME`
 | 項目名 | 設定する内容 | 設定できる値 | 指定がない場合のデフォルト値 | 備考 |
 |---|---|---|---|---|
 | `logAlerts[]` | ログ検索のアラート | `scopes` / `actionGroups` を除いた `AzureLogAlertDefinition` に、`scopes?`、`notify?: string[]` を加えたもの | `[]` | `notify`: `actionGroups` のキー。`key?` でアドレスを固定する |
-| `metricAlerts[]` | メトリクスのアラート | `scopes` / `actionGroups` を除いた `AzureMetricAlertDefinition` に、`target?: { type: "containerApp" \| "applicationGateway", name }`、`scopes?`、`notify?` を加えたもの。`dimensions?: [{ name, operator, values }]` | 各 Application Gateway の 5xx | `applicationGateway` のアラートは、その Application Gateway が作られているときだけ作る |
+| `metricAlerts[]` | メトリクスのアラート | `scopes` / `actionGroups` を除いた `AzureMetricAlertDefinition` に、`target?: { type: "containerApp" \| "applicationGateway", name }`、`scopes?`、`notify?`、`enabled?` を加えたもの。`dimensions?: [{ name, operator, values }]` | 各 Application Gateway の 5xx、正常でないホスト（`UnhealthyHostCount` が 0 超）、応答の時間（`ApplicationGatewayTotalTime` の平均が 1 秒超） | `applicationGateway` のアラートは、その Application Gateway が作られているときだけ作る。`enabled: false`：作らない |
+| `uptimeCheck` | 作られている Application Gateway ごとに `/readyz` の Application Insights の標準テストとアラート（構築の段階 3 から） | `{ enabled, frequency, timeout, locationCount, failedLocationCount, geoLocations[], notify[] }` | `true`、`300`、`30`、`3`、`2`、東日本から順に 15 の候補、`ops` | Log Analytics ワークスペースの上に Application Insights（`azureMonitorConfig.applicationInsightsName`）を作る。`geoLocations`（場所のタグ、使いたい順）の先頭から `locationCount` 地点でテストし、そのうち `failedLocationCount` 地点で失敗すると通知する。Microsoft は 5 地点以上と、`locationCount - 2` での通知（5 地点なら 3）を推奨。`frequency` が 300・600・900 以外、`locationCount` が 1〜候補の数（最大 16）の外、`failedLocationCount` が 1〜`locationCount` の外、候補の重複のときは、合成がエラーで止まる |
 
 ### ログのアーカイブ（`azureLogArchiveConfig`、機能 `logArchive`）
 

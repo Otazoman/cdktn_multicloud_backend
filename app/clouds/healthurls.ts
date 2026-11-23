@@ -8,6 +8,20 @@ import { API_LIVENESS_PATH } from "./apicontainer";
 // stack: printed after the deploy (output api-health-urls; cdktn output)
 const urlsByStack = new WeakMap<TerraformStack, Record<string, string>>();
 
+/** A load balancer in front of the API (for the uptime checks) */
+export interface ApiHealthTarget {
+  lbName: string;
+  https: boolean;
+  /** FQDN when the cloud's public DNS (dns feature) is on, else the address */
+  address: string;
+}
+const targetsByStack = new WeakMap<TerraformStack, Partial<Record<CloudId, ApiHealthTarget[]>>>();
+
+/** The load balancers recorded by addApiHealthUrl for `cloud` (built ones only) */
+export function apiHealthTargets(scope: Construct, cloud: CloudId): ApiHealthTarget[] {
+  return targetsByStack.get(TerraformStack.of(scope))?.[cloud] ?? [];
+}
+
 /**
  * Records the health check URL of a load balancer. `host` is the load
  * balancer's address (ALB DNS name, IP); its FQDN is used instead when the
@@ -33,4 +47,11 @@ export function addApiHealthUrl(
   }
   const address = isFeatureEnabled(cloud, "dns") && fqdn ? fqdn : host;
   urls[`${cloud}:${lbName}`] = `${https ? "https" : "http"}://${address}${API_LIVENESS_PATH}`;
+
+  let targets = targetsByStack.get(stack);
+  if (!targets) {
+    targets = {};
+    targetsByStack.set(stack, targets);
+  }
+  (targets[cloud] ??= []).push({ lbName, https, address });
 }

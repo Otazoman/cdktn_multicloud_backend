@@ -135,6 +135,7 @@ cdktn が使う IAM ユーザーに、有効にするリソースの権限に加
 
 - **EFS**: `AmazonElasticFileSystemFullAccess`
 - **変更履歴の削除ジョブ**（`apiContainerConfig.journalPrune.enabled`。EventBridge Scheduler のスケジュール）: `AmazonEventBridgeSchedulerFullAccess`。ないと、deploy が `not authorized to perform: scheduler:CreateSchedule` で失敗します
+- **死活監視**（`alerting`。構築の段階 3 から。Route 53 のヘルスチェックと、us-east-1 の CloudWatch のアラームと SNS のトピック）: Route 53 のヘルスチェックの権限（例: `AmazonRoute53FullAccess`）と、us-east-1 でも CloudWatch と SNS を使える権限
 - **ビルドの結果のメール**（`alerting` と `cicd`。CodeBuild のプロジェクトの EventBridge のルール、`buildNotifications`）: `AmazonEventBridgeFullAccess`。ないと、deploy が `listing tags for EventBridge Rule ... AccessDeniedException` で失敗します
 - **CodeBuild / ECR**: `IAMFullAccess` と、次のポリシー
 

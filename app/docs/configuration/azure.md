@@ -149,7 +149,7 @@ Also created without `dbs` when a built Application Gateway has a
 | `externalEnabled` | External ingress | `boolean` | **Required** | |
 | `subnetName` | Delegated subnet | subnet `name` | **Required** for internal | `""` for a public environment |
 | `env[]` | Environment variables | `{ name, value }` | — | |
-| `minReplicas`, `maxReplicas` | Scaling | number | `0`, `10` | |
+| `minReplicas`, `maxReplicas` | Scaling | number | `1`, `10` | With 0, the first request after an idle period waits for a replica to start |
 | `scaleRules[]` | Scale rules | `{ type: "http", name, concurrentRequests }`, `{ type: "cpu" \| "memory", name, utilization }` | HTTP scale (10 concurrent requests per replica) | CPU / memory rules cannot scale to zero |
 | `cnameRecordName` | CNAME in `azure.inner` | name | — | |
 | `appGwBackendName` | Backend of an Application Gateway that points to this app | backend `name` | — | |
@@ -259,7 +259,8 @@ Pipeline variables set by cdktn: `AZURE_CLIENT_ID`, `ACR_NAME`, `ACR_LOGIN_SERVE
 | Item | Description | Allowed values | Default | Notes |
 |---|---|---|---|---|
 | `logAlerts[]` | Log search alerts | `AzureLogAlertDefinition` without `scopes` / `actionGroups`, plus `scopes?`, `notify?: string[]` | `[]` | `notify`: `actionGroups` keys. `key?` fixes the address |
-| `metricAlerts[]` | Metric alerts | `AzureMetricAlertDefinition` without `scopes` / `actionGroups`, plus `target?: { type: "containerApp" \| "applicationGateway", name }`, `scopes?`, `notify?`; `dimensions?: [{ name, operator, values }]` | 5xx of each Application Gateway | An `applicationGateway` alert is created only when that gateway is built. | See `constructs/observability/azuremonitor.ts` for the fields |
+| `metricAlerts[]` | Metric alerts | `AzureMetricAlertDefinition` without `scopes` / `actionGroups`, plus `target?: { type: "containerApp" \| "applicationGateway", name }`, `scopes?`, `notify?`, `enabled?`; `dimensions?: [{ name, operator, values }]` | 5xx, unhealthy hosts (`UnhealthyHostCount` above 0) and latency (average `ApplicationGatewayTotalTime` above 1 s) of each Application Gateway | An `applicationGateway` alert is created only when that gateway is built. `enabled: false`: not created |
+| `uptimeCheck` | Application Insights standard test of `/readyz` per built Application Gateway and its alert (from build stage 3) | `{ enabled, frequency, timeout, locationCount, failedLocationCount, geoLocations[], notify[] }` | `true`, `300`, `30`, `3`, `2`, 15 candidates from Japan East, `ops` | Creates Application Insights (`azureMonitorConfig.applicationInsightsName`) on the Log Analytics Workspace. Tests from the first `locationCount` entries of `geoLocations` (population tags, in order of preference); alerts when `failedLocationCount` of them fail. Microsoft recommends at least five locations and an alert at `locationCount - 2` (3 of 5). The synthesis stops on `frequency` other than 300, 600 or 900, `locationCount` outside 1 to the candidates (at most 16), `failedLocationCount` outside 1 to `locationCount`, or duplicate candidates | See `constructs/observability/azuremonitor.ts` for the fields |
 
 ### Log archive (`azureLogArchiveConfig`, feature `logArchive`)
 

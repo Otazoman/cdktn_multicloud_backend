@@ -1,10 +1,19 @@
+import { buildStage } from "../../config/buildstage";
 import { isFeatureEnabled } from "../../config/features";
-import { PROJECT_NAME, gcpLbConfigs, googleAlertingConfig } from "../../config/google/googlesettings";
+import {
+  GoogleAlertPolicyConfig,
+  PROJECT_NAME,
+  gcpLbConfigs,
+  googleAlertingConfig,
+} from "../../config/google/googlesettings";
 import {
   GcpMonitoringResources,
   GcpNotificationChannelDefinition,
 } from "../../constructs/observability/googlecloudmonitoring";
+import { createGcpUptimeCheck } from "../../constructs/observability/googleuptime";
 import { resourceName } from "../../utils/naming";
+import { API_READINESS_PATH } from "../apicontainer";
+import { apiHealthTargets } from "../healthurls";
 import { GoogleBuildContext } from "./context";
 
 /** 10. Notification channels, log-based metrics and alert policies (feature: alerting) */
@@ -32,11 +41,51 @@ export function createGoogleMonitoring(ctx: GoogleBuildContext): void {
     });
   });
 
+  // Uptime checks of /readyz per built load balancer, from build stage 3
+  // (before, the placeholder image does not answer /readyz)
+  const uptime = googleAlertingConfig.uptimeCheck;
+  const uptimePolicies: GoogleAlertPolicyConfig[] =
+    uptime.enabled && buildStage() >= 3
+      ? apiHealthTargets(scope, "google").map((target) => {
+          const check = createGcpUptimeCheck(scope, googleProvider, {
+            key: target.lbName,
+            displayName: `${target.lbName}-readyz`,
+            projectId: PROJECT_NAME,
+            host: target.address,
+            https: target.https,
+            path: API_READINESS_PATH,
+            period: uptime.period,
+            timeout: uptime.timeout,
+            selectedRegions: uptime.selectedRegions,
+          });
+          // Google's recommended condition: the number of failing checker
+          // regions (REDUCE_COUNT_FALSE)
+          return {
+            displayName: `${target.lbName}-uptime`,
+            combiner: "OR" as const,
+            conditionFilter:
+              'metric.type="monitoring.googleapis.com/uptime_check/check_passed" AND ' +
+              `metric.label.check_id="${check.uptimeCheckId}" AND resource.type="uptime_url"`,
+            aggregation: {
+              alignmentPeriod: uptime.period,
+              perSeriesAligner: "ALIGN_NEXT_OLDER",
+              crossSeriesReducer: "REDUCE_COUNT_FALSE",
+              groupByFields: ["resource.label.*"],
+            },
+            duration: uptime.duration,
+            comparison: "COMPARISON_GT" as const,
+            thresholdValue: uptime.failedRegionsAbove,
+            notify: uptime.notify,
+          };
+        })
+      : [];
+
   new GcpMonitoringResources(scope, "google-alerting-monitoring", googleProvider, {
     projectId: PROJECT_NAME,
     logMetrics: googleAlertingConfig.logMetrics,
     notificationChannels,
-    alertPolicies: googleAlertingConfig.alertPolicies
+    alertPolicies: [...googleAlertingConfig.alertPolicies, ...uptimePolicies]
+      .filter(({ enabled }) => enabled !== false)
       // Policies of a load balancer only while it is built (HTTP and HTTPS
       // load balancers are alternatives)
       .filter(
@@ -47,7 +96,7 @@ export function createGoogleMonitoring(ctx: GoogleBuildContext): void {
       )
       // Build results only with CI/CD
       .filter(({ cicd }) => !cicd || isFeatureEnabled("google", "cicd"))
-      .map(({ notify, loadBalancer: _loadBalancer, cicd: _cicd, ...policy }) => ({
+      .map(({ notify, loadBalancer: _loadBalancer, cicd: _cicd, enabled: _enabled, ...policy }) => ({
         ...policy,
         notificationChannels: notify?.flatMap((key) => {
           const names = channelNamesByKey[key];

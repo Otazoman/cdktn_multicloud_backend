@@ -75,7 +75,9 @@ export const azureAcaConfigs: AzureAcaSettings[] = [
     internal: true,
     externalEnabled: true,
     subnetName: "aca-subnet",
-    minReplicas: 0,
+    // At least one replica: with 0, the first request after an idle period
+    // waits for a replica to start
+    minReplicas: 1,
     maxReplicas: 10,
     cnameRecordName: "api-backend",
     appGwBackendName: "http-backend-pool",

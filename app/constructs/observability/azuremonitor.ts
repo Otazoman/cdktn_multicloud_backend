@@ -90,17 +90,28 @@ export interface AzureMetricAlertDefinition {
   key?: string;
   name: string;
   scopes: string[];
-  metricNamespace: string;
-  metricName: string;
-  aggregation: "Average" | "Minimum" | "Maximum" | "Total" | "Count";
+  /** Metric criteria: required unless webTestAvailability is set */
+  metricNamespace?: string;
+  metricName?: string;
+  aggregation?: "Average" | "Minimum" | "Maximum" | "Total" | "Count";
   /** The values of azurerm_monitor_metric_alert criteria.operator */
-  operator:
+  operator?:
     | "Equals"
     | "GreaterThan"
     | "GreaterThanOrEqual"
     | "LessThan"
     | "LessThanOrEqual";
-  threshold: number;
+  threshold?: number;
+  /**
+   * Availability test criteria instead of a metric: fires when at least
+   * failedLocationCount test locations fail. `scopes` must hold the web
+   * test and the Application Insights resource.
+   */
+  webTestAvailability?: {
+    webTestId: string;
+    componentId: string;
+    failedLocationCount: number;
+  };
   frequency: string;
   windowSize: string;
   /** Dimension filters of the metric (e.g. HttpStatusGroup "5xx") */
@@ -303,6 +314,15 @@ export class AzureMonitorResources extends Construct {
     if (config.metricAlerts) {
       config.metricAlerts.forEach((metricDef) => {
         const sanitizedId = (metricDef.key ?? metricDef.name).replace(/[^a-zA-Z0-9]/g, "-");
+        const { metricNamespace, metricName, aggregation, operator, threshold } = metricDef;
+        if (
+          !metricDef.webTestAvailability &&
+          (!metricNamespace || !metricName || !aggregation || !operator || threshold === undefined)
+        ) {
+          throw new Error(
+            `Metric alert "${metricDef.name}": set webTestAvailability, or metricNamespace, metricName, aggregation, operator and threshold`,
+          );
+        }
 
         const resolvedActionGroupIds: string[] = [];
         if (metricDef.actionGroups) {
@@ -327,16 +347,20 @@ export class AzureMonitorResources extends Construct {
             action: resolvedActionGroupIds.map((id) => ({
               actionGroupId: id,
             })),
-            criteria: [
-              {
-                metricNamespace: metricDef.metricNamespace,
-                metricName: metricDef.metricName,
-                aggregation: metricDef.aggregation,
-                operator: metricDef.operator,
-                threshold: metricDef.threshold,
-                dimension: metricDef.dimensions,
-              },
-            ],
+            ...(metricDef.webTestAvailability
+              ? { applicationInsightsWebTestLocationAvailabilityCriteria: metricDef.webTestAvailability }
+              : {
+                  criteria: [
+                    {
+                      metricNamespace: metricNamespace!,
+                      metricName: metricName!,
+                      aggregation: aggregation!,
+                      operator: operator!,
+                      threshold: threshold!,
+                      dimension: metricDef.dimensions,
+                    },
+                  ],
+                }),
           },
         );
 
